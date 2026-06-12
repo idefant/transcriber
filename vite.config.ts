@@ -11,7 +11,7 @@ export default defineConfig({
         lintCommand: 'eslint "./src/**/*.{ts,tsx}" "./*.{js,ts}"',
       },
       overlay: {
-        initialIsOpen: false,
+        initialIsOpen: true,
         position: 'br',
       },
       stylelint: {

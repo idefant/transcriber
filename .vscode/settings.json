@@ -5,7 +5,28 @@
   },
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
-  "eslint.experimental.useFlatConfig": true,
+  "css.validate": false,
+  "eslint.rules.customizations": [
+    {
+      "rule": "*",
+      "severity": "warn"
+    }
+  ],
+  "eslint.useESLintClass": true,
+  "eslint.useFlatConfig": true,
   "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+  "less.validate": false,
+  "scss.validate": false,
+  "stylelint.config": null,
+  "stylelint.configBasedir": ".",
+  "stylelint.configFile": "./.stylelintrc",
+  "stylelint.packageManager": "npm",
+  "stylelint.rules.customizations": [
+    {
+      "rule": "*",
+      "severity": "warn"
+    }
+  ],
+  "stylelint.stylelintPath": "./node_modules/stylelint",
   "stylelint.validate": ["css", "scss"]
 }
