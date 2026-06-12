@@ -1,0 +1,29 @@
+import react from '@vitejs/plugin-react';
+import { fileURLToPath, URL } from 'node:url';
+import { defineConfig } from 'vite';
+import checker from 'vite-plugin-checker';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    checker({
+      eslint: {
+        lintCommand: 'eslint "./src/**/*.{ts,tsx}" "./*.{js,ts}"',
+      },
+      overlay: {
+        initialIsOpen: false,
+        position: 'br',
+      },
+      stylelint: {
+        lintCommand: 'stylelint "src/**/*.{css,scss}"',
+      },
+      terminal: true,
+      typescript: true,
+    }),
+  ],
+  resolve: {
+    alias: {
+      '#': fileURLToPath(new URL('src', import.meta.url)),
+    },
+  },
+});

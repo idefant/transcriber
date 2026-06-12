@@ -1,0 +1,20 @@
+.page {
+  display: grid;
+  gap: 16px;
+  place-items: start;
+  align-content: center;
+  min-height: calc(100vh - 200px);
+}
+
+.code {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 900;
+  color: #2f766f;
+}
+
+.title {
+  margin: 0 0 12px;
+  font-size: clamp(2.25rem, 6vw, 4rem);
+  color: #18202c;
+}

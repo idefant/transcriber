@@ -1,0 +1,42 @@
+.page {
+  display: grid;
+  gap: 32px;
+}
+
+.header {
+  max-width: 760px;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #2f766f;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  line-height: 1;
+  color: #18202c;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.item {
+  min-height: 72px;
+  padding: 22px;
+  font-weight: 800;
+  color: #263241;
+  background: rgb(255 255 255 / 80%);
+  border: 1px solid rgb(24 32 44 / 12%);
+  border-radius: 8px;
+}

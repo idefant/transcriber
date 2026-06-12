@@ -1,0 +1,20 @@
+module.exports = {
+  extends: ['stylelint-config-standard-scss', 'stylelint-config-recess-order'],
+  ignoreFiles: ['dist/**/*', 'coverage/**/*'],
+  rules: {
+    'at-rule-empty-line-before': [
+      'always',
+      {
+        except: ['blockless-after-same-name-blockless', 'first-nested'],
+        ignore: ['after-comment'],
+      },
+    ],
+    'custom-property-pattern': null,
+    'selector-class-pattern': [
+      '^[a-z][a-zA-Z0-9]+$',
+      {
+        message: 'Expected CSS module class names to be camelCase',
+      },
+    ],
+  },
+};
