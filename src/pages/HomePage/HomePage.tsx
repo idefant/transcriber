@@ -1,10 +1,11 @@
 import { Link } from 'react-router';
+import type { FC } from 'react';
 
-import { Button } from '#/ui/Button';
+import Button from '#/ui/Button';
 
 import styles from './HomePage.module.scss';
 
-export function HomePage() {
+const HomePage: FC = () => {
   return (
     <section className={styles.page}>
       <div className={styles.intro}>
@@ -20,4 +21,6 @@ export function HomePage() {
       </div>
     </section>
   );
-}
+};
+
+export default HomePage;

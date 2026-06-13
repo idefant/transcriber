@@ -1,3 +1,5 @@
+import type { FC } from 'react';
+
 import styles from './AboutPage.module.scss';
 
 const setupItems = [
@@ -9,7 +11,7 @@ const setupItems = [
   'Husky',
 ];
 
-export function AboutPage() {
+const AboutPage: FC = () => {
   return (
     <section className={styles.page}>
       <div className={styles.header}>
@@ -25,4 +27,6 @@ export function AboutPage() {
       </ul>
     </section>
   );
-}
+};
+
+export default AboutPage;

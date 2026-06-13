@@ -1,17 +1,20 @@
-import type { ComponentPropsWithoutRef, ElementType, ReactNode } from 'react';
+import type { ComponentPropsWithoutRef, ElementType, ReactElement, ReactNode } from 'react';
 
 import styles from './Button.module.scss';
 
-type ButtonProps<TElement extends ElementType> = {
+interface ButtonProps<TElement extends ElementType> {
   as?: TElement;
   children: ReactNode;
-} & Omit<ComponentPropsWithoutRef<TElement>, 'as' | 'children' | 'className'>;
+}
 
-export function Button<TElement extends ElementType = 'button'>({
-  as,
-  children,
-  ...props
-}: ButtonProps<TElement>) {
+type PolymorphicButtonProps<TElement extends ElementType> = ButtonProps<TElement> &
+  Omit<ComponentPropsWithoutRef<TElement>, 'as' | 'children' | 'className'>;
+
+type ButtonComponent = <TElement extends ElementType = 'button'>(
+  props: PolymorphicButtonProps<TElement>,
+) => ReactElement | null;
+
+const Button: ButtonComponent = ({ as, children, ...props }) => {
   const Component = as ?? 'button';
 
   return (
@@ -19,4 +22,6 @@ export function Button<TElement extends ElementType = 'button'>({
       {children}
     </Component>
   );
-}
+};
+
+export default Button;

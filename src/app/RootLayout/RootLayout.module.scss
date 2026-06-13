@@ -1,0 +1,37 @@
+.root {
+  min-height: 100vh;
+}
+
+.sider {
+  min-height: 100vh;
+  border-inline-end: 1px solid rgb(5 5 5 / 6%);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  min-height: 64px;
+  padding: 0 24px;
+  font-size: 1.125rem;
+  font-weight: 800;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  height: 64px;
+  padding: 0 32px;
+  border-bottom: 1px solid;
+}
+
+.title {
+  margin: 0;
+}
+
+.content {
+  display: grid;
+  gap: 24px;
+  align-content: start;
+  min-height: calc(100vh - 64px);
+  padding: 32px;
+}

@@ -117,5 +117,11 @@ export default tseslint.config(
       'unicorn/no-null': 'off',
     },
   },
+  {
+    files: ['**/index.ts'],
+    rules: {
+      'unicorn/prefer-export-from': 'off',
+    },
+  },
   eslintConfigPrettier,
 );
