@@ -1,0 +1,192 @@
+.page {
+  display: grid;
+  grid-template-columns: minmax(520px, 1fr) 420px;
+  column-gap: 24px;
+  justify-content: space-between;
+  min-height: calc(100vh - 64px);
+  margin: -32px -32px -32px 0;
+
+  @media (width <= 1280px) {
+    grid-template-columns: minmax(520px, 1fr) 300px;
+  }
+}
+
+.historyCard {
+  align-self: start;
+  min-width: 0;
+  margin: 32px 0;
+}
+
+.toolbar {
+  display: flex;
+  margin-bottom: 16px;
+}
+
+.monthPicker {
+  width: 120px;
+}
+
+.records {
+  display: grid;
+  gap: 8px;
+}
+
+.record,
+.recordActive {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) max-content;
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+  padding: 10px 12px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+
+  &:hover {
+    background: rgb(22 119 255 / 8%);
+    border-color: rgb(22 119 255 / 18%);
+  }
+}
+
+.recordActive {
+  background: rgb(22 119 255 / 8%);
+  border-color: rgb(22 119 255 / 18%);
+}
+
+.recordTime {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  color: rgb(0 0 0 / 45%);
+}
+
+.recordText {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.recordActions {
+  opacity: 0.78;
+}
+
+.detailsSlot {
+  position: sticky;
+  top: 0;
+  min-height: calc(100vh - 64px);
+}
+
+.detailsPanel {
+  height: calc(100vh - 64px);
+  overflow: auto;
+  border-radius: 0;
+}
+
+.detailsHeader,
+.sectionHeader {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.detailsTitle {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.sectionTitle {
+  margin: 0;
+}
+
+.audioSection {
+  display: grid;
+  grid-template-columns: max-content 1fr max-content;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 0;
+  border-top: 1px solid rgb(5 5 5 / 6%);
+
+  &:first-of-type {
+    margin-top: 16px;
+  }
+
+  @media (width <= 1100px) {
+    grid-template-columns: max-content 1fr;
+  }
+}
+
+.audioDuration {
+  color: rgb(0 0 0 / 65%);
+}
+
+.audioActions {
+  @media (width <= 1100px) {
+    grid-column: 1 / -1;
+  }
+}
+
+.detailsSection {
+  display: grid;
+  gap: 12px;
+  padding: 18px 0;
+  border-top: 1px solid rgb(5 5 5 / 6%);
+}
+
+.metaList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  margin: 0;
+
+  div {
+    display: grid;
+    gap: 2px;
+  }
+
+  dt {
+    color: rgb(0 0 0 / 45%);
+  }
+
+  dd {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  @media (width <= 1280px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.transcriptText {
+  padding: 12px;
+  margin: 0;
+  line-height: 1.6;
+  background: rgb(5 5 5 / 4%);
+  border-radius: 8px;
+}
+
+.spinIcon {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
