@@ -1,0 +1,29 @@
+.providerCard {
+  display: grid;
+  gap: 12px;
+}
+
+.providerRadioGroup {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.advancedToggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: max-content;
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.modelActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.headersInput {
+  min-height: 120px;
+  resize: vertical;
+}

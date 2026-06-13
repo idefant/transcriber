@@ -1,0 +1,42 @@
+.settingRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 24px;
+  align-items: center;
+  min-height: 48px;
+
+  @media (width <= 720px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
+.text {
+  display: grid;
+  gap: 4px;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.description {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: rgb(0 0 0 / 45%);
+}
+
+.control {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 160px;
+
+  @media (width <= 720px) {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+}

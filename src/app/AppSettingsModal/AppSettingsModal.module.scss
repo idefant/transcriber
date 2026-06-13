@@ -15,34 +15,3 @@
   gap: 20px;
   align-content: start;
 }
-
-.section {
-  display: grid;
-  gap: 16px;
-}
-
-.fieldGrid {
-  display: grid;
-  gap: 16px;
-}
-
-.providerActions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.providerCard {
-  display: grid;
-  gap: 12px;
-}
-
-.modelActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.headersInput {
-  min-height: 120px;
-  resize: vertical;
-}

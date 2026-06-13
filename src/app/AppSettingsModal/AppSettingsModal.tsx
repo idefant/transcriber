@@ -1,62 +1,33 @@
-import { type FC, useMemo, useState } from 'react';
-import {
-  Button,
-  Form,
-  Input,
-  List,
-  Menu,
-  type MenuProps,
-  Modal,
-  Radio,
-  Segmented,
-  Select,
-  Space,
-  Switch,
-  Table,
-  type TableColumnsType,
-  Typography,
-} from 'antd';
+import { type FC, useState } from 'react';
+import { Menu, type MenuProps, Modal } from 'antd';
 import {
   BookOpenIcon,
-  CheckCircleIcon,
   KeyboardIcon,
-  PlusIcon,
   SettingsIcon,
   SlidersHorizontalIcon,
-  SparklesIcon,
-  StarIcon,
   WandSparklesIcon,
 } from 'lucide-react';
 
-import { useAppTheme } from '#/app/themeContext';
+import { defaultProviders, providerModels, providerOptions } from './constants';
+import GeneralSettingsTab from './GeneralSettingsTab';
+import HotkeysSettingsTab from './HotkeysSettingsTab';
+import PostProcessingSettingsTab from './PostProcessingSettingsTab';
+import ProviderSettingsModal from './ProviderSettingsModal';
+import ProvidersSettingsTab from './ProvidersSettingsTab';
+import SpeechToTextSettingsTab from './SpeechToTextSettingsTab';
+import type {
+  ProviderConfig,
+  ProviderKind,
+  SettingsSectionKey,
+  TriggerMode,
+  UiLanguage,
+} from './types';
 
 import styles from './AppSettingsModal.module.scss';
-
-type SettingsSectionKey = 'general' | 'hotkeys' | 'providers' | 'speechToText' | 'postProcessing';
-type ProviderKind = 'custom' | 'grok' | 'openai' | 'openrouter';
-type TriggerMode = 'hold' | 'press';
-type UiLanguage = 'en' | 'ru';
 
 interface AppSettingsModalProps {
   open: boolean;
   onClose: () => void;
-}
-
-interface ProviderConfig {
-  id: string;
-  keyPreview: string;
-  name: string;
-  provider: Exclude<ProviderKind, 'custom'> | 'custom';
-}
-
-interface ProviderOption {
-  label: string;
-  value: ProviderKind;
-}
-
-interface ModelInfo {
-  description: string;
-  name: string;
 }
 
 const settingsMenuItems: MenuProps['items'] = [
@@ -87,138 +58,82 @@ const settingsMenuItems: MenuProps['items'] = [
   },
 ];
 
-const providerOptions: ProviderOption[] = [
-  {
-    label: 'OpenAI',
-    value: 'openai',
-  },
-  {
-    label: 'Grok',
-    value: 'grok',
-  },
-  {
-    label: 'OpenRouter',
-    value: 'openrouter',
-  },
-  {
-    label: 'Custom (совместимый с OpenAI)',
-    value: 'custom',
-  },
-];
-
-const providerModels: Record<ProviderKind, ModelInfo[]> = {
-  custom: [
-    {
-      description: 'Модель будет загружена из пользовательского OpenAI-compatible endpoint.',
-      name: 'custom-model',
-    },
-  ],
-  grok: [
-    {
-      description: 'Быстрая модель для черновой транскрибации и коротких аудио.',
-      name: 'grok-stt-beta',
-    },
-    {
-      description: 'Модель для более точного распознавания речи в длинных записях.',
-      name: 'grok-stt-large',
-    },
-  ],
-  openai: [
-    {
-      description: 'Универсальная модель распознавания речи.',
-      name: 'gpt-4o-transcribe',
-    },
-    {
-      description: 'Лёгкая модель для быстрых транскрибаций.',
-      name: 'gpt-4o-mini-transcribe',
-    },
-  ],
-  openrouter: [
-    {
-      description: 'Маршрутизируемая модель распознавания речи через OpenRouter.',
-      name: 'openrouter/auto-stt',
-    },
-    {
-      description: 'Резервная модель для аудио с шумом.',
-      name: 'openrouter/stt-balanced',
-    },
-  ],
-};
-
-const defaultProviders: ProviderConfig[] = [
-  {
-    id: 'openai-default',
-    keyPreview: 'sk-...42f9',
-    name: 'OpenAI Gateway',
-    provider: 'openai',
-  },
-];
-
 const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
   const [activeSection, setActiveSection] = useState<SettingsSectionKey>('general');
   const [uiLanguage, setUiLanguage] = useState<UiLanguage>('ru');
+  const [areDictationSoundsEnabled, setAreDictationSoundsEnabled] = useState(true);
   const [hotkey, setHotkey] = useState('Ctrl + Shift + Space');
   const [triggerMode, setTriggerMode] = useState<TriggerMode>('press');
   const [providers, setProviders] = useState<ProviderConfig[]>(defaultProviders);
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
+  const [editingProviderId, setEditingProviderId] = useState<string>();
   const [selectedProvider, setSelectedProvider] = useState<ProviderKind>('openai');
   const [areAdvancedSettingsEnabled, setAreAdvancedSettingsEnabled] = useState(false);
   const [isModelListVisible, setIsModelListVisible] = useState(false);
   const [favoriteModels, setFavoriteModels] = useState<Set<string>>(() => new Set());
-  const { isDarkMode, setIsDarkMode } = useAppTheme();
 
   const selectedProviderLabel = providerOptions.find(
     ({ value }) => value === selectedProvider,
   )?.label;
   const canUseAdvancedSettings = selectedProvider !== 'custom';
-  const modelRows = providerModels[selectedProvider];
+  const isEditingProvider = editingProviderId !== undefined;
 
-  const modelColumns = useMemo<TableColumnsType<ModelInfo>>(
-    () => [
-      {
-        dataIndex: 'name',
-        title: 'Модель',
-      },
-      {
-        dataIndex: 'description',
-        title: 'Описание',
-      },
-      {
-        render: (_, model) => {
-          const isFavorite = favoriteModels.has(model.name);
+  const handleOpenProviderModal = (provider?: ProviderConfig) => {
+    setEditingProviderId(provider?.id);
+    setSelectedProvider(provider?.provider ?? 'openai');
+    setAreAdvancedSettingsEnabled(false);
+    setIsModelListVisible(false);
+    setIsProviderModalOpen(true);
+  };
 
-          return (
-            <Button
-              aria-label={isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}
-              icon={
-                <StarIcon fill={isFavorite ? 'currentColor' : 'none'} size={18} strokeWidth={2} />
-              }
-              type={isFavorite ? 'primary' : 'text'}
-              onClick={() => {
-                setFavoriteModels((currentFavorites) => {
-                  const nextFavorites = new Set(currentFavorites);
+  const handleCloseProviderModal = () => {
+    setIsProviderModalOpen(false);
+  };
 
-                  if (nextFavorites.has(model.name)) {
-                    nextFavorites.delete(model.name);
-                    return nextFavorites;
-                  }
+  const handleProviderChange = (provider: ProviderKind) => {
+    setSelectedProvider(provider);
+    setAreAdvancedSettingsEnabled(false);
+    setIsModelListVisible(false);
+  };
 
-                  nextFavorites.add(model.name);
-                  return nextFavorites;
-                });
-              }}
-            />
-          );
-        },
-        title: 'Избранное',
-        width: 120,
-      },
-    ],
-    [favoriteModels],
-  );
+  const handleDeleteProvider = (providerId: string) => {
+    setProviders((currentProviders) =>
+      currentProviders.filter((provider) => provider.id !== providerId),
+    );
+  };
 
-  const handleAddProvider = () => {
+  const handleFavoriteModelToggle = (modelName: string) => {
+    setFavoriteModels((currentFavorites) => {
+      const nextFavorites = new Set(currentFavorites);
+
+      if (nextFavorites.has(modelName)) {
+        nextFavorites.delete(modelName);
+        return nextFavorites;
+      }
+
+      nextFavorites.add(modelName);
+      return nextFavorites;
+    });
+  };
+
+  const handleSaveProvider = () => {
     const providerLabel = selectedProviderLabel ?? 'Custom';
+
+    if (isEditingProvider) {
+      setProviders((currentProviders) =>
+        currentProviders.map((provider) =>
+          provider.id === editingProviderId
+            ? {
+                ...provider,
+                name: providerLabel,
+                provider: selectedProvider,
+              }
+            : provider,
+        ),
+      );
+      setIsProviderModalOpen(false);
+      return;
+    }
 
     setProviders((currentProviders) => [
       ...currentProviders,
@@ -236,128 +151,45 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
     switch (activeSection) {
       case 'general': {
         return (
-          <div className={styles.section}>
-            <Typography.Title level={4}>Основное</Typography.Title>
-            <Form layout="vertical">
-              <Form.Item label="Тема">
-                <Segmented
-                  options={[
-                    {
-                      label: 'Светлая',
-                      value: 'light',
-                    },
-                    {
-                      label: 'Темная',
-                      value: 'dark',
-                    },
-                  ]}
-                  value={isDarkMode ? 'dark' : 'light'}
-                  onChange={(value) => {
-                    setIsDarkMode(value === 'dark');
-                  }}
-                />
-              </Form.Item>
-              <Form.Item label="Язык UI">
-                <Select
-                  value={uiLanguage}
-                  options={[
-                    {
-                      label: 'Русский',
-                      value: 'ru',
-                    },
-                    {
-                      label: 'English',
-                      value: 'en',
-                    },
-                  ]}
-                  onChange={setUiLanguage}
-                />
-              </Form.Item>
-            </Form>
-          </div>
+          <GeneralSettingsTab
+            areDictationSoundsEnabled={areDictationSoundsEnabled}
+            uiLanguage={uiLanguage}
+            onDictationSoundsEnabledChange={setAreDictationSoundsEnabled}
+            onUiLanguageChange={setUiLanguage}
+          />
         );
       }
 
       case 'hotkeys': {
         return (
-          <div className={styles.section}>
-            <Typography.Title level={4}>Хоткеи</Typography.Title>
-            <Form layout="vertical">
-              <Form.Item label="Хоткей для старта записи">
-                <Input
-                  value={hotkey}
-                  onChange={(event) => {
-                    setHotkey(event.target.value);
-                  }}
-                />
-              </Form.Item>
-              <Form.Item label="Режим запуска">
-                <Radio.Group
-                  value={triggerMode}
-                  onChange={(event) => {
-                    setTriggerMode(event.target.value as TriggerMode);
-                  }}
-                >
-                  <Radio.Button value="press">По нажатию</Radio.Button>
-                  <Radio.Button value="hold">По зажатию комбинации</Radio.Button>
-                </Radio.Group>
-              </Form.Item>
-            </Form>
-          </div>
+          <HotkeysSettingsTab
+            hotkey={hotkey}
+            triggerMode={triggerMode}
+            onHotkeyChange={setHotkey}
+            onTriggerModeChange={setTriggerMode}
+          />
         );
       }
 
       case 'providers': {
         return (
-          <div className={styles.section}>
-            <Typography.Title level={4}>Провайдеры</Typography.Title>
-            <Typography.Paragraph>
-              Здесь будут общие настройки подключенных провайдеров распознавания и обработки.
-            </Typography.Paragraph>
-          </div>
+          <ProvidersSettingsTab
+            providers={providers}
+            onAddProvider={() => {
+              handleOpenProviderModal();
+            }}
+            onDeleteProvider={handleDeleteProvider}
+            onEditProvider={handleOpenProviderModal}
+          />
         );
       }
 
       case 'speechToText': {
-        return (
-          <div className={styles.section}>
-            <Typography.Title level={4}>Speech-to-Text</Typography.Title>
-            <List
-              bordered
-              dataSource={providers}
-              renderItem={(provider) => (
-                <List.Item>
-                  <List.Item.Meta
-                    title={provider.name}
-                    description={`Провайдер: ${provider.provider}; ключ: ${provider.keyPreview}`}
-                  />
-                </List.Item>
-              )}
-            />
-            <div className={styles.providerActions}>
-              <Button
-                icon={<PlusIcon size={18} strokeWidth={2} />}
-                type="primary"
-                onClick={() => {
-                  setIsProviderModalOpen(true);
-                }}
-              >
-                Добавить провайдера
-              </Button>
-            </div>
-          </div>
-        );
+        return <SpeechToTextSettingsTab />;
       }
 
       case 'postProcessing': {
-        return (
-          <div className={styles.section}>
-            <Typography.Title level={4}>Постобработка</Typography.Title>
-            <Typography.Paragraph>
-              Настройки постобработки появятся здесь после подключения первого сценария.
-            </Typography.Paragraph>
-          </div>
-        );
+        return <PostProcessingSettingsTab />;
       }
     }
   };
@@ -379,99 +211,25 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
         </div>
       </Modal>
 
-      <Modal
-        okText="Добавить"
+      <ProviderSettingsModal
+        areAdvancedSettingsEnabled={areAdvancedSettingsEnabled}
+        canUseAdvancedSettings={canUseAdvancedSettings}
+        favoriteModels={favoriteModels}
+        isModelListVisible={isModelListVisible}
+        modelRows={providerModels[selectedProvider]}
+        okText={isEditingProvider ? 'Сохранить' : 'Добавить'}
         open={isProviderModalOpen}
-        title="Добавить провайдера"
-        width={760}
-        onCancel={() => {
-          setIsProviderModalOpen(false);
+        selectedProvider={selectedProvider}
+        title={isEditingProvider ? 'Редактировать провайдера' : 'Добавить провайдера'}
+        onAdvancedSettingsEnabledChange={setAreAdvancedSettingsEnabled}
+        onCancel={handleCloseProviderModal}
+        onFavoriteModelToggle={handleFavoriteModelToggle}
+        onModelListVisibleToggle={() => {
+          setIsModelListVisible((isVisible) => !isVisible);
         }}
-        onOk={handleAddProvider}
-      >
-        <div className={styles.providerCard}>
-          <Form layout="vertical">
-            <Form.Item label="Провайдер">
-              <Select
-                value={selectedProvider}
-                options={providerOptions}
-                onChange={(value) => {
-                  setSelectedProvider(value);
-                  setAreAdvancedSettingsEnabled(false);
-                  setIsModelListVisible(false);
-                }}
-              />
-            </Form.Item>
-
-            {selectedProvider === 'custom' ? (
-              <div className={styles.fieldGrid}>
-                <Form.Item label="URL">
-                  <Input placeholder="https://api.example.com/v1" />
-                </Form.Item>
-                <Form.Item label="Токен">
-                  <Input.Password placeholder="Введите токен" />
-                </Form.Item>
-                <Form.Item label="Заголовки запроса">
-                  <Input.TextArea
-                    className={styles.headersInput}
-                    placeholder="X-Api-Gateway: transcriber&#10;X-Workspace: default"
-                  />
-                </Form.Item>
-              </div>
-            ) : (
-              <div className={styles.fieldGrid}>
-                <Form.Item label="Ключ">
-                  <Input.Password placeholder="Введите API key" />
-                </Form.Item>
-                <Form.Item label="Дополнительные параметры">
-                  <Switch
-                    checked={areAdvancedSettingsEnabled}
-                    disabled={!canUseAdvancedSettings}
-                    onChange={setAreAdvancedSettingsEnabled}
-                  />
-                </Form.Item>
-                {areAdvancedSettingsEnabled && (
-                  <>
-                    <Form.Item label="Custom URL">
-                      <Input placeholder="https://api.example.com/v1" />
-                    </Form.Item>
-                    <Form.Item label="Дополнительные заголовки">
-                      <Input.TextArea
-                        className={styles.headersInput}
-                        placeholder="X-Api-Gateway: transcriber&#10;Authorization: Bearer custom-token"
-                      />
-                    </Form.Item>
-                  </>
-                )}
-              </div>
-            )}
-          </Form>
-
-          <Space className={styles.modelActions}>
-            <Button icon={<CheckCircleIcon size={18} strokeWidth={2} />}>
-              Проверить валидность конфигурации
-            </Button>
-            <Button
-              icon={<SparklesIcon size={18} strokeWidth={2} />}
-              onClick={() => {
-                setIsModelListVisible((isVisible) => !isVisible);
-              }}
-            >
-              Показать список моделей
-            </Button>
-          </Space>
-
-          {isModelListVisible && (
-            <Table
-              columns={modelColumns}
-              dataSource={modelRows}
-              pagination={false}
-              rowKey="name"
-              size="small"
-            />
-          )}
-        </div>
-      </Modal>
+        onProviderChange={handleProviderChange}
+        onSubmit={handleSaveProvider}
+      />
     </>
   );
 };

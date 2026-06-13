@@ -1,0 +1,50 @@
+.providersTab {
+  display: grid;
+  gap: 16px;
+}
+
+.providerToolbar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.providerList {
+  display: grid;
+  gap: 8px;
+}
+
+.providerItemCard {
+  border-color: rgb(5 5 5 / 10%);
+}
+
+.providerItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 16px;
+  align-items: center;
+}
+
+.providerItemInfo {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.providerItemTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.providerItemDescription {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: rgb(0 0 0 / 45%);
+}
+
+.providerItemActions {
+  display: flex;
+  gap: 4px;
+}
