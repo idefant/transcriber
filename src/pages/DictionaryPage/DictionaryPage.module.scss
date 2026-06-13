@@ -1,0 +1,30 @@
+.dictionary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.addWord {
+  width: 100%;
+  max-width: 440px;
+}
+
+.wordInput {
+  width: calc(100% - 40px);
+  min-width: 0;
+  max-width: 400px;
+}
+
+.addButton {
+  width: 40px;
+}
+
+.words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.word {
+  margin: 0;
+}
