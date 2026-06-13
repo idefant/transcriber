@@ -66,9 +66,7 @@
 }
 
 .recordTime {
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
-    monospace;
+  font-family: var(--app-font-mono);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   line-height: 1.5;
