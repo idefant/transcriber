@@ -185,11 +185,11 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
       }
 
       case 'speechToText': {
-        return <SpeechToTextSettingsTab />;
+        return <SpeechToTextSettingsTab providers={providers} />;
       }
 
       case 'postProcessing': {
-        return <PostProcessingSettingsTab />;
+        return <PostProcessingSettingsTab providers={providers} />;
       }
     }
   };

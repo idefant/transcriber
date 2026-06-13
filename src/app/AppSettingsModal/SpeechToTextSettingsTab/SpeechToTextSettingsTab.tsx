@@ -1,13 +1,17 @@
 import { type FC } from 'react';
-import { Typography } from 'antd';
+
+import ProcessingSettingsForm from '../ProcessingSettingsForm';
+import type { ProviderConfig } from '../types';
 
 import styles from './SpeechToTextSettingsTab.module.scss';
 
-const SpeechToTextSettingsTab: FC = () => (
+interface SpeechToTextSettingsTabProps {
+  providers: ProviderConfig[];
+}
+
+const SpeechToTextSettingsTab: FC<SpeechToTextSettingsTabProps> = ({ providers }) => (
   <div className={styles.settingsTab}>
-    <Typography.Paragraph>
-      Настройки Speech-to-Text появятся здесь после выбора сценариев распознавания.
-    </Typography.Paragraph>
+    <ProcessingSettingsForm providers={providers} />
   </div>
 );
 
