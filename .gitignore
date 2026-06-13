@@ -1,6 +1,8 @@
 node_modules
 dist
 coverage
+.codex
+ui-audit-artifacts
 *.tsbuildinfo
 .env
 .env.*

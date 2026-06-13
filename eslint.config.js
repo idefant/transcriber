@@ -12,7 +12,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'coverage', 'node_modules'],
+    ignores: ['dist', 'coverage', 'node_modules', '.codex', 'ui-audit-artifacts'],
   },
   js.configs.recommended,
   ...tseslint.configs.strictTypeChecked.map((config) => ({

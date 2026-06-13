@@ -47,14 +47,14 @@
   border-radius: 8px;
 
   &:hover {
-    background: rgb(22 119 255 / 8%);
-    border-color: rgb(22 119 255 / 18%);
+    background: var(--app-color-primary-bg);
+    border-color: var(--app-color-primary-border);
   }
 }
 
 .recordActive {
-  background: rgb(22 119 255 / 8%);
-  border-color: rgb(22 119 255 / 18%);
+  background: var(--app-color-primary-bg);
+  border-color: var(--app-color-primary-border);
 }
 
 .recordTime {
@@ -64,7 +64,7 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   line-height: 1.5;
-  color: rgb(0 0 0 / 45%);
+  color: var(--app-color-text-tertiary);
 }
 
 .recordText {
@@ -112,7 +112,7 @@
   gap: 12px;
   align-items: center;
   padding: 14px 0;
-  border-top: 1px solid rgb(5 5 5 / 6%);
+  border-top: 1px solid var(--app-color-border-secondary);
 
   &:first-of-type {
     margin-top: 16px;
@@ -124,7 +124,7 @@
 }
 
 .audioDuration {
-  color: rgb(0 0 0 / 65%);
+  color: var(--app-color-text-secondary);
 }
 
 .audioActions {
@@ -137,7 +137,7 @@
   display: grid;
   gap: 12px;
   padding: 18px 0;
-  border-top: 1px solid rgb(5 5 5 / 6%);
+  border-top: 1px solid var(--app-color-border-secondary);
 }
 
 .metaList {
@@ -152,7 +152,7 @@
   }
 
   dt {
-    color: rgb(0 0 0 / 45%);
+    color: var(--app-color-text-secondary);
   }
 
   dd {
@@ -173,7 +173,7 @@
   padding: 12px;
   margin: 0;
   line-height: 1.6;
-  background: rgb(5 5 5 / 4%);
+  background: var(--app-color-fill-tertiary);
   border-radius: 8px;
 }
 

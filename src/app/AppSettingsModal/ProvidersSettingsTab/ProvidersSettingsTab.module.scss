@@ -14,7 +14,7 @@
 }
 
 .providerItemCard {
-  border-color: rgb(5 5 5 / 10%);
+  border-color: var(--app-color-border-secondary);
 }
 
 .providerItem {
@@ -41,7 +41,7 @@
   margin: 0;
   font-size: 14px;
   line-height: 1.45;
-  color: rgb(0 0 0 / 45%);
+  color: var(--app-color-text-secondary);
 }
 
 .providerItemActions {

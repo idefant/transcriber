@@ -4,7 +4,6 @@ import { Layout, Menu, type MenuProps, theme, Typography } from 'antd';
 import { BookOpenIcon, HistoryIcon, SettingsIcon } from 'lucide-react';
 
 import AppSettingsModal from '#/app/AppSettingsModal';
-import { useAppTheme } from '#/app/themeContext';
 import { routes } from '#/shared/routes';
 
 import styles from './RootLayout.module.scss';
@@ -18,7 +17,6 @@ const pageTitles = {
 
 const RootLayout: FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const { isDarkMode } = useAppTheme();
   const { token } = theme.useToken();
   const location = useLocation();
   const navigate = useNavigate();
@@ -64,14 +62,14 @@ const RootLayout: FC = () => {
 
   return (
     <Layout className={styles.root}>
-      <Sider className={styles.sider} theme={isDarkMode ? 'dark' : 'light'} width={260}>
+      <Sider className={styles.sider} theme="light" width={260}>
         <div className={styles.brand}>Transcriber</div>
         <Menu
+          className={styles.menu}
           items={menuItems}
           mode="inline"
           onClick={handleMenuClick}
           selectedKeys={[currentPageKey]}
-          theme={isDarkMode ? 'dark' : 'light'}
         />
       </Sider>
 

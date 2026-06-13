@@ -47,7 +47,7 @@ const DictionaryPage: FC = () => {
   };
 
   return (
-    <Card>
+    <Card className={styles.dictionaryCard}>
       <div className={styles.dictionary}>
         <Space.Compact className={styles.addWord}>
           <Input
