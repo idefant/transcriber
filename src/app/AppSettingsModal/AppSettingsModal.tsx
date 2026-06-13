@@ -1,5 +1,5 @@
 import { type FC, useState } from 'react';
-import { Menu, type MenuProps, Modal } from 'antd';
+import { ConfigProvider, Menu, type MenuProps, Modal } from 'antd';
 import {
   BookOpenIcon,
   KeyboardIcon,
@@ -198,15 +198,25 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
     <>
       <Modal footer={null} open={open} title="Настройки" width={920} onCancel={onClose}>
         <div className={styles.modalBody}>
-          <Menu
-            className={styles.settingsMenu}
-            items={settingsMenuItems}
-            mode="inline"
-            selectedKeys={[activeSection]}
-            onClick={({ key }) => {
-              setActiveSection(key as SettingsSectionKey);
+          <ConfigProvider
+            theme={{
+              components: {
+                Menu: {
+                  itemMarginInline: 0,
+                },
+              },
             }}
-          />
+          >
+            <Menu
+              className={styles.settingsMenu}
+              items={settingsMenuItems}
+              mode="inline"
+              selectedKeys={[activeSection]}
+              onClick={({ key }) => {
+                setActiveSection(key as SettingsSectionKey);
+              }}
+            />
+          </ConfigProvider>
           <div className={styles.panel}>{renderActiveSection()}</div>
         </div>
       </Modal>

@@ -1,12 +1,14 @@
 .modalBody {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 212px minmax(0, 1fr);
   gap: 24px;
   min-height: 560px;
 }
 
 .settingsMenu {
   height: 100%;
+  padding-inline-end: 12px;
+  background: transparent;
   border-inline-end: 1px solid var(--app-color-border-secondary);
 }
 

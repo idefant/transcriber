@@ -34,7 +34,7 @@
 .record,
 .recordActive {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) max-content;
+  grid-template-columns: minmax(0, 1fr) max-content;
   gap: 12px;
   align-items: start;
   width: 100%;
@@ -55,6 +55,14 @@
 .recordActive {
   background: var(--app-color-primary-bg);
   border-color: var(--app-color-primary-border);
+}
+
+.recordContent {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 12px;
+  align-items: first baseline;
+  min-width: 0;
 }
 
 .recordTime {
@@ -103,7 +111,7 @@
 }
 
 .sectionTitle {
-  margin: 0;
+  margin: 0 !important;
 }
 
 .audioSection {

@@ -183,8 +183,10 @@ const HistoryPage: FC = () => {
               }
             }}
           >
-            <span className={styles.recordTime}>{record.time}</span>
-            <span className={styles.recordText}>{record.transcription.text}</span>
+            <span className={styles.recordContent}>
+              <span className={styles.recordTime}>{record.time}</span>
+              <span className={styles.recordText}>{record.transcription.text}</span>
+            </span>
             <Space className={styles.recordActions} size={4}>
               <Tooltip title="Скопировать текст">
                 <Button
