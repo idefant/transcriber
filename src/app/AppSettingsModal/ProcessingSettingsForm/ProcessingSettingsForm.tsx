@@ -1,10 +1,10 @@
 import { type FC, useMemo, useState } from 'react';
 import { Empty, Form, Input, InputNumber, Select } from 'antd';
 
-import { providerModels } from '../constants';
-import type { ProviderConfig } from '../types';
-
 import styles from './ProcessingSettingsForm.module.scss';
+
+import { providerModels } from '#/mocks/providers';
+import type { ProviderConfig } from '#/models/Provider';
 
 interface ProcessingSettingsFormProps {
   disabled?: boolean;

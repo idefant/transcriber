@@ -1,9 +1,10 @@
 import { type FC } from 'react';
 
 import ProcessingSettingsForm from '../ProcessingSettingsForm';
-import type { ProviderConfig } from '../types';
 
 import styles from './SpeechToTextSettingsTab.module.scss';
+
+import type { ProviderConfig } from '#/models/Provider';
 
 interface SpeechToTextSettingsTabProps {
   providers: ProviderConfig[];

@@ -8,22 +8,19 @@ import {
   WandSparklesIcon,
 } from 'lucide-react';
 
-import { defaultProviders, providerModels, providerOptions } from './constants';
+import { providerOptions } from './constants';
 import GeneralSettingsTab from './GeneralSettingsTab';
 import HotkeysSettingsTab from './HotkeysSettingsTab';
 import PostProcessingSettingsTab from './PostProcessingSettingsTab';
 import ProviderSettingsModal from './ProviderSettingsModal';
 import ProvidersSettingsTab from './ProvidersSettingsTab';
 import SpeechToTextSettingsTab from './SpeechToTextSettingsTab';
-import type {
-  ProviderConfig,
-  ProviderKind,
-  SettingsSectionKey,
-  TriggerMode,
-  UiLanguage,
-} from './types';
 
 import styles from './AppSettingsModal.module.scss';
+
+import { defaultProviders, providerModels } from '#/mocks/providers';
+import type { ProviderConfig, ProviderKind } from '#/models/Provider';
+import type { SettingsSectionKey, TriggerMode, UiLanguage } from '#/models/Settings';
 
 interface AppSettingsModalProps {
   open: boolean;

@@ -2,9 +2,9 @@ import { type FC } from 'react';
 import { Button, Card, Tooltip } from 'antd';
 import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 
-import type { ProviderConfig } from '../types';
-
 import styles from './ProvidersSettingsTab.module.scss';
+
+import type { ProviderConfig } from '#/models/Provider';
 
 interface ProvidersSettingsTabProps {
   onAddProvider: () => void;

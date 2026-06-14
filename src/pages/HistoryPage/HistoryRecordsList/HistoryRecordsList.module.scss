@@ -1,0 +1,69 @@
+.records {
+  display: grid;
+  gap: 8px;
+}
+
+.record,
+.recordActive {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+  padding: 10px 12px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+
+  &:hover {
+    background: var(--app-color-primary-bg);
+    border-color: var(--app-color-primary-border);
+  }
+}
+
+.recordActive {
+  background: var(--app-color-primary-bg);
+  border-color: var(--app-color-primary-border);
+}
+
+.recordContent {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 12px;
+  align-items: first baseline;
+  min-width: 0;
+}
+
+.recordTime {
+  font-family: var(--app-font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  color: var(--app-color-text-tertiary);
+}
+
+.recordText {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.recordActions {
+  opacity: 0.78;
+}
+
+.spinIcon {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -2,9 +2,10 @@ import { type FC } from 'react';
 import { Input, Segmented } from 'antd';
 
 import SettingRow from '../SettingRow';
-import type { TriggerMode } from '../types';
 
 import styles from './HotkeysSettingsTab.module.scss';
+
+import type { TriggerMode } from '#/models/Settings';
 
 interface HotkeysSettingsTabProps {
   hotkey: string;

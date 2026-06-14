@@ -3,9 +3,10 @@ import { Switch } from 'antd';
 
 import ProcessingSettingsForm from '../ProcessingSettingsForm';
 import SettingRow from '../SettingRow';
-import type { ProviderConfig } from '../types';
 
 import styles from './PostProcessingSettingsTab.module.scss';
+
+import type { ProviderConfig } from '#/models/Provider';
 
 interface PostProcessingSettingsTabProps {
   providers: ProviderConfig[];

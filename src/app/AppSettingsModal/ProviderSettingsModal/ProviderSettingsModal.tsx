@@ -13,9 +13,10 @@ import {
 import { CheckCircleIcon, SparklesIcon, StarIcon } from 'lucide-react';
 
 import { providerOptions } from '../constants';
-import type { ModelInfo, ProviderKind } from '../types';
 
 import styles from './ProviderSettingsModal.module.scss';
+
+import type { ModelInfo, ProviderKind } from '#/models/Provider';
 
 interface ProviderSettingsModalProps {
   areAdvancedSettingsEnabled: boolean;

@@ -5,9 +5,10 @@ import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react';
 import { type ThemePreference, useAppTheme } from '#/app/themeContext';
 
 import SettingRow from '../SettingRow';
-import type { UiLanguage } from '../types';
 
 import styles from './GeneralSettingsTab.module.scss';
+
+import type { UiLanguage } from '#/models/Settings';
 
 interface GeneralSettingsTabProps {
   areDictationSoundsEnabled: boolean;
