@@ -62,7 +62,7 @@ const RootLayout: FC = () => {
 
   return (
     <Layout className={styles.root}>
-      <Sider className={styles.sider} theme="light" width={260}>
+      <Sider className={styles.sider} theme="light" width={180}>
         <div className={styles.brand}>Transcriber</div>
         <Menu
           className={styles.menu}
@@ -73,7 +73,7 @@ const RootLayout: FC = () => {
         />
       </Sider>
 
-      <Layout>
+      <Layout className={styles.mainLayout}>
         <Header
           className={styles.header}
           style={{

@@ -21,10 +21,16 @@
   box-sizing: border-box;
 }
 
+html,
+#root {
+  height: 100%;
+}
+
 body {
   min-width: 320px;
-  min-height: 100vh;
+  height: 100vh;
   margin: 0;
+  overflow: hidden;
   color: var(--app-color-text);
   background: var(--app-color-bg-layout);
 }

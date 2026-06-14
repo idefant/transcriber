@@ -2,6 +2,7 @@
   display: grid;
   grid-template-columns: minmax(520px, 1fr) 420px;
   column-gap: 24px;
+  align-items: start;
   justify-content: space-between;
   min-height: calc(100vh - 64px);
   margin: -32px -32px -32px 0;
@@ -27,7 +28,15 @@
 }
 
 .detailsSlot {
-  position: sticky;
-  top: 0;
-  min-height: calc(100vh - 64px);
+  position: fixed;
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  align-self: start;
+  width: 420px;
+  min-height: 0;
+
+  @media (width <= 1280px) {
+    width: 300px;
+  }
 }
