@@ -1,5 +1,5 @@
 import { type FC, useState } from 'react';
-import { ConfigProvider, Menu, type MenuProps, Modal } from 'antd';
+import { ConfigProvider, Menu, type MenuProps, message, Modal } from 'antd';
 import {
   BookOpenIcon,
   KeyboardIcon,
@@ -8,7 +8,8 @@ import {
   WandSparklesIcon,
 } from 'lucide-react';
 
-import { providerOptions } from './constants';
+import { useProviders } from '#/app/providersContext';
+
 import GeneralSettingsTab from './GeneralSettingsTab';
 import HotkeysSettingsTab from './HotkeysSettingsTab';
 import PostProcessingSettingsTab from './PostProcessingSettingsTab';
@@ -18,8 +19,12 @@ import SpeechToTextSettingsTab from './SpeechToTextSettingsTab';
 
 import styles from './AppSettingsModal.module.scss';
 
-import { defaultProviders, providerModels } from '#/mocks/providers';
-import type { ProviderConfig, ProviderKind } from '#/models/Provider';
+import type {
+  ModelInfo,
+  ProviderConfig,
+  ProviderConnectionInput,
+  ProviderInput,
+} from '#/models/Provider';
 import type { SettingsSectionKey, TriggerMode, UiLanguage } from '#/models/Settings';
 
 interface AppSettingsModalProps {
@@ -55,30 +60,51 @@ const settingsMenuItems: MenuProps['items'] = [
   },
 ];
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
+const sortModelsByFavorite = (models: ModelInfo[], favoriteModels: Set<string>) =>
+  models.toSorted((firstModel, secondModel) => {
+    const isFirstFavorite = favoriteModels.has(firstModel.name);
+    const isSecondFavorite = favoriteModels.has(secondModel.name);
+
+    if (isFirstFavorite === isSecondFavorite) {
+      return firstModel.name.localeCompare(secondModel.name);
+    }
+
+    return isFirstFavorite ? -1 : 1;
+  });
+
 const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
+  const [messageApi, messageContextHolder] = message.useMessage();
+  const {
+    createProvider,
+    deleteProvider,
+    listProviderModels,
+    providers,
+    toggleFavoriteModel,
+    updateProvider,
+    validateProviderConfig,
+  } = useProviders();
   const [activeSection, setActiveSection] = useState<SettingsSectionKey>('general');
   const [uiLanguage, setUiLanguage] = useState<UiLanguage>('ru');
   const [areDictationSoundsEnabled, setAreDictationSoundsEnabled] = useState(true);
   const [hotkey, setHotkey] = useState('Ctrl + Shift + Space');
   const [triggerMode, setTriggerMode] = useState<TriggerMode>('press');
-  const [providers, setProviders] = useState<ProviderConfig[]>(defaultProviders);
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
-  const [editingProviderId, setEditingProviderId] = useState<string>();
-  const [selectedProvider, setSelectedProvider] = useState<ProviderKind>('openai');
-  const [areAdvancedSettingsEnabled, setAreAdvancedSettingsEnabled] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<ProviderConfig>();
   const [isModelListVisible, setIsModelListVisible] = useState(false);
-  const [favoriteModels, setFavoriteModels] = useState<Set<string>>(() => new Set());
-
-  const selectedProviderLabel = providerOptions.find(
-    ({ value }) => value === selectedProvider,
-  )?.label;
-  const canUseAdvancedSettings = selectedProvider !== 'custom';
-  const isEditingProvider = editingProviderId !== undefined;
+  const [favoriteModels, setFavoriteModels] = useState<Set<string>>(() => new Set<string>());
+  const [modelRows, setModelRows] = useState<ModelInfo[]>([]);
+  const [isSavingProvider, setIsSavingProvider] = useState(false);
+  const [isValidatingProvider, setIsValidatingProvider] = useState(false);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const isEditingProvider = editingProvider !== undefined;
 
   const handleOpenProviderModal = (provider?: ProviderConfig) => {
-    setEditingProviderId(provider?.id);
-    setSelectedProvider(provider?.provider ?? 'openai');
-    setAreAdvancedSettingsEnabled(false);
+    setEditingProvider(provider);
+    setFavoriteModels(new Set(provider?.favoriteModels));
+    setModelRows([]);
     setIsModelListVisible(false);
     setIsProviderModalOpen(true);
   };
@@ -87,61 +113,91 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
     setIsProviderModalOpen(false);
   };
 
-  const handleProviderChange = (provider: ProviderKind) => {
-    setSelectedProvider(provider);
-    setAreAdvancedSettingsEnabled(false);
-    setIsModelListVisible(false);
+  const handleDeleteProvider = async (providerId: string) => {
+    try {
+      await deleteProvider(providerId);
+    } catch (error) {
+      void messageApi.error(getErrorMessage(error));
+    }
   };
 
-  const handleDeleteProvider = (providerId: string) => {
-    setProviders((currentProviders) =>
-      currentProviders.filter((provider) => provider.id !== providerId),
-    );
-  };
+  const handleFavoriteModelToggle = async (modelName: string) => {
+    if (editingProvider === undefined) {
+      setFavoriteModels((currentFavorites) => {
+        const nextFavorites = new Set(currentFavorites);
 
-  const handleFavoriteModelToggle = (modelName: string) => {
-    setFavoriteModels((currentFavorites) => {
-      const nextFavorites = new Set(currentFavorites);
+        if (nextFavorites.has(modelName)) {
+          nextFavorites.delete(modelName);
+        } else {
+          nextFavorites.add(modelName);
+        }
 
-      if (nextFavorites.has(modelName)) {
-        nextFavorites.delete(modelName);
         return nextFavorites;
-      }
-
-      nextFavorites.add(modelName);
-      return nextFavorites;
-    });
-  };
-
-  const handleSaveProvider = () => {
-    const providerLabel = selectedProviderLabel ?? 'Custom';
-
-    if (isEditingProvider) {
-      setProviders((currentProviders) =>
-        currentProviders.map((provider) =>
-          provider.id === editingProviderId
-            ? {
-                ...provider,
-                name: providerLabel,
-                provider: selectedProvider,
-              }
-            : provider,
-        ),
-      );
-      setIsProviderModalOpen(false);
+      });
       return;
     }
 
-    setProviders((currentProviders) => [
-      ...currentProviders,
-      {
-        id: `${selectedProvider}-${Date.now()}`,
-        keyPreview: '••••••••',
-        name: providerLabel,
-        provider: selectedProvider,
-      },
-    ]);
-    setIsProviderModalOpen(false);
+    try {
+      const provider = await toggleFavoriteModel(editingProvider.id, modelName);
+
+      setEditingProvider(provider);
+      setFavoriteModels(new Set(provider.favoriteModels));
+    } catch (error) {
+      void messageApi.error(getErrorMessage(error));
+    }
+  };
+
+  const handleSaveProvider = async (input: ProviderInput) => {
+    setIsSavingProvider(true);
+
+    try {
+      await (editingProvider === undefined
+        ? createProvider(input)
+        : updateProvider(editingProvider.id, input));
+
+      setIsProviderModalOpen(false);
+    } catch (error) {
+      void messageApi.error(getErrorMessage(error));
+    } finally {
+      setIsSavingProvider(false);
+    }
+  };
+
+  const handleValidateProvider = async (input: ProviderConnectionInput) => {
+    setIsValidatingProvider(true);
+
+    try {
+      const result = await validateProviderConfig(input);
+
+      if (result.ok) {
+        void messageApi.success(result.message);
+      } else {
+        void messageApi.error(result.message);
+      }
+    } catch (error) {
+      void messageApi.error(getErrorMessage(error));
+    } finally {
+      setIsValidatingProvider(false);
+    }
+  };
+
+  const handleLoadModels = async (input: ProviderConnectionInput) => {
+    setIsLoadingModels(true);
+
+    try {
+      const models = await listProviderModels(input);
+
+      setModelRows(sortModelsByFavorite(models, favoriteModels));
+      setIsModelListVisible(true);
+
+      if (models.length === 0) {
+        void messageApi.info('Провайдер не вернул доступные модели');
+      }
+    } catch (error) {
+      void messageApi.error(getErrorMessage(error));
+    } finally {
+      setIsLoadingModels(false);
+    }
   };
 
   const renderActiveSection = () => {
@@ -175,7 +231,9 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
             onAddProvider={() => {
               handleOpenProviderModal();
             }}
-            onDeleteProvider={handleDeleteProvider}
+            onDeleteProvider={(providerId) => {
+              void handleDeleteProvider(providerId);
+            }}
             onEditProvider={handleOpenProviderModal}
           />
         );
@@ -193,6 +251,7 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
 
   return (
     <>
+      {messageContextHolder}
       <Modal footer={null} open={open} title="Настройки" width={920} onCancel={onClose}>
         <div className={styles.modalBody}>
           <ConfigProvider
@@ -219,23 +278,26 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
       </Modal>
 
       <ProviderSettingsModal
-        areAdvancedSettingsEnabled={areAdvancedSettingsEnabled}
-        canUseAdvancedSettings={canUseAdvancedSettings}
+        editingProvider={editingProvider}
         favoriteModels={favoriteModels}
+        isLoadingModels={isLoadingModels}
         isModelListVisible={isModelListVisible}
-        modelRows={providerModels[selectedProvider]}
+        isSaving={isSavingProvider}
+        isValidating={isValidatingProvider}
+        modelRows={modelRows}
         okText={isEditingProvider ? 'Сохранить' : 'Добавить'}
         open={isProviderModalOpen}
-        selectedProvider={selectedProvider}
         title={isEditingProvider ? 'Редактировать провайдера' : 'Добавить провайдера'}
-        onAdvancedSettingsEnabledChange={setAreAdvancedSettingsEnabled}
         onCancel={handleCloseProviderModal}
-        onFavoriteModelToggle={handleFavoriteModelToggle}
-        onModelListVisibleToggle={() => {
-          setIsModelListVisible((isVisible) => !isVisible);
+        onFavoriteModelToggle={(modelName) => {
+          void handleFavoriteModelToggle(modelName);
         }}
-        onProviderChange={handleProviderChange}
+        onLoadModels={handleLoadModels}
+        onModelListHide={() => {
+          setIsModelListVisible(false);
+        }}
         onSubmit={handleSaveProvider}
+        onValidate={handleValidateProvider}
       />
     </>
   );

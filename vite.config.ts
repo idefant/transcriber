@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 import checker from 'vite-plugin-checker';
 
 export default defineConfig({
+  clearScreen: false,
   plugins: [
     react(),
     checker({
@@ -24,6 +25,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '#': fileURLToPath(new URL('src', import.meta.url)),
+    },
+  },
+  server: {
+    port: 5173,
+    strictPort: true,
+    watch: {
+      ignored: ['**/src-tauri/**'],
     },
   },
 });

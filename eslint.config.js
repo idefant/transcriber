@@ -12,7 +12,15 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'coverage', 'node_modules', '.codex', 'ui-audit-artifacts'],
+    ignores: [
+      'dist',
+      'src-tauri/gen',
+      'src-tauri/target',
+      'coverage',
+      'node_modules',
+      '.codex',
+      'ui-audit-artifacts',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.strictTypeChecked.map((config) => ({
@@ -109,6 +117,14 @@ export default tseslint.config(
     files: ['*.config.{js,ts}', 'eslint.config.js'],
     rules: {
       'unicorn/prefer-module': 'off',
+    },
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
     },
   },
   {

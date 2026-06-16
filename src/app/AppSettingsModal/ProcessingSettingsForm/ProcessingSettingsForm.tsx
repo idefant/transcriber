@@ -3,7 +3,6 @@ import { Empty, Form, Input, InputNumber, Select } from 'antd';
 
 import styles from './ProcessingSettingsForm.module.scss';
 
-import { providerModels } from '#/mocks/providers';
 import type { ProviderConfig } from '#/models/Provider';
 
 interface ProcessingSettingsFormProps {
@@ -26,18 +25,14 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({
     () => providers.find((provider) => provider.id === selectedProviderId) ?? providers[0],
     [providers, selectedProviderId],
   );
-  const modelRows = useMemo(
-    () => (selectedProvider === undefined ? [] : providerModels[selectedProvider.provider]),
-    [selectedProvider],
-  );
-  const modelOptions = modelRows.map((model) => ({
-    label: model.name,
-    value: model.name,
+  const modelOptions = (selectedProvider?.favoriteModels ?? []).map((modelName) => ({
+    label: modelName,
+    value: modelName,
   }));
   const selectedProviderValue = selectedProvider?.id ?? '';
-  const selectedModelValue = modelRows.some((model) => model.name === selectedModel)
+  const selectedModelValue = modelOptions.some((model) => model.value === selectedModel)
     ? selectedModel
-    : (modelRows[0]?.name ?? '');
+    : (modelOptions[0]?.value ?? '');
 
   if (providers.length === 0) {
     return <Empty description="Сначала добавьте провайдера" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
@@ -57,7 +52,12 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({
       </Form.Item>
 
       <Form.Item label="Модель">
-        <Select value={selectedModelValue} options={modelOptions} onChange={setSelectedModel} />
+        <Select
+          notFoundContent="Добавьте избранные модели в настройках провайдера"
+          value={selectedModelValue}
+          options={modelOptions}
+          onChange={setSelectedModel}
+        />
       </Form.Item>
 
       <div className={styles.fieldGrid}>

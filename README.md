@@ -6,6 +6,7 @@ React + TypeScript + Vite starter with React Router, SCSS modules, strict ESLint
 
 - Node.js 24+
 - npm 11+
+- Rust stable toolchain
 
 On this Windows setup, use `npm.cmd` if PowerShell blocks `npm.ps1`.
 
@@ -33,6 +34,12 @@ Default local URL:
 http://localhost:5173
 ```
 
+Run the desktop application through Tauri:
+
+```bash
+npm.cmd run dev:tauri
+```
+
 ## Build
 
 ```bash
@@ -47,14 +54,29 @@ Preview the production build:
 npm.cmd run preview
 ```
 
+Build the desktop bundle:
+
+```bash
+npm.cmd run build:tauri
+```
+
 ## Available Commands
 
 ```bash
 # Start the Vite development server.
 npm.cmd run dev
 
+# Start the Tauri desktop app in development mode.
+npm.cmd run dev:tauri
+
 # Run typecheck and build the production bundle.
 npm.cmd run build
+
+# Build the Tauri desktop bundle.
+npm.cmd run build:tauri
+
+# Run the Tauri CLI.
+npm.cmd run tauri
 
 # Serve the production build locally.
 npm.cmd run preview

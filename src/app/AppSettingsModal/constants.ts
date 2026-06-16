@@ -6,8 +6,8 @@ export const providerOptions: ProviderOption[] = [
     value: 'openai',
   },
   {
-    label: 'Grok',
-    value: 'grok',
+    label: 'Groq',
+    value: 'groq',
   },
   {
     label: 'OpenRouter',
