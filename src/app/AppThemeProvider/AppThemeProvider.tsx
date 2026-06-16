@@ -1,6 +1,7 @@
 import { type FC, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfigProvider, theme as antdTheme } from 'antd';
 
+import { useAppSettings } from '#/app/settingsContext';
 import { AppThemeContext, type ThemeMode, type ThemePreference } from '#/app/themeContext';
 
 interface AppThemeProviderProps {
@@ -31,15 +32,30 @@ const getSystemThemeMode = (): ThemeMode => {
 };
 
 const AppThemeProvider: FC<AppThemeProviderProps> = ({ children }) => {
-  const [themePreference, setThemePreference] = useState<ThemePreference>('light');
+  const { settings, updateSettings } = useAppSettings();
   const [systemThemeMode, setSystemThemeMode] = useState<ThemeMode>(() => getSystemThemeMode());
+  const themePreference = settings.themePreference;
   const isDarkMode =
     themePreference === 'dark' || (themePreference === 'auto' && systemThemeMode === 'dark');
   const mode: ThemeMode = isDarkMode ? 'dark' : 'light';
 
-  const setIsDarkMode = useCallback((value: boolean) => {
-    setThemePreference(value ? 'dark' : 'light');
-  }, []);
+  const setThemePreference = useCallback(
+    (value: ThemePreference) => {
+      void updateSettings({ themePreference: value }).catch(() => {
+        // The error is stored in AppSettingsContext.
+      });
+    },
+    [updateSettings],
+  );
+
+  const setIsDarkMode = useCallback(
+    (value: boolean) => {
+      void updateSettings({ themePreference: value ? 'dark' : 'light' }).catch(() => {
+        // The error is stored in AppSettingsContext.
+      });
+    },
+    [updateSettings],
+  );
 
   useEffect(() => {
     if (!('matchMedia' in globalThis)) {
@@ -66,7 +82,7 @@ const AppThemeProvider: FC<AppThemeProviderProps> = ({ children }) => {
       setThemePreference,
       themePreference,
     }),
-    [isDarkMode, mode, setIsDarkMode, themePreference],
+    [isDarkMode, mode, setIsDarkMode, setThemePreference, themePreference],
   );
 
   return (

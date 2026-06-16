@@ -41,6 +41,46 @@ impl ProviderKind {
 }
 
 #[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum ThemePreference {
+    Auto,
+    Dark,
+    Light,
+}
+
+impl Default for ThemePreference {
+    fn default() -> Self {
+        Self::Light
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum TriggerMode {
+    Hold,
+    Press,
+}
+
+impl Default for TriggerMode {
+    fn default() -> Self {
+        Self::Press
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum UiLanguage {
+    En,
+    Ru,
+}
+
+impl Default for UiLanguage {
+    fn default() -> Self {
+        Self::Ru
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredProvider {
     id: String,
@@ -134,6 +174,129 @@ struct ProviderValidationResult {
 struct ModelInfo {
     name: String,
     description: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppSettings {
+    #[serde(default)]
+    theme_preference: ThemePreference,
+    #[serde(default)]
+    ui_language: UiLanguage,
+    #[serde(default = "default_dictation_sounds_enabled")]
+    are_dictation_sounds_enabled: bool,
+    #[serde(default = "default_hotkey")]
+    hotkey: String,
+    #[serde(default)]
+    trigger_mode: TriggerMode,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            theme_preference: ThemePreference::default(),
+            ui_language: UiLanguage::default(),
+            are_dictation_sounds_enabled: default_dictation_sounds_enabled(),
+            hotkey: default_hotkey(),
+            trigger_mode: TriggerMode::default(),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AppSettingsInput {
+    theme_preference: Option<ThemePreference>,
+    ui_language: Option<UiLanguage>,
+    are_dictation_sounds_enabled: Option<bool>,
+    hotkey: Option<String>,
+    trigger_mode: Option<TriggerMode>,
+}
+
+fn default_dictation_sounds_enabled() -> bool {
+    true
+}
+
+fn default_hotkey() -> String {
+    "Ctrl + Shift + Space".to_string()
+}
+
+#[tauri::command]
+fn get_app_settings(app: tauri::AppHandle) -> Result<AppSettings, String> {
+    load_app_settings(&app)
+}
+
+#[tauri::command]
+fn update_app_settings(
+    app: tauri::AppHandle,
+    input: AppSettingsInput,
+) -> Result<AppSettings, String> {
+    let mut settings = load_app_settings(&app)?;
+
+    if let Some(theme_preference) = input.theme_preference {
+        settings.theme_preference = theme_preference;
+    }
+
+    if let Some(ui_language) = input.ui_language {
+        settings.ui_language = ui_language;
+    }
+
+    if let Some(are_dictation_sounds_enabled) = input.are_dictation_sounds_enabled {
+        settings.are_dictation_sounds_enabled = are_dictation_sounds_enabled;
+    }
+
+    if let Some(hotkey) = input.hotkey {
+        settings.hotkey = hotkey.trim().to_string();
+    }
+
+    if let Some(trigger_mode) = input.trigger_mode {
+        settings.trigger_mode = trigger_mode;
+    }
+
+    save_app_settings(&app, &settings)?;
+
+    Ok(settings)
+}
+
+#[tauri::command]
+fn get_dictionary_words(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    load_dictionary_words(&app)
+}
+
+#[tauri::command]
+fn add_dictionary_word(app: tauri::AppHandle, word: String) -> Result<Vec<String>, String> {
+    let normalized_word = word.trim();
+
+    if normalized_word.is_empty() {
+        return load_dictionary_words(&app);
+    }
+
+    let mut words = load_dictionary_words(&app)?;
+    let normalized_key = dictionary_word_key(normalized_word);
+
+    if !words
+        .iter()
+        .any(|word| dictionary_word_key(word) == normalized_key)
+    {
+        words.push(normalized_word.to_string());
+    }
+
+    words = normalize_dictionary_words(words);
+    save_dictionary_words(&app, &words)?;
+
+    Ok(words)
+}
+
+#[tauri::command]
+fn delete_dictionary_word(app: tauri::AppHandle, word: String) -> Result<Vec<String>, String> {
+    let normalized_key = dictionary_word_key(&word);
+    let mut words = load_dictionary_words(&app)?;
+
+    words.retain(|stored_word| dictionary_word_key(stored_word) != normalized_key);
+    words = normalize_dictionary_words(words);
+    save_dictionary_words(&app, &words)?;
+
+    Ok(words)
 }
 
 #[tauri::command]
@@ -425,6 +588,84 @@ fn parse_headers(headers: &Option<String>) -> Result<HeaderMap, String> {
     Ok(header_map)
 }
 
+fn load_app_settings(app: &tauri::AppHandle) -> Result<AppSettings, String> {
+    let path = settings_path(app)?;
+
+    if !path.exists() {
+        return Ok(AppSettings::default());
+    }
+
+    let content = fs::read_to_string(path).map_err(|error| error.to_string())?;
+
+    if content.trim().is_empty() {
+        return Ok(AppSettings::default());
+    }
+
+    serde_json::from_str(&content).map_err(|error| error.to_string())
+}
+
+fn save_app_settings(app: &tauri::AppHandle, settings: &AppSettings) -> Result<(), String> {
+    let path = settings_path(app)?;
+    let content = serde_json::to_string_pretty(settings).map_err(|error| error.to_string())?;
+
+    fs::write(path, content).map_err(|error| error.to_string())
+}
+
+fn load_dictionary_words(app: &tauri::AppHandle) -> Result<Vec<String>, String> {
+    let path = dictionary_path(app)?;
+
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let content = fs::read_to_string(path).map_err(|error| error.to_string())?;
+
+    if content.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let words = serde_json::from_str::<Vec<String>>(&content).map_err(|error| error.to_string())?;
+
+    Ok(normalize_dictionary_words(words))
+}
+
+fn save_dictionary_words(app: &tauri::AppHandle, words: &[String]) -> Result<(), String> {
+    let path = dictionary_path(app)?;
+    let content = serde_json::to_string_pretty(words).map_err(|error| error.to_string())?;
+
+    fs::write(path, content).map_err(|error| error.to_string())
+}
+
+fn normalize_dictionary_words(words: Vec<String>) -> Vec<String> {
+    let mut normalized_words = Vec::<String>::new();
+
+    for word in words {
+        let normalized_word = word.trim();
+
+        if normalized_word.is_empty() {
+            continue;
+        }
+
+        let normalized_key = dictionary_word_key(normalized_word);
+
+        if normalized_words
+            .iter()
+            .any(|stored_word| dictionary_word_key(stored_word) == normalized_key)
+        {
+            continue;
+        }
+
+        normalized_words.push(normalized_word.to_string());
+    }
+
+    normalized_words.sort_by_key(|word| dictionary_word_key(word));
+    normalized_words
+}
+
+fn dictionary_word_key(word: &str) -> String {
+    word.trim().to_lowercase()
+}
+
 fn load_providers(app: &tauri::AppHandle) -> Result<Vec<StoredProvider>, String> {
     let path = providers_path(app)?;
 
@@ -449,6 +690,18 @@ fn save_providers(app: &tauri::AppHandle, providers: &[StoredProvider]) -> Resul
 }
 
 fn providers_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app_data_file_path(app, "providers.json")
+}
+
+fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app_data_file_path(app, "settings.json")
+}
+
+fn dictionary_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app_data_file_path(app, "dictionary.json")
+}
+
+fn app_data_file_path(app: &tauri::AppHandle, file_name: &str) -> Result<PathBuf, String> {
     let app_data_dir = app
         .path()
         .app_data_dir()
@@ -456,7 +709,7 @@ fn providers_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 
     fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
 
-    Ok(app_data_dir.join("providers.json"))
+    Ok(app_data_dir.join(file_name))
 }
 
 fn normalize_required_string(value: Option<String>, field_name: &str) -> Result<String, String> {
@@ -499,6 +752,11 @@ fn mask_api_key(api_key: &str) -> String {
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            get_app_settings,
+            update_app_settings,
+            get_dictionary_words,
+            add_dictionary_word,
+            delete_dictionary_word,
             get_providers,
             create_provider,
             update_provider,

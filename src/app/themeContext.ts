@@ -1,7 +1,8 @@
 import { createContext, useContext } from 'react';
 
-export type ThemeMode = 'dark' | 'light';
-export type ThemePreference = 'auto' | ThemeMode;
+import type { ThemeMode, ThemePreference } from '#/models/Settings';
+
+export type { ThemeMode, ThemePreference } from '#/models/Settings';
 
 export interface AppThemeContextValue {
   isDarkMode: boolean;

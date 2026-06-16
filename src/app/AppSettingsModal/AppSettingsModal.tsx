@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 import { useProviders } from '#/app/providersContext';
+import { useAppSettings } from '#/app/settingsContext';
 
 import GeneralSettingsTab from './GeneralSettingsTab';
 import HotkeysSettingsTab from './HotkeysSettingsTab';
@@ -25,7 +26,7 @@ import type {
   ProviderConnectionInput,
   ProviderInput,
 } from '#/models/Provider';
-import type { SettingsSectionKey, TriggerMode, UiLanguage } from '#/models/Settings';
+import type { AppSettingsInput, SettingsSectionKey } from '#/models/Settings';
 
 interface AppSettingsModalProps {
   open: boolean;
@@ -86,11 +87,8 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
     updateProvider,
     validateProviderConfig,
   } = useProviders();
+  const { settings, updateSettings } = useAppSettings();
   const [activeSection, setActiveSection] = useState<SettingsSectionKey>('general');
-  const [uiLanguage, setUiLanguage] = useState<UiLanguage>('ru');
-  const [areDictationSoundsEnabled, setAreDictationSoundsEnabled] = useState(true);
-  const [hotkey, setHotkey] = useState('Ctrl + Shift + Space');
-  const [triggerMode, setTriggerMode] = useState<TriggerMode>('press');
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<ProviderConfig>();
   const [isModelListVisible, setIsModelListVisible] = useState(false);
@@ -111,6 +109,14 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
 
   const handleCloseProviderModal = () => {
     setIsProviderModalOpen(false);
+  };
+
+  const handleSettingsChange = async (input: AppSettingsInput) => {
+    try {
+      await updateSettings(input);
+    } catch (error) {
+      void messageApi.error(getErrorMessage(error));
+    }
   };
 
   const handleDeleteProvider = async (providerId: string) => {
@@ -205,10 +211,18 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
       case 'general': {
         return (
           <GeneralSettingsTab
-            areDictationSoundsEnabled={areDictationSoundsEnabled}
-            uiLanguage={uiLanguage}
-            onDictationSoundsEnabledChange={setAreDictationSoundsEnabled}
-            onUiLanguageChange={setUiLanguage}
+            areDictationSoundsEnabled={settings.areDictationSoundsEnabled}
+            themePreference={settings.themePreference}
+            uiLanguage={settings.uiLanguage}
+            onDictationSoundsEnabledChange={(areDictationSoundsEnabled) => {
+              void handleSettingsChange({ areDictationSoundsEnabled });
+            }}
+            onThemePreferenceChange={(themePreference) => {
+              void handleSettingsChange({ themePreference });
+            }}
+            onUiLanguageChange={(uiLanguage) => {
+              void handleSettingsChange({ uiLanguage });
+            }}
           />
         );
       }
@@ -216,10 +230,14 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
       case 'hotkeys': {
         return (
           <HotkeysSettingsTab
-            hotkey={hotkey}
-            triggerMode={triggerMode}
-            onHotkeyChange={setHotkey}
-            onTriggerModeChange={setTriggerMode}
+            hotkey={settings.hotkey}
+            triggerMode={settings.triggerMode}
+            onHotkeyChange={(hotkey) => {
+              void handleSettingsChange({ hotkey });
+            }}
+            onTriggerModeChange={(triggerMode) => {
+              void handleSettingsChange({ triggerMode });
+            }}
           />
         );
       }
