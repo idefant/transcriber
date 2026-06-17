@@ -20,4 +20,5 @@ tauri = { version = "2", default-features = false, features = [
     "wry",
     "x11",
 ] }
+thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
