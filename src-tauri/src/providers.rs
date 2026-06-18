@@ -15,7 +15,7 @@ use crate::{
 
 const PROVIDERS_FILE_NAME: &str = "providers.json";
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Copy, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ProviderKind {
     Custom,
@@ -78,7 +78,6 @@ pub struct ProviderConfig {
     base_url: Option<String>,
     headers: Option<String>,
     use_advanced_settings: bool,
-    favorite_models: Vec<String>,
     created_at: String,
     updated_at: String,
 }
@@ -96,7 +95,6 @@ impl From<StoredProvider> for ProviderConfig {
             base_url: provider.base_url,
             headers: provider.headers,
             use_advanced_settings,
-            favorite_models: provider.favorite_models,
             created_at: provider.created_at,
             updated_at: provider.updated_at,
         }
@@ -112,7 +110,6 @@ pub struct ProviderInput {
     base_url: Option<String>,
     headers: Option<String>,
     use_advanced_settings: Option<bool>,
-    favorite_models: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -194,15 +191,6 @@ pub async fn list_provider_models(
         .map_err(AppError::into_message)
 }
 
-#[tauri::command]
-pub fn toggle_favorite_model(
-    app: tauri::AppHandle,
-    provider_id: String,
-    model_name: String,
-) -> Result<ProviderConfig, String> {
-    toggle_favorite_model_inner(&app, provider_id, model_name).map_err(AppError::into_message)
-}
-
 fn get_providers_inner(app: &tauri::AppHandle) -> AppResult<Vec<ProviderConfig>> {
     Ok(load_providers(app)?
         .into_iter()
@@ -226,7 +214,7 @@ fn create_provider_inner(
         base_url: normalize_optional_string(input.base_url),
         headers: normalize_optional_string(input.headers),
         use_advanced_settings: input.use_advanced_settings,
-        favorite_models: normalize_favorite_models(input.favorite_models.unwrap_or_default()),
+        favorite_models: Vec::new(),
         created_at: now.clone(),
         updated_at: now,
     };
@@ -259,7 +247,6 @@ fn update_provider_inner(
     provider.base_url = normalize_optional_string(input.base_url);
     provider.headers = normalize_optional_string(input.headers);
     provider.use_advanced_settings = input.use_advanced_settings;
-    provider.favorite_models = normalize_favorite_models(input.favorite_models.unwrap_or_default());
     provider.updated_at = Utc::now().to_rfc3339();
 
     let updated_provider = provider.clone();
@@ -272,38 +259,6 @@ fn delete_provider_inner(app: &tauri::AppHandle, provider_id: String) -> AppResu
     let mut providers = load_providers(app)?;
     providers.retain(|provider| provider.id != provider_id);
     save_providers(app, &providers)
-}
-
-fn toggle_favorite_model_inner(
-    app: &tauri::AppHandle,
-    provider_id: String,
-    model_name: String,
-) -> AppResult<ProviderConfig> {
-    let mut providers = load_providers(app)?;
-    let provider = providers
-        .iter_mut()
-        .find(|provider| provider.id == provider_id)
-        .ok_or("Provider was not found")?;
-
-    if provider
-        .favorite_models
-        .iter()
-        .any(|model| model == &model_name)
-    {
-        provider
-            .favorite_models
-            .retain(|model| model != &model_name);
-    } else {
-        provider.favorite_models.push(model_name);
-    }
-
-    provider.favorite_models = normalize_favorite_models(provider.favorite_models.clone());
-    provider.updated_at = Utc::now().to_rfc3339();
-
-    let updated_provider = provider.clone();
-    save_providers(app, &providers)?;
-
-    Ok(updated_provider.into())
 }
 
 async fn request_provider_models(
@@ -461,6 +416,59 @@ fn parse_headers(headers: &Option<String>) -> AppResult<HeaderMap> {
     Ok(header_map)
 }
 
+pub struct ProviderCredentials {
+    pub kind: ProviderKind,
+    pub api_key: String,
+    pub base_url: String,
+    pub headers: reqwest::header::HeaderMap,
+}
+
+pub fn resolve_provider_credentials(
+    app: &tauri::AppHandle,
+    provider_id: &str,
+) -> AppResult<ProviderCredentials> {
+    let providers = load_providers(app)?;
+    let provider = providers
+        .into_iter()
+        .find(|p| p.id == provider_id)
+        .ok_or("Provider was not found")?;
+
+    let use_advanced = provider.effective_use_advanced_settings();
+
+    let base_url = if matches!(provider.provider, ProviderKind::Custom) {
+        normalize_optional_string(provider.base_url.clone())
+            .ok_or("URL is required for custom provider")?
+    } else if use_advanced {
+        normalize_optional_string(provider.base_url.clone())
+            .or_else(|| {
+                provider
+                    .provider
+                    .default_base_url()
+                    .map(ToString::to_string)
+            })
+            .ok_or("Provider URL was not found")?
+    } else {
+        provider
+            .provider
+            .default_base_url()
+            .map(ToString::to_string)
+            .ok_or("Provider URL was not found")?
+    };
+
+    let headers = if use_advanced {
+        parse_headers(&provider.headers)?
+    } else {
+        reqwest::header::HeaderMap::new()
+    };
+
+    Ok(ProviderCredentials {
+        kind: provider.provider,
+        api_key: provider.api_key,
+        base_url,
+        headers,
+    })
+}
+
 fn load_providers(app: &tauri::AppHandle) -> AppResult<Vec<StoredProvider>> {
     storage::load_json_or_default(app, PROVIDERS_FILE_NAME)
 }
@@ -477,17 +485,6 @@ fn normalize_optional_string(value: Option<String>) -> Option<String> {
     value
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-}
-
-fn normalize_favorite_models(mut favorite_models: Vec<String>) -> Vec<String> {
-    favorite_models = favorite_models
-        .into_iter()
-        .map(|model| model.trim().to_string())
-        .filter(|model| !model.is_empty())
-        .collect();
-    favorite_models.sort();
-    favorite_models.dedup();
-    favorite_models
 }
 
 fn mask_api_key(api_key: &str) -> String {
@@ -520,18 +517,6 @@ mod tests {
     #[test]
     fn masks_long_api_keys() {
         assert_eq!(mask_api_key("sk-1234567890"), "sk-...7890");
-    }
-
-    #[test]
-    fn normalizes_favorite_models() {
-        let models = normalize_favorite_models(vec![
-            " whisper-large ".to_string(),
-            "".to_string(),
-            "gpt-4o-mini".to_string(),
-            "whisper-large".to_string(),
-        ]);
-
-        assert_eq!(models, vec!["gpt-4o-mini", "whisper-large"]);
     }
 
     #[test]

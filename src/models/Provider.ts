@@ -8,7 +8,6 @@ export interface ModelInfo {
 export interface ProviderConfig {
   baseUrl?: string;
   createdAt: string;
-  favoriteModels: string[];
   hasApiKey: boolean;
   headers?: string;
   id: string;
@@ -31,7 +30,6 @@ export interface ProviderConnectionInput {
 export interface ProviderInput {
   apiKey?: string;
   baseUrl?: string;
-  favoriteModels?: string[];
   headers?: string;
   name?: string;
   provider: ProviderKind;

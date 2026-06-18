@@ -1,14 +1,5 @@
-.fieldGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 160px;
-  gap: 16px;
-}
-
-.temperatureInput {
-  width: 100%;
-}
-
-.textArea {
-  min-height: 96px;
-  resize: vertical;
+.switchRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }

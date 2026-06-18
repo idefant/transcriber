@@ -16,7 +16,6 @@ interface ProvidersContextValue {
   deleteProvider: (providerId: string) => Promise<void>;
   listProviderModels: (input: ProviderConnectionInput) => Promise<ModelInfo[]>;
   reloadProviders: () => Promise<void>;
-  toggleFavoriteModel: (providerId: string, modelName: string) => Promise<ProviderConfig>;
   updateProvider: (providerId: string, input: ProviderInput) => Promise<ProviderConfig>;
   validateProviderConfig: (input: ProviderConnectionInput) => Promise<ProviderValidationResult>;
 }

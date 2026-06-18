@@ -113,3 +113,8 @@ Husky runs lint-staged before commits:
 - JS/TS files: ESLint fix + Prettier
 - CSS/SCSS files: Stylelint fix + Prettier
 - HTML/JSON/Markdown/YAML files: Prettier
+
+## ToDo
+
+- [Тестирование качества моделей](todo/model-testing.md) — отдельный CLI-харнесс (promptfoo) для массового тестирования качества ответов на любых моделях: тест-кейсы, шаблонные объекты-параметры, дешёвые прогоны.
+- Локализация промптов — дефолтные системные промпты и шаблоны (STT и постобработка) должны зависеть от языка интерфейса (`uiLanguage` из настроек). Сейчас они захардкожены только на английском в `src-tauri/src/processing.rs` (`DEFAULT_STT_SYSTEM_PROMPT`, `DEFAULT_POST_PROCESS_SYSTEM_PROMPT`, `DEFAULT_POST_PROCESS_USER_TEMPLATE`) и отдаются через `get_default_prompts` без учёта языка.

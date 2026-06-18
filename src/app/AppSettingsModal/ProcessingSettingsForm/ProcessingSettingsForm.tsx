@@ -1,40 +1,150 @@
-import { type FC, useMemo, useState } from 'react';
-import { Empty, Form, Input, InputNumber, Select } from 'antd';
+import { type FC, useEffect, useMemo, useState } from 'react';
+import { Empty, Form, Select, Switch } from 'antd';
+
+import { useProcessing } from '#/app/processingContext';
+import { useProviders } from '#/app/providersContext';
+import * as catalogApi from '#/shared/catalogApi';
+import * as processingApi from '#/shared/processingApi';
+
+import PromptField from './PromptField';
 
 import styles from './ProcessingSettingsForm.module.scss';
 
-import type { ProviderConfig } from '#/models/Provider';
+import type { CuratedModelInfo, ModelTask } from '#/models/Catalog';
+import type { DefaultPrompts } from '#/models/Processing';
 
 interface ProcessingSettingsFormProps {
   disabled?: boolean;
-  providers: ProviderConfig[];
+  task: ModelTask;
 }
 
-const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({
-  disabled = false,
-  providers,
-}) => {
-  const [selectedProviderId, setSelectedProviderId] = useState(() => providers[0]?.id ?? '');
-  const [selectedModel, setSelectedModel] = useState('');
-  const [language, setLanguage] = useState('auto');
-  const [prompt, setPrompt] = useState('');
-  const [temperature, setTemperature] = useState(0.2);
-  const [extraParameters, setExtraParameters] = useState('');
+const LANGUAGE_OPTIONS = [
+  { label: 'Авто', value: 'auto' },
+  { label: 'Русский', value: 'ru' },
+  { label: 'English', value: 'en' },
+];
 
-  const selectedProvider = useMemo(
-    () => providers.find((provider) => provider.id === selectedProviderId) ?? providers[0],
-    [providers, selectedProviderId],
-  );
-  const modelOptions = (selectedProvider?.favoriteModels ?? []).map((modelName) => ({
-    label: modelName,
-    value: modelName,
-  }));
-  const selectedProviderValue = selectedProvider?.id ?? '';
-  const selectedModelValue = modelOptions.some((model) => model.value === selectedModel)
-    ? selectedModel
+const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = false, task }) => {
+  const { providers } = useProviders();
+  const { config, updateSttConfig, updatePostProcessConfig } = useProcessing();
+  const [catalog, setCatalog] = useState<CuratedModelInfo[]>([]);
+  const [defaultPrompts, setDefaultPrompts] = useState<DefaultPrompts>();
+
+  useEffect(() => {
+    catalogApi
+      .getModelCatalog()
+      .then(setCatalog)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    processingApi
+      .getDefaultPrompts()
+      .then(setDefaultPrompts)
+      .catch(() => {});
+  }, []);
+
+  const isStt = task === 'stt';
+  const currentConfig = isStt ? config.stt : config.postProcess;
+  const selectedModelKey = currentConfig.modelKey ?? '';
+
+  // Providers that have at least one curated model for this task
+  const compatibleProviders = useMemo(() => {
+    const compatibleKinds = new Set(
+      catalog.filter((m) => m.task === task).flatMap((m) => m.providerKinds),
+    );
+
+    return providers.filter((p) => compatibleKinds.has(p.provider));
+  }, [catalog, providers, task]);
+
+  const selectedProvider =
+    compatibleProviders.find((p) => p.id === (currentConfig.providerId ?? '')) ??
+    compatibleProviders[0];
+
+  // Curated models for the selected provider
+  const modelOptions = useMemo(() => {
+    if (!selectedProvider) return [];
+
+    return catalog
+      .filter((m) => m.task === task && m.providerKinds.includes(selectedProvider.provider))
+      .map((m) => ({ label: m.label, value: m.key }));
+  }, [catalog, selectedProvider, task]);
+
+  const providerOptions = compatibleProviders.map((p) => ({ label: p.name, value: p.id }));
+
+  const effectiveProviderId = selectedProvider?.id ?? '';
+  const effectiveModelKey = modelOptions.some((o) => o.value === selectedModelKey)
+    ? selectedModelKey
     : (modelOptions[0]?.value ?? '');
 
-  if (providers.length === 0) {
+  // Primitive refs to avoid object identity issues in deps
+  const storedProviderId = currentConfig.providerId;
+  const storedModelKey = currentConfig.modelKey;
+
+  // Auto-persist defaults so that SttTestPanel / PostProcessTestPanel see non-null values
+  // even when the user has never explicitly made a selection (first launch).
+  useEffect(() => {
+    if (!effectiveProviderId || !effectiveModelKey) return;
+    if (storedProviderId && storedModelKey) return;
+
+    const update = isStt ? updateSttConfig : updatePostProcessConfig;
+
+    void update({
+      ...(storedProviderId ? {} : { providerId: effectiveProviderId }),
+      ...(storedModelKey ? {} : { modelKey: effectiveModelKey }),
+    });
+  }, [
+    effectiveModelKey,
+    effectiveProviderId,
+    isStt,
+    storedModelKey,
+    storedProviderId,
+    updatePostProcessConfig,
+    updateSttConfig,
+  ]);
+
+  const handleProviderChange = (providerId: string) => {
+    const update = isStt ? updateSttConfig : updatePostProcessConfig;
+
+    void update({ modelKey: null, providerId });
+  };
+
+  const handleModelChange = (modelKey: string) => {
+    const update = isStt ? updateSttConfig : updatePostProcessConfig;
+
+    void update({ modelKey });
+  };
+
+  const handleLanguageChange = (language: string) => {
+    void updateSttConfig({ language });
+  };
+
+  const useCustomPrompts = isStt ? config.stt.useCustomPrompt : config.postProcess.useCustomPrompts;
+
+  const handleUseCustomPromptsChange = (checked: boolean) => {
+    if (isStt) {
+      void updateSttConfig({ useCustomPrompt: checked });
+    } else {
+      void updatePostProcessConfig({ useCustomPrompts: checked });
+    }
+  };
+
+  const persistSystemPrompt = (systemPrompt: string) => {
+    if (isStt) {
+      void updateSttConfig({ systemPrompt });
+    } else {
+      void updatePostProcessConfig({ systemPrompt });
+    }
+  };
+
+  const persistUserPromptTemplate = (userPromptTemplate: string) => {
+    void updatePostProcessConfig({ userPromptTemplate });
+  };
+
+  const defaultSystemPrompt =
+    (isStt ? defaultPrompts?.sttSystem : defaultPrompts?.postProcessSystem) ?? '';
+
+  if (compatibleProviders.length === 0) {
     return <Empty description="Сначала добавьте провайдера" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
   }
 
@@ -42,81 +152,58 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({
     <Form disabled={disabled} layout="vertical">
       <Form.Item label="Провайдер">
         <Select
-          value={selectedProviderValue}
-          options={providers.map((provider) => ({
-            label: provider.name,
-            value: provider.id,
-          }))}
-          onChange={setSelectedProviderId}
+          options={providerOptions}
+          value={effectiveProviderId}
+          onChange={handleProviderChange}
         />
       </Form.Item>
 
       <Form.Item label="Модель">
         <Select
-          notFoundContent="Добавьте избранные модели в настройках провайдера"
-          value={selectedModelValue}
+          notFoundContent="Нет доступных моделей для этого провайдера"
           options={modelOptions}
-          onChange={setSelectedModel}
+          value={effectiveModelKey}
+          onChange={handleModelChange}
         />
       </Form.Item>
 
-      <div className={styles.fieldGrid}>
+      {isStt && (
         <Form.Item label="Язык">
           <Select
-            value={language}
-            options={[
-              {
-                label: 'Авто',
-                value: 'auto',
-              },
-              {
-                label: 'Русский',
-                value: 'ru',
-              },
-              {
-                label: 'English',
-                value: 'en',
-              },
-            ]}
-            onChange={setLanguage}
+            options={LANGUAGE_OPTIONS}
+            value={config.stt.language}
+            onChange={handleLanguageChange}
           />
         </Form.Item>
+      )}
 
-        <Form.Item label="Температура">
-          <InputNumber
-            className={styles.temperatureInput}
-            max={2}
-            min={0}
-            step={0.1}
-            value={temperature}
-            onChange={(value) => {
-              setTemperature(value ?? 0);
-            }}
-          />
-        </Form.Item>
-      </div>
-
-      <Form.Item label="Промпт">
-        <Input.TextArea
-          className={styles.textArea}
-          placeholder="Подсказка для модели, словарь терминов или контекст записи"
-          value={prompt}
-          onChange={(event) => {
-            setPrompt(event.target.value);
-          }}
-        />
+      <Form.Item>
+        <div className={styles.switchRow}>
+          <Switch checked={useCustomPrompts} onChange={handleUseCustomPromptsChange} />
+          <span>Использовать кастомные промпты</span>
+        </div>
       </Form.Item>
 
-      <Form.Item label="Прочее">
-        <Input.TextArea
-          className={styles.textArea}
-          placeholder="Дополнительные параметры в свободном формате"
-          value={extraParameters}
-          onChange={(event) => {
-            setExtraParameters(event.target.value);
-          }}
+      <PromptField
+        defaultValue={defaultSystemPrompt}
+        disabled={disabled}
+        enabled={useCustomPrompts}
+        label="Системный промпт"
+        storedValue={currentConfig.systemPrompt}
+        onPersist={persistSystemPrompt}
+      />
+
+      {!isStt && (
+        <PromptField
+          defaultValue={defaultPrompts?.postProcessUserTemplate ?? ''}
+          disabled={disabled}
+          enabled={useCustomPrompts}
+          hint="Оставьте пустым, если не хотите использовать пользовательский шаблон."
+          label="Шаблон пользовательского промпта"
+          storedValue={config.postProcess.userPromptTemplate}
+          onPersist={persistUserPromptTemplate}
         />
-      </Form.Item>
+      )}
     </Form>
   );
 };

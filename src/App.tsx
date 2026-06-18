@@ -3,6 +3,7 @@ import type { FC } from 'react';
 
 import AppSettingsProvider from '#/app/AppSettingsProvider';
 import AppThemeProvider from '#/app/AppThemeProvider';
+import ProcessingProvider from '#/app/ProcessingProvider';
 import ProvidersProvider from '#/app/ProvidersProvider';
 import { router } from '#/app/router';
 
@@ -11,7 +12,9 @@ const App: FC = () => {
     <AppSettingsProvider>
       <AppThemeProvider>
         <ProvidersProvider>
-          <RouterProvider router={router} />
+          <ProcessingProvider>
+            <RouterProvider router={router} />
+          </ProcessingProvider>
         </ProvidersProvider>
       </AppThemeProvider>
     </AppSettingsProvider>

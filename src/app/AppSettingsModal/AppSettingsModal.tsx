@@ -1,4 +1,4 @@
-import { type FC, useState } from 'react';
+import { type FC, useEffect, useState } from 'react';
 import { ConfigProvider, Menu, type MenuProps, message, Modal } from 'antd';
 import {
   BookOpenIcon,
@@ -10,6 +10,7 @@ import {
 
 import { useProviders } from '#/app/providersContext';
 import { useAppSettings } from '#/app/settingsContext';
+import * as catalogApi from '#/shared/catalogApi';
 
 import GeneralSettingsTab from './GeneralSettingsTab';
 import HotkeysSettingsTab from './HotkeysSettingsTab';
@@ -20,6 +21,7 @@ import SpeechToTextSettingsTab from './SpeechToTextSettingsTab';
 
 import styles from './AppSettingsModal.module.scss';
 
+import type { CuratedModelInfo } from '#/models/Catalog';
 import type {
   ModelInfo,
   ProviderConfig,
@@ -64,18 +66,6 @@ const settingsMenuItems: MenuProps['items'] = [
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
-const sortModelsByFavorite = (models: ModelInfo[], favoriteModels: Set<string>) =>
-  models.toSorted((firstModel, secondModel) => {
-    const isFirstFavorite = favoriteModels.has(firstModel.name);
-    const isSecondFavorite = favoriteModels.has(secondModel.name);
-
-    if (isFirstFavorite === isSecondFavorite) {
-      return firstModel.name.localeCompare(secondModel.name);
-    }
-
-    return isFirstFavorite ? -1 : 1;
-  });
-
 const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
   const [messageApi, messageContextHolder] = message.useMessage();
   const {
@@ -83,7 +73,6 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
     deleteProvider,
     listProviderModels,
     providers,
-    toggleFavoriteModel,
     updateProvider,
     validateProviderConfig,
   } = useProviders();
@@ -92,16 +81,24 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<ProviderConfig>();
   const [isModelListVisible, setIsModelListVisible] = useState(false);
-  const [favoriteModels, setFavoriteModels] = useState<Set<string>>(() => new Set<string>());
   const [modelRows, setModelRows] = useState<ModelInfo[]>([]);
   const [isSavingProvider, setIsSavingProvider] = useState(false);
   const [isValidatingProvider, setIsValidatingProvider] = useState(false);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [catalog, setCatalog] = useState<CuratedModelInfo[]>([]);
   const isEditingProvider = editingProvider !== undefined;
+
+  useEffect(() => {
+    catalogApi
+      .getModelCatalog()
+      .then(setCatalog)
+      .catch(() => {
+        // Catalog is static; ignore errors.
+      });
+  }, []);
 
   const handleOpenProviderModal = (provider?: ProviderConfig) => {
     setEditingProvider(provider);
-    setFavoriteModels(new Set(provider?.favoriteModels));
     setModelRows([]);
     setIsModelListVisible(false);
     setIsProviderModalOpen(true);
@@ -122,32 +119,6 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
   const handleDeleteProvider = async (providerId: string) => {
     try {
       await deleteProvider(providerId);
-    } catch (error) {
-      void messageApi.error(getErrorMessage(error));
-    }
-  };
-
-  const handleFavoriteModelToggle = async (modelName: string) => {
-    if (editingProvider === undefined) {
-      setFavoriteModels((currentFavorites) => {
-        const nextFavorites = new Set(currentFavorites);
-
-        if (nextFavorites.has(modelName)) {
-          nextFavorites.delete(modelName);
-        } else {
-          nextFavorites.add(modelName);
-        }
-
-        return nextFavorites;
-      });
-      return;
-    }
-
-    try {
-      const provider = await toggleFavoriteModel(editingProvider.id, modelName);
-
-      setEditingProvider(provider);
-      setFavoriteModels(new Set(provider.favoriteModels));
     } catch (error) {
       void messageApi.error(getErrorMessage(error));
     }
@@ -193,7 +164,7 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
     try {
       const models = await listProviderModels(input);
 
-      setModelRows(sortModelsByFavorite(models, favoriteModels));
+      setModelRows(models);
       setIsModelListVisible(true);
 
       if (models.length === 0) {
@@ -258,11 +229,11 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
       }
 
       case 'speechToText': {
-        return <SpeechToTextSettingsTab providers={providers} />;
+        return <SpeechToTextSettingsTab />;
       }
 
       case 'postProcessing': {
-        return <PostProcessingSettingsTab providers={providers} />;
+        return <PostProcessingSettingsTab />;
       }
     }
   };
@@ -296,8 +267,8 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
       </Modal>
 
       <ProviderSettingsModal
+        catalog={catalog}
         editingProvider={editingProvider}
-        favoriteModels={favoriteModels}
         isLoadingModels={isLoadingModels}
         isModelListVisible={isModelListVisible}
         isSaving={isSavingProvider}
@@ -307,9 +278,6 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
         open={isProviderModalOpen}
         title={isEditingProvider ? 'Редактировать провайдера' : 'Добавить провайдера'}
         onCancel={handleCloseProviderModal}
-        onFavoriteModelToggle={(modelName) => {
-          void handleFavoriteModelToggle(modelName);
-        }}
         onLoadModels={handleLoadModels}
         onModelListHide={() => {
           setIsModelListVisible(false);

@@ -25,6 +25,3 @@ export const validateProviderConfig = (input: ProviderConnectionInput) =>
 
 export const listProviderModels = (input: ProviderConnectionInput) =>
   invoke<ModelInfo[]>('list_provider_models', { input });
-
-export const toggleFavoriteModel = (providerId: string, modelName: string) =>
-  invoke<ProviderConfig>('toggle_favorite_model', { modelName, providerId });

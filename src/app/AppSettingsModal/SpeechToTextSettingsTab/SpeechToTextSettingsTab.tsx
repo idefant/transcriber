@@ -2,17 +2,14 @@ import { type FC } from 'react';
 
 import ProcessingSettingsForm from '../ProcessingSettingsForm';
 
+import SttTestPanel from './SttTestPanel';
+
 import styles from './SpeechToTextSettingsTab.module.scss';
 
-import type { ProviderConfig } from '#/models/Provider';
-
-interface SpeechToTextSettingsTabProps {
-  providers: ProviderConfig[];
-}
-
-const SpeechToTextSettingsTab: FC<SpeechToTextSettingsTabProps> = ({ providers }) => (
+const SpeechToTextSettingsTab: FC = () => (
   <div className={styles.settingsTab}>
-    <ProcessingSettingsForm providers={providers} />
+    <ProcessingSettingsForm task="stt" />
+    <SttTestPanel />
   </div>
 );
 

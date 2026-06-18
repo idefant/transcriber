@@ -54,7 +54,7 @@ fn delete_dictionary_word_inner(app: &tauri::AppHandle, word: String) -> AppResu
     Ok(words)
 }
 
-fn load_dictionary_words(app: &tauri::AppHandle) -> AppResult<Vec<String>> {
+pub fn load_dictionary_words(app: &tauri::AppHandle) -> AppResult<Vec<String>> {
     let words = storage::load_json_or_default(app, DICTIONARY_FILE_NAME)?;
 
     Ok(normalize_dictionary_words(words))

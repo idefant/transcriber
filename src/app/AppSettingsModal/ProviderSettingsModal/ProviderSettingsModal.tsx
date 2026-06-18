@@ -1,4 +1,4 @@
-import { type FC, useEffect, useMemo, useState } from 'react';
+import { type FC, useEffect, useMemo } from 'react';
 import {
   Button,
   Form,
@@ -9,13 +9,15 @@ import {
   Switch,
   Table,
   type TableColumnsType,
+  Tag,
 } from 'antd';
-import { CheckCircleIcon, SparklesIcon, StarIcon } from 'lucide-react';
+import { CheckCircleIcon, SparklesIcon } from 'lucide-react';
 
 import { providerOptions } from '../constants';
 
 import styles from './ProviderSettingsModal.module.scss';
 
+import type { CuratedModelInfo } from '#/models/Catalog';
 import type {
   ModelInfo,
   ProviderConfig,
@@ -33,9 +35,16 @@ interface ProviderSettingsFormValues {
   provider: ProviderKind;
 }
 
+interface CatalogRow {
+  apiId: string;
+  key: string;
+  label: string;
+  supported: boolean | null;
+}
+
 interface ProviderSettingsModalProps {
+  catalog: CuratedModelInfo[];
   editingProvider?: ProviderConfig;
-  favoriteModels: Set<string>;
   isLoadingModels: boolean;
   isModelListVisible: boolean;
   isSaving: boolean;
@@ -45,7 +54,6 @@ interface ProviderSettingsModalProps {
   open: boolean;
   title: string;
   onCancel: () => void;
-  onFavoriteModelToggle: (modelName: string) => void;
   onLoadModels: (input: ProviderConnectionInput) => Promise<void>;
   onModelListHide: () => void;
   onSubmit: (input: ProviderInput) => Promise<void>;
@@ -56,8 +64,8 @@ const getProviderLabel = (provider: ProviderKind) =>
   providerOptions.find(({ value }) => value === provider)?.label ?? 'Custom';
 
 const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
+  catalog,
   editingProvider,
-  favoriteModels,
   isLoadingModels,
   isModelListVisible,
   isSaving,
@@ -67,14 +75,12 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
   open,
   title,
   onCancel,
-  onFavoriteModelToggle,
   onLoadModels,
   onModelListHide,
   onSubmit,
   onValidate,
 }) => {
   const [form] = Form.useForm<ProviderSettingsFormValues>();
-  const [modelSearch, setModelSearch] = useState('');
   const selectedProvider =
     (Form.useWatch('provider', form) as ProviderKind | undefined) ?? 'openai';
   const areAdvancedSettingsEnabled = Form.useWatch('areAdvancedSettingsEnabled', form) ?? false;
@@ -108,52 +114,73 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
     });
   }, [editingProvider, form, open]);
 
-  const filteredModelRows = useMemo(() => {
-    const normalizedSearch = modelSearch.trim().toLowerCase();
+  // Curated models for the selected provider kind — derived, no state needed
+  const catalogRows = useMemo<CatalogRow[]>(
+    () =>
+      catalog
+        .filter((model) => model.providerKinds.includes(selectedProvider))
+        .map((model) => ({
+          apiId: '',
+          key: model.key,
+          label: model.label,
+          supported: null as boolean | null,
+        })),
+    [catalog, selectedProvider],
+  );
 
-    if (normalizedSearch.length === 0) {
-      return modelRows;
+  // When modelRows arrive, match them against our catalog rows
+  const resolvedCatalogRows = useMemo<CatalogRow[]>(() => {
+    if (!isModelListVisible || modelRows.length === 0) {
+      return catalogRows;
     }
 
-    return modelRows.filter((model) => {
-      const searchableText = `${model.name} ${model.description}`.toLowerCase();
+    const availableIds = new Set(modelRows.map((m) => m.name));
 
-      return searchableText.includes(normalizedSearch);
+    return catalogRows.map((row) => {
+      // Check if the model key exists in the catalog for this provider
+      const isInCatalog = catalog.some((m) => m.key === row.key);
+
+      if (!isInCatalog) {
+        return { ...row, supported: false };
+      }
+
+      // We don't have the per-provider api_id on the frontend (only providerKinds).
+      // We match by checking if any model name in the response contains the model key
+      // or matches common naming conventions.
+      const isSupported = [...availableIds].some(
+        (id) =>
+          id.toLowerCase().includes(row.key.toLowerCase()) ||
+          row.key.toLowerCase().includes(id.toLowerCase().split('/').pop() ?? id),
+      );
+
+      return { ...row, supported: isSupported };
     });
-  }, [modelRows, modelSearch]);
+  }, [catalog, catalogRows, isModelListVisible, modelRows]);
 
-  const modelColumns = useMemo<TableColumnsType<ModelInfo>>(
+  const modelColumns = useMemo<TableColumnsType<CatalogRow>>(
     () => [
       {
-        dataIndex: 'name',
+        dataIndex: 'label',
         title: 'Модель',
       },
       {
-        dataIndex: 'description',
-        title: 'Описание',
-      },
-      {
-        align: 'center',
-        render: (_, model) => {
-          const isFavorite = favoriteModels.has(model.name);
+        align: 'right',
+        render: (_, row) => {
+          if (row.supported === null) {
+            return null;
+          }
 
-          return (
-            <Button
-              aria-label={isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}
-              icon={<StarIcon fill={isFavorite ? '#ffe600' : 'none'} size={18} strokeWidth={2} />}
-              type="text"
-              size="small"
-              onClick={() => {
-                onFavoriteModelToggle(model.name);
-              }}
-            />
+          return row.supported ? (
+            <Tag color="success">Поддерживается</Tag>
+          ) : (
+            <Tag color="default">Не поддерживается</Tag>
           );
         },
         title: '',
-        width: 64,
+        width: 180,
       },
     ],
-    [favoriteModels, onFavoriteModelToggle],
+    [],
   );
 
   const buildConnectionInput = async (): Promise<ProviderConnectionInput> => {
@@ -178,12 +205,10 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
 
   const handleLoadModels = async () => {
     if (isModelListVisible) {
-      setModelSearch('');
       onModelListHide();
       return;
     }
 
-    setModelSearch('');
     await onLoadModels(await buildConnectionInput());
   };
 
@@ -195,7 +220,6 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
     await onSubmit({
       apiKey: values.apiKey,
       baseUrl: values.baseUrl,
-      favoriteModels: [...favoriteModels],
       headers: values.headers,
       name: values.name,
       provider: values.provider,
@@ -298,21 +322,13 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
           </Button>
         </Space>
 
-        {isModelListVisible && (
+        {catalogRows.length > 0 && (
           <div className={styles.modelList}>
-            <Input.Search
-              allowClear
-              placeholder="Поиск по названию и описанию"
-              value={modelSearch}
-              onChange={(event) => {
-                setModelSearch(event.target.value);
-              }}
-            />
             <Table
               columns={modelColumns}
-              dataSource={filteredModelRows}
+              dataSource={resolvedCatalogRows}
               pagination={false}
-              rowKey="name"
+              rowKey="key"
               scroll={{ y: 280 }}
               size="small"
             />

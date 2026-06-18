@@ -74,18 +74,6 @@ const ProvidersProvider: FC<ProvidersProviderProps> = ({ children }) => {
     );
   }, []);
 
-  const toggleFavoriteModel = useCallback(async (providerId: string, modelName: string) => {
-    const provider = await providersApi.toggleFavoriteModel(providerId, modelName);
-
-    setProviders((currentProviders) =>
-      currentProviders.map((currentProvider) =>
-        currentProvider.id === provider.id ? provider : currentProvider,
-      ),
-    );
-
-    return provider;
-  }, []);
-
   const validateProviderConfig = useCallback(
     (input: ProviderConnectionInput): Promise<ProviderValidationResult> =>
       providersApi.validateProviderConfig(input),
@@ -107,7 +95,6 @@ const ProvidersProvider: FC<ProvidersProviderProps> = ({ children }) => {
       listProviderModels,
       providers,
       reloadProviders,
-      toggleFavoriteModel,
       updateProvider,
       validateProviderConfig,
     }),
@@ -119,7 +106,6 @@ const ProvidersProvider: FC<ProvidersProviderProps> = ({ children }) => {
       listProviderModels,
       providers,
       reloadProviders,
-      toggleFavoriteModel,
       updateProvider,
       validateProviderConfig,
     ],
