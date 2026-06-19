@@ -2,7 +2,7 @@
   {
     "key": "groq-gpt-oss-20b",
     "label": "Groq GPT OSS 20B",
-    "enabled": true,
+    "enabled": false,
     "provider": "groq",
     "apiId": "openai/gpt-oss-20b",
     "baseUrl": "https://api.groq.com/openai/v1",
@@ -17,7 +17,7 @@
   {
     "key": "groq-gpt-oss-120b",
     "label": "Groq GPT OSS 120B 128k",
-    "enabled": true,
+    "enabled": false,
     "provider": "groq",
     "apiId": "openai/gpt-oss-120b",
     "baseUrl": "https://api.groq.com/openai/v1",
@@ -27,6 +27,26 @@
     "params": {
       "temperature": 0.2,
       "maxCompletionTokens": 1024
+    }
+  },
+  {
+    "key": "openrouter-gpt-oss-120b",
+    "label": "OpenRouter GPT OSS 120B 128k",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "openai/gpt-oss-120b",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.039,
+    "outputPricePer1M": 0.18,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 1024
+    },
+    "providerRouting": {
+      "order": ["groq"],
+      "only": ["groq"],
+      "allow_fallbacks": false
     }
   },
   {
@@ -45,9 +65,29 @@
     }
   },
   {
+    "key": "openrouter-llama-4-scout",
+    "label": "OpenRouter Llama 4 Scout",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "meta-llama/llama-4-scout",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.1,
+    "outputPricePer1M": 0.3,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 1024
+    },
+    "providerRouting": {
+      "order": ["groq"],
+      "only": ["groq"],
+      "allow_fallbacks": false
+    }
+  },
+  {
     "key": "groq-qwen3-32b",
     "label": "Groq Qwen3 32B",
-    "enabled": true,
+    "enabled": false,
     "provider": "groq",
     "apiId": "qwen/qwen3-32b",
     "baseUrl": "https://api.groq.com/openai/v1",
@@ -75,6 +115,26 @@
     }
   },
   {
+    "key": "openrouter-llama-3-3-70b-instruct",
+    "label": "OpenRouter Llama 3.3 70B Instruct 128k",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "meta-llama/llama-3.3-70b-instruct",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.1,
+    "outputPricePer1M": 0.32,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 1024
+    },
+    "providerRouting": {
+      "order": ["groq"],
+      "only": ["groq"],
+      "allow_fallbacks": false
+    }
+  },
+  {
     "key": "groq-llama-3-1-8b-instant",
     "label": "Groq Llama 3.1 8B Instant 128k",
     "enabled": true,
@@ -90,9 +150,29 @@
     }
   },
   {
+    "key": "openrouter-llama-3-1-8b-instruct",
+    "label": "OpenRouter Llama 3.1 8B Instruct 128k",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "meta-llama/llama-3.1-8b-instruct",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.02,
+    "outputPricePer1M": 0.03,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 1024
+    },
+    "providerRouting": {
+      "order": ["groq"],
+      "only": ["groq"],
+      "allow_fallbacks": false
+    }
+  },
+  {
     "key": "groq-qwen-3-6-27b",
     "label": "Groq Qwen 3.6 27B 131k",
-    "enabled": true,
+    "enabled": false,
     "provider": "groq",
     "apiId": "qwen/qwen3.6-27b",
     "baseUrl": "https://api.groq.com/openai/v1",
@@ -107,7 +187,7 @@
   {
     "key": "openai-gpt-5-4-mini",
     "label": "OpenAI gpt-5.4-mini",
-    "enabled": true,
+    "enabled": false,
     "provider": "openai",
     "apiId": "gpt-5.4-mini",
     "baseUrl": "https://api.openai.com/v1",
@@ -122,7 +202,7 @@
   {
     "key": "openai-gpt-5-4-nano",
     "label": "OpenAI gpt-5.4-nano",
-    "enabled": true,
+    "enabled": false,
     "provider": "openai",
     "apiId": "gpt-5.4-nano",
     "baseUrl": "https://api.openai.com/v1",
@@ -137,7 +217,7 @@
   {
     "key": "openai-gpt-5-mini",
     "label": "OpenAI gpt-5-mini",
-    "enabled": true,
+    "enabled": false,
     "provider": "openai",
     "apiId": "gpt-5-mini",
     "baseUrl": "https://api.openai.com/v1",
@@ -152,7 +232,7 @@
   {
     "key": "openai-gpt-5-nano",
     "label": "OpenAI gpt-5-nano",
-    "enabled": true,
+    "enabled": false,
     "provider": "openai",
     "apiId": "gpt-5-nano",
     "baseUrl": "https://api.openai.com/v1",
@@ -167,7 +247,7 @@
   {
     "key": "openai-gpt-4-1-mini",
     "label": "OpenAI gpt-4.1-mini",
-    "enabled": true,
+    "enabled": false,
     "provider": "openai",
     "apiId": "gpt-4.1-mini",
     "baseUrl": "https://api.openai.com/v1",
@@ -182,7 +262,7 @@
   {
     "key": "openai-gpt-4-1-nano",
     "label": "OpenAI gpt-4.1-nano",
-    "enabled": true,
+    "enabled": false,
     "provider": "openai",
     "apiId": "gpt-4.1-nano",
     "baseUrl": "https://api.openai.com/v1",
@@ -197,7 +277,7 @@
   {
     "key": "openai-gpt-4o-mini",
     "label": "OpenAI gpt-4o-mini",
-    "enabled": true,
+    "enabled": false,
     "provider": "openai",
     "apiId": "gpt-4o-mini",
     "baseUrl": "https://api.openai.com/v1",
@@ -212,7 +292,7 @@
   {
     "key": "openrouter-gemini-3-1-flash-lite",
     "label": "OpenRouter Gemini 3.1 Flash Lite",
-    "enabled": true,
+    "enabled": false,
     "provider": "openrouter",
     "apiId": "google/gemini-3.1-flash-lite",
     "baseUrl": "https://openrouter.ai/api/v1",
@@ -227,7 +307,7 @@
   {
     "key": "openrouter-gemini-2-5-flash-lite",
     "label": "OpenRouter Gemini 2.5 Flash Lite",
-    "enabled": true,
+    "enabled": false,
     "provider": "openrouter",
     "apiId": "google/gemini-2.5-flash-lite",
     "baseUrl": "https://openrouter.ai/api/v1",
@@ -242,7 +322,7 @@
   {
     "key": "openrouter-gemini-2-5-flash",
     "label": "OpenRouter Gemini 2.5 Flash",
-    "enabled": true,
+    "enabled": false,
     "provider": "openrouter",
     "apiId": "google/gemini-2.5-flash",
     "baseUrl": "https://openrouter.ai/api/v1",
@@ -257,7 +337,7 @@
   {
     "key": "openrouter-claude-haiku-3-5",
     "label": "OpenRouter Claude Haiku 3.5",
-    "enabled": true,
+    "enabled": false,
     "provider": "openrouter",
     "apiId": "anthropic/claude-3.5-haiku",
     "baseUrl": "https://openrouter.ai/api/v1",
@@ -275,7 +355,7 @@
   {
     "key": "openrouter-claude-haiku-4-5",
     "label": "OpenRouter Claude Haiku 4.5",
-    "enabled": true,
+    "enabled": false,
     "provider": "openrouter",
     "apiId": "anthropic/claude-haiku-4.5",
     "baseUrl": "https://openrouter.ai/api/v1",

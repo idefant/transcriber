@@ -452,6 +452,10 @@ const requestModel = async ({ language, model, prompts, testCase }) => {
     body.thinking = model.params.thinking;
   }
 
+  if (model.providerRouting) {
+    body.provider = model.providerRouting;
+  }
+
   const requestText = JSON.stringify(body.messages);
   const response = await fetch(`${model.baseUrl.replace(/\/$/, '')}/chat/completions`, {
     body: JSON.stringify(body),
