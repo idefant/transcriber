@@ -3,6 +3,7 @@ dist
 src-tauri/gen
 src-tauri/target
 coverage
+reports
 .codex
 ui-audit-artifacts
 *.tsbuildinfo

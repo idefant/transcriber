@@ -106,6 +106,10 @@ npm.cmd run format:check
 npm.cmd run check
 ```
 
+## Model Testing
+
+Post-processing model evals are documented in [docs/model-testing.md](docs/model-testing.md).
+
 ## Git Hooks
 
 Husky runs lint-staged before commits:

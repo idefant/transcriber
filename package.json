@@ -18,6 +18,8 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "encoding:check": "node scripts/check-encoding.mjs",
+    "model-test": "node scripts/model-testing/run.mjs",
+    "model-test:smoke": "node scripts/model-testing/run.mjs --smoke",
     "check": "npm run typecheck && npm run lint && npm run stylelint && npm run format:check && npm run encoding:check && npm run build",
     "prepare": "husky"
   },

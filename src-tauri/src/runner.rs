@@ -168,14 +168,13 @@ async fn run_post_process_test_inner(app: &tauri::AppHandle, text: String) -> Ap
         return Err("Expected PostProcess model params".into());
     };
 
+    let system_prompt_template = post_process.effective_system_prompt(&ui_language)?;
+    let user_template = post_process.effective_user_template()?;
     let system_prompt = apply_template(
-        post_process.effective_system_prompt(&ui_language),
+        &system_prompt_template,
         &[("CLEANUP_TOOL_AGENT_NAME", AGENT_NAME)],
     );
-    let user_content = apply_template(
-        post_process.effective_user_template(),
-        &[("TRANSCRIBED_TEXT", text.as_str())],
-    );
+    let user_content = apply_template(&user_template, &[("TRANSCRIBED_TEXT", text.as_str())]);
 
     let mut body = serde_json::json!({
         "model": api_id,
