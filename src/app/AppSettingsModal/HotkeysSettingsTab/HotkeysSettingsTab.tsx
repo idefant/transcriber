@@ -1,5 +1,6 @@
 import { type FC } from 'react';
 import { Input, Segmented } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 import SettingRow from '../SettingRow';
 
@@ -19,39 +20,46 @@ const HotkeysSettingsTab: FC<HotkeysSettingsTabProps> = ({
   onHotkeyChange,
   onTriggerModeChange,
   triggerMode,
-}) => (
-  <div className={styles.settingsList}>
-    <SettingRow description="Комбинация клавиш, которая запускает запись" title="Старт записи">
-      <Input
-        className={styles.hotkeyInput}
-        value={hotkey}
-        onChange={(event) => {
-          onHotkeyChange(event.target.value);
-        }}
-      />
-    </SettingRow>
+}) => {
+  const { t } = useTranslation();
 
-    <SettingRow
-      description="Запускать запись сразу по нажатию или только пока комбинация зажата"
-      title="Режим запуска"
-    >
-      <Segmented<TriggerMode>
-        className={styles.triggerModePicker}
-        options={[
-          {
-            label: 'По нажатию',
-            value: 'press',
-          },
-          {
-            label: 'По зажатию',
-            value: 'hold',
-          },
-        ]}
-        value={triggerMode}
-        onChange={onTriggerModeChange}
-      />
-    </SettingRow>
-  </div>
-);
+  return (
+    <div className={styles.settingsList}>
+      <SettingRow
+        description={t('settings.hotkeys.startRecording.description')}
+        title={t('settings.hotkeys.startRecording.title')}
+      >
+        <Input
+          className={styles.hotkeyInput}
+          value={hotkey}
+          onChange={(event) => {
+            onHotkeyChange(event.target.value);
+          }}
+        />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.hotkeys.triggerMode.description')}
+        title={t('settings.hotkeys.triggerMode.title')}
+      >
+        <Segmented<TriggerMode>
+          className={styles.triggerModePicker}
+          options={[
+            {
+              label: t('settings.hotkeys.triggerMode.press'),
+              value: 'press',
+            },
+            {
+              label: t('settings.hotkeys.triggerMode.hold'),
+              value: 'hold',
+            },
+          ]}
+          value={triggerMode}
+          onChange={onTriggerModeChange}
+        />
+      </SettingRow>
+    </div>
+  );
+};
 
 export default HotkeysSettingsTab;

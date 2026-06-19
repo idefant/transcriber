@@ -1,6 +1,7 @@
 import { type FC, type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Card, Empty, Input, message, Space, Spin, Tag, Tooltip } from 'antd';
 import { PlusIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import * as dictionaryApi from '#/shared/dictionaryApi';
 
@@ -10,6 +11,7 @@ const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
 const DictionaryPage: FC = () => {
+  const { t } = useTranslation();
   const [messageApi, messageContextHolder] = message.useMessage();
   const [wordInput, setWordInput] = useState('');
   const [words, setWords] = useState<string[]>([]);
@@ -90,19 +92,19 @@ const DictionaryPage: FC = () => {
           <div className={styles.dictionary}>
             <Space.Compact className={styles.addWord}>
               <Input
-                aria-label="Новое слово"
+                aria-label={t('dictionary.newWord')}
                 className={styles.wordInput}
                 disabled={isLoading || isSaving}
-                placeholder="Добавить слово"
+                placeholder={t('dictionary.addWord')}
                 value={wordInput}
                 onChange={(event) => {
                   setWordInput(event.target.value);
                 }}
                 onKeyDown={handleInputKeyDown}
               />
-              <Tooltip title="Добавить слово">
+              <Tooltip title={t('dictionary.addWord')}>
                 <Button
-                  aria-label="Добавить слово"
+                  aria-label={t('dictionary.addWord')}
                   className={styles.addButton}
                   disabled={isLoading || wordInput.trim().length === 0}
                   icon={<PlusIcon size={18} strokeWidth={2} />}

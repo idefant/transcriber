@@ -2,6 +2,7 @@ import { type FC, useMemo, useState } from 'react';
 import { Button, Card, DatePicker, Empty, Space, Tooltip } from 'antd';
 import dayjs from 'dayjs';
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import HistoryDetailsPanel from './HistoryDetailsPanel';
 import HistoryRecordsList from './HistoryRecordsList';
@@ -22,6 +23,7 @@ const shiftMonth = (month: string, monthOffset: number) =>
   dayjs(`${month}-01`).add(monthOffset, 'month').format(monthFormat);
 
 const HistoryPage: FC = () => {
+  const { t } = useTranslation();
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth);
   const [activeDate, setActiveDate] = useState(getFirstGroupByMonth(selectedMonth)?.date);
   const [selectedRecord, setSelectedRecord] = useState<HistoryRecord>();
@@ -64,9 +66,9 @@ const HistoryPage: FC = () => {
       <Card className={styles.historyCard}>
         <div className={styles.toolbar}>
           <Space.Compact>
-            <Tooltip title="Предыдущий месяц">
+            <Tooltip title={t('history.previousMonth')}>
               <Button
-                aria-label="Предыдущий месяц"
+                aria-label={t('history.previousMonth')}
                 icon={<ChevronLeftIcon size={16} strokeWidth={2} />}
                 onClick={goToPreviousMonth}
               />
@@ -76,18 +78,18 @@ const HistoryPage: FC = () => {
               className={styles.monthPicker}
               format={monthFormat}
               picker="month"
-              placeholder="Месяц"
+              placeholder={t('history.month')}
               value={monthPickerValue}
               renderExtraFooter={() => (
                 <Button block size="small" type="text" onClick={goToCurrentMonth}>
-                  Сегодня
+                  {t('history.today')}
                 </Button>
               )}
               onChange={handleMonthChange}
             />
-            <Tooltip title="Следующий месяц">
+            <Tooltip title={t('history.nextMonth')}>
               <Button
-                aria-label="Следующий месяц"
+                aria-label={t('history.nextMonth')}
                 icon={<ChevronRightIcon size={16} strokeWidth={2} />}
                 onClick={goToNextMonth}
               />
@@ -104,7 +106,7 @@ const HistoryPage: FC = () => {
             onRecordSelect={setSelectedRecord}
           />
         ) : (
-          <Empty description="За выбранный месяц записей нет" />
+          <Empty description={t('history.emptyMonth')} />
         )}
       </Card>
 

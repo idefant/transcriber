@@ -1,8 +1,13 @@
 import { type FC, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfigProvider, theme as antdTheme } from 'antd';
+import enUS from 'antd/locale/en_US';
+import ruRU from 'antd/locale/ru_RU';
+import dayjs from 'dayjs';
 
 import { useAppSettings } from '#/app/settingsContext';
 import { AppThemeContext, type ThemeMode, type ThemePreference } from '#/app/themeContext';
+
+import 'dayjs/locale/ru';
 
 interface AppThemeProviderProps {
   children: ReactNode;
@@ -35,6 +40,7 @@ const AppThemeProvider: FC<AppThemeProviderProps> = ({ children }) => {
   const { settings, updateSettings } = useAppSettings();
   const [systemThemeMode, setSystemThemeMode] = useState<ThemeMode>(() => getSystemThemeMode());
   const themePreference = settings.themePreference;
+  const antdLocale = settings.effectiveUiLanguage === 'ru' ? ruRU : enUS;
   const isDarkMode =
     themePreference === 'dark' || (themePreference === 'auto' && systemThemeMode === 'dark');
   const mode: ThemeMode = isDarkMode ? 'dark' : 'light';
@@ -56,6 +62,10 @@ const AppThemeProvider: FC<AppThemeProviderProps> = ({ children }) => {
     },
     [updateSettings],
   );
+
+  useEffect(() => {
+    dayjs.locale(settings.effectiveUiLanguage);
+  }, [settings.effectiveUiLanguage]);
 
   useEffect(() => {
     if (!('matchMedia' in globalThis)) {
@@ -88,6 +98,7 @@ const AppThemeProvider: FC<AppThemeProviderProps> = ({ children }) => {
   return (
     <AppThemeContext.Provider value={contextValue}>
       <ConfigProvider
+        locale={antdLocale}
         theme={{
           algorithm: isDarkMode ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
           components: {

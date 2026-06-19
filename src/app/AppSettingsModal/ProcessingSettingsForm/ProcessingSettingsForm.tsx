@@ -1,8 +1,10 @@
 import { type FC, useEffect, useMemo, useState } from 'react';
 import { Empty, Form, Select, Switch } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 import { useProcessing } from '#/app/processingContext';
 import { useProviders } from '#/app/providersContext';
+import { useAppSettings } from '#/app/settingsContext';
 import * as catalogApi from '#/shared/catalogApi';
 import * as processingApi from '#/shared/processingApi';
 
@@ -18,17 +20,18 @@ interface ProcessingSettingsFormProps {
   task: ModelTask;
 }
 
-const LANGUAGE_OPTIONS = [
-  { label: 'Авто', value: 'auto' },
-  { label: 'Русский', value: 'ru' },
-  { label: 'English', value: 'en' },
-];
-
 const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = false, task }) => {
   const { providers } = useProviders();
+  const { settings } = useAppSettings();
   const { config, updateSttConfig, updatePostProcessConfig } = useProcessing();
+  const { t } = useTranslation();
   const [catalog, setCatalog] = useState<CuratedModelInfo[]>([]);
   const [defaultPrompts, setDefaultPrompts] = useState<DefaultPrompts>();
+  const languageOptions = [
+    { label: t('settings.processing.languages.auto'), value: 'auto' },
+    { label: t('settings.processing.languages.ru'), value: 'ru' },
+    { label: t('settings.processing.languages.en'), value: 'en' },
+  ];
 
   useEffect(() => {
     catalogApi
@@ -42,7 +45,7 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
       .getDefaultPrompts()
       .then(setDefaultPrompts)
       .catch(() => {});
-  }, []);
+  }, [settings.effectiveUiLanguage]);
 
   const isStt = task === 'stt';
   const currentConfig = isStt ? config.stt : config.postProcess;
@@ -145,12 +148,17 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
     (isStt ? defaultPrompts?.sttSystem : defaultPrompts?.postProcessSystem) ?? '';
 
   if (compatibleProviders.length === 0) {
-    return <Empty description="Сначала добавьте провайдера" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+    return (
+      <Empty
+        description={t('settings.processing.noProviders')}
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+      />
+    );
   }
 
   return (
     <Form disabled={disabled} layout="vertical">
-      <Form.Item label="Провайдер">
+      <Form.Item label={t('settings.processing.provider')}>
         <Select
           options={providerOptions}
           value={effectiveProviderId}
@@ -158,9 +166,9 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
         />
       </Form.Item>
 
-      <Form.Item label="Модель">
+      <Form.Item label={t('settings.processing.model')}>
         <Select
-          notFoundContent="Нет доступных моделей для этого провайдера"
+          notFoundContent={t('settings.processing.noModels')}
           options={modelOptions}
           value={effectiveModelKey}
           onChange={handleModelChange}
@@ -168,9 +176,9 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
       </Form.Item>
 
       {isStt && (
-        <Form.Item label="Язык">
+        <Form.Item label={t('settings.processing.language')}>
           <Select
-            options={LANGUAGE_OPTIONS}
+            options={languageOptions}
             value={config.stt.language}
             onChange={handleLanguageChange}
           />
@@ -180,7 +188,7 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
       <Form.Item>
         <div className={styles.switchRow}>
           <Switch checked={useCustomPrompts} onChange={handleUseCustomPromptsChange} />
-          <span>Использовать кастомные промпты</span>
+          <span>{t('settings.processing.useCustomPrompts')}</span>
         </div>
       </Form.Item>
 
@@ -188,7 +196,7 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
         defaultValue={defaultSystemPrompt}
         disabled={disabled}
         enabled={useCustomPrompts}
-        label="Системный промпт"
+        label={t('settings.processing.systemPrompt')}
         storedValue={currentConfig.systemPrompt}
         onPersist={persistSystemPrompt}
       />
@@ -198,8 +206,8 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
           defaultValue={defaultPrompts?.postProcessUserTemplate ?? ''}
           disabled={disabled}
           enabled={useCustomPrompts}
-          hint="Оставьте пустым, если не хотите использовать пользовательский шаблон."
-          label="Шаблон пользовательского промпта"
+          hint={t('settings.processing.userPromptTemplateHint')}
+          label={t('settings.processing.userPromptTemplate')}
           storedValue={config.postProcess.userPromptTemplate}
           onPersist={persistUserPromptTemplate}
         />

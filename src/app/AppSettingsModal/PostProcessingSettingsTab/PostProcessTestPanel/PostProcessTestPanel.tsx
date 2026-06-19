@@ -1,6 +1,7 @@
 import { type FC, useState } from 'react';
 import { Alert, Button, Input, Typography } from 'antd';
 import { WandSparklesIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { useProcessing } from '#/app/processingContext';
 import * as processingApi from '#/shared/processingApi';
@@ -9,6 +10,7 @@ import styles from './PostProcessTestPanel.module.scss';
 
 const PostProcessTestPanel: FC = () => {
   const { config } = useProcessing();
+  const { t } = useTranslation();
   const [inputText, setInputText] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<string>();
@@ -18,6 +20,10 @@ const PostProcessTestPanel: FC = () => {
   const canRun = Boolean(
     config.postProcess.providerId && config.postProcess.modelKey && inputText.trim(),
   );
+  const formatElapsed = (value: number) =>
+    value < 1000
+      ? t('common.milliseconds', { value })
+      : t('common.seconds', { value: (value / 1000).toFixed(1) });
 
   const handleRun = async () => {
     if (!config.postProcess.providerId || !config.postProcess.modelKey) return;
@@ -42,11 +48,11 @@ const PostProcessTestPanel: FC = () => {
 
   return (
     <div className={styles.panel}>
-      <Typography.Text strong>Тест конфигурации</Typography.Text>
+      <Typography.Text strong>{t('settings.tests.title')}</Typography.Text>
 
       <Input.TextArea
         className={styles.inputText}
-        placeholder="Введите текст для обработки"
+        placeholder={t('settings.tests.inputPlaceholder')}
         value={inputText}
         onChange={(event) => {
           setInputText(event.target.value);
@@ -64,12 +70,12 @@ const PostProcessTestPanel: FC = () => {
             void handleRun();
           }}
         >
-          Запустить
+          {t('settings.tests.run')}
         </Button>
       </div>
 
       {(!config.postProcess.providerId || !config.postProcess.modelKey) && (
-        <Alert showIcon title="Выберите провайдера и модель выше" type="warning" />
+        <Alert showIcon title={t('settings.processing.selectProviderAndModel')} type="warning" />
       )}
 
       {error !== undefined && <Alert showIcon title={error} type="error" />}
@@ -77,8 +83,7 @@ const PostProcessTestPanel: FC = () => {
       {result !== undefined && (
         <div className={styles.result}>
           <Typography.Text type="secondary">
-            Результат: (
-            {elapsedMs < 1000 ? `${elapsedMs} мс` : `${(elapsedMs / 1000).toFixed(1)} с`})
+            {t('settings.tests.result', { elapsed: formatElapsed(elapsedMs) })}
           </Typography.Text>
           <Typography.Paragraph className={styles.resultText}>{result}</Typography.Paragraph>
         </div>

@@ -39,11 +39,25 @@ impl Default for TriggerMode {
 enum UiLanguage {
     En,
     Ru,
+    System,
 }
 
 impl Default for UiLanguage {
     fn default() -> Self {
-        Self::Ru
+        Self::System
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EffectiveUiLanguage {
+    En,
+    Ru,
+}
+
+impl Default for EffectiveUiLanguage {
+    fn default() -> Self {
+        Self::En
     }
 }
 
@@ -54,6 +68,8 @@ pub struct AppSettings {
     theme_preference: ThemePreference,
     #[serde(default)]
     ui_language: UiLanguage,
+    #[serde(default, skip_deserializing)]
+    effective_ui_language: EffectiveUiLanguage,
     #[serde(default = "default_dictation_sounds_enabled")]
     are_dictation_sounds_enabled: bool,
     #[serde(default = "default_hotkey")]
@@ -67,6 +83,7 @@ impl Default for AppSettings {
         Self {
             theme_preference: ThemePreference::default(),
             ui_language: UiLanguage::default(),
+            effective_ui_language: resolve_effective_ui_language(&UiLanguage::default()),
             are_dictation_sounds_enabled: default_dictation_sounds_enabled(),
             hotkey: default_hotkey(),
             trigger_mode: TriggerMode::default(),
@@ -94,7 +111,9 @@ fn default_hotkey() -> String {
 
 #[tauri::command]
 pub fn get_app_settings(app: tauri::AppHandle) -> Result<AppSettings, String> {
-    load_app_settings(&app).map_err(AppError::into_message)
+    load_app_settings(&app)
+        .map(with_effective_ui_language)
+        .map_err(AppError::into_message)
 }
 
 #[tauri::command]
@@ -131,6 +150,8 @@ fn update_app_settings_inner(
         settings.trigger_mode = trigger_mode;
     }
 
+    settings.effective_ui_language = resolve_effective_ui_language(&settings.ui_language);
+
     save_app_settings(app, &settings)?;
 
     Ok(settings)
@@ -142,4 +163,35 @@ fn load_app_settings(app: &tauri::AppHandle) -> AppResult<AppSettings> {
 
 fn save_app_settings(app: &tauri::AppHandle, settings: &AppSettings) -> AppResult<()> {
     storage::save_json(app, SETTINGS_FILE_NAME, settings)
+}
+
+pub fn get_effective_ui_language(app: &tauri::AppHandle) -> AppResult<EffectiveUiLanguage> {
+    let settings = load_app_settings(app)?;
+
+    Ok(resolve_effective_ui_language(&settings.ui_language))
+}
+
+fn with_effective_ui_language(mut settings: AppSettings) -> AppSettings {
+    settings.effective_ui_language = resolve_effective_ui_language(&settings.ui_language);
+    settings
+}
+
+fn resolve_effective_ui_language(ui_language: &UiLanguage) -> EffectiveUiLanguage {
+    match ui_language {
+        UiLanguage::En => EffectiveUiLanguage::En,
+        UiLanguage::Ru => EffectiveUiLanguage::Ru,
+        UiLanguage::System => get_system_ui_language(),
+    }
+}
+
+fn get_system_ui_language() -> EffectiveUiLanguage {
+    let Some(locale) = sys_locale::get_locale() else {
+        return EffectiveUiLanguage::En;
+    };
+
+    if locale.to_lowercase().starts_with("ru") {
+        EffectiveUiLanguage::Ru
+    } else {
+        EffectiveUiLanguage::En
+    }
 }

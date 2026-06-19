@@ -7,6 +7,7 @@ import {
   SlidersHorizontalIcon,
   WandSparklesIcon,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { useProviders } from '#/app/providersContext';
 import { useAppSettings } from '#/app/settingsContext';
@@ -35,38 +36,11 @@ interface AppSettingsModalProps {
   onClose: () => void;
 }
 
-const settingsMenuItems: MenuProps['items'] = [
-  {
-    icon: <SettingsIcon size={18} strokeWidth={2} />,
-    key: 'general',
-    label: 'Основное',
-  },
-  {
-    icon: <KeyboardIcon size={18} strokeWidth={2} />,
-    key: 'hotkeys',
-    label: 'Хоткеи',
-  },
-  {
-    icon: <BookOpenIcon size={18} strokeWidth={2} />,
-    key: 'providers',
-    label: 'Провайдеры',
-  },
-  {
-    icon: <SlidersHorizontalIcon size={18} strokeWidth={2} />,
-    key: 'speechToText',
-    label: 'Speech-to-Text',
-  },
-  {
-    icon: <WandSparklesIcon size={18} strokeWidth={2} />,
-    key: 'postProcessing',
-    label: 'Постобработка',
-  },
-];
-
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
 const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
+  const { t } = useTranslation();
   const [messageApi, messageContextHolder] = message.useMessage();
   const {
     createProvider,
@@ -87,6 +61,33 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [catalog, setCatalog] = useState<CuratedModelInfo[]>([]);
   const isEditingProvider = editingProvider !== undefined;
+  const settingsMenuItems: MenuProps['items'] = [
+    {
+      icon: <SettingsIcon size={18} strokeWidth={2} />,
+      key: 'general',
+      label: t('settings.sections.general'),
+    },
+    {
+      icon: <KeyboardIcon size={18} strokeWidth={2} />,
+      key: 'hotkeys',
+      label: t('settings.sections.hotkeys'),
+    },
+    {
+      icon: <BookOpenIcon size={18} strokeWidth={2} />,
+      key: 'providers',
+      label: t('settings.sections.providers'),
+    },
+    {
+      icon: <SlidersHorizontalIcon size={18} strokeWidth={2} />,
+      key: 'speechToText',
+      label: t('settings.sections.speechToText'),
+    },
+    {
+      icon: <WandSparklesIcon size={18} strokeWidth={2} />,
+      key: 'postProcessing',
+      label: t('settings.sections.postProcessing'),
+    },
+  ];
 
   useEffect(() => {
     catalogApi
@@ -168,7 +169,7 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
       setIsModelListVisible(true);
 
       if (models.length === 0) {
-        void messageApi.info('Провайдер не вернул доступные модели');
+        void messageApi.info(t('settings.providers.emptyModels'));
       }
     } catch (error) {
       void messageApi.error(getErrorMessage(error));
@@ -241,7 +242,7 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
   return (
     <>
       {messageContextHolder}
-      <Modal footer={null} open={open} title="Настройки" width={920} onCancel={onClose}>
+      <Modal footer={null} open={open} title={t('settings.title')} width={920} onCancel={onClose}>
         <div className={styles.modalBody}>
           <ConfigProvider
             theme={{
@@ -274,9 +275,13 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
         isSaving={isSavingProvider}
         isValidating={isValidatingProvider}
         modelRows={modelRows}
-        okText={isEditingProvider ? 'Сохранить' : 'Добавить'}
+        okText={isEditingProvider ? t('common.save') : t('common.add')}
         open={isProviderModalOpen}
-        title={isEditingProvider ? 'Редактировать провайдера' : 'Добавить провайдера'}
+        title={
+          isEditingProvider
+            ? t('settings.providers.modal.editTitle')
+            : t('settings.providers.modal.addTitle')
+        }
         onCancel={handleCloseProviderModal}
         onLoadModels={handleLoadModels}
         onModelListHide={() => {

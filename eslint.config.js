@@ -10,6 +10,186 @@ import unicorn from 'eslint-plugin-unicorn';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+const visibleTextPattern = /\p{Letter}/u;
+const translatedAttributeNames = new Set([
+  'aria-label',
+  'cancelText',
+  'copyLabel',
+  'description',
+  'label',
+  'notFoundContent',
+  'okText',
+  'placeholder',
+  'repeatLabel',
+  'title',
+]);
+const translatedObjectPropertyNames = new Set(['description', 'label', 'title']);
+const technicalAttributeNames = new Set([
+  'accept',
+  'buttonStyle',
+  'className',
+  'format',
+  'key',
+  'mode',
+  'name',
+  'picker',
+  'role',
+  'rowKey',
+  'size',
+  'to',
+  'type',
+  'value',
+  'variant',
+]);
+const technicalStringPatterns = [
+  /^[#.]/,
+  /^--/,
+  /^\//,
+  /^https?:\/\//,
+  /^[\w./:-]+$/,
+  /^[A-Z][\w-]+:\s/,
+];
+
+const hasVisibleText = (value) => visibleTextPattern.test(value);
+
+const isTechnicalString = (value) =>
+  technicalStringPatterns.some((pattern) => pattern.test(value.trim()));
+
+const getStaticString = (node) => {
+  if (!node) {
+    return false;
+  }
+
+  if (node.type === 'Literal' && typeof node.value === 'string') {
+    return node.value;
+  }
+
+  if (node.type === 'TemplateLiteral' && node.expressions.length === 0) {
+    return node.quasis.map((quasi) => quasi.value.cooked ?? '').join('');
+  }
+
+  return false;
+};
+
+const getPropertyName = (node) => {
+  if (node.type === 'Identifier') {
+    return node.name;
+  }
+
+  if (node.type === 'Literal' && typeof node.value === 'string') {
+    return node.value;
+  }
+
+  return false;
+};
+
+const localI18nPlugin = {
+  rules: {
+    'no-untranslated-text': {
+      create(context) {
+        const report = (node, value) => {
+          const normalizedValue = value.trim();
+
+          if (!hasVisibleText(normalizedValue) || isTechnicalString(normalizedValue)) {
+            return;
+          }
+
+          context.report({
+            data: {
+              value: normalizedValue,
+            },
+            message: 'Move visible UI text to i18n resources: "{{value}}".',
+            node,
+          });
+        };
+
+        return {
+          CallExpression(node) {
+            if (
+              node.callee.type !== 'MemberExpression' ||
+              node.callee.property.type !== 'Identifier' ||
+              !['error', 'info', 'success', 'warning'].includes(node.callee.property.name)
+            ) {
+              return;
+            }
+
+            const value = getStaticString(node.arguments[0]);
+
+            if (value !== false) {
+              report(node.arguments[0], value);
+            }
+          },
+          JSXAttribute(node) {
+            if (node.name.type !== 'JSXIdentifier') {
+              return;
+            }
+
+            const attributeName = node.name.name;
+
+            if (technicalAttributeNames.has(attributeName)) {
+              return;
+            }
+
+            if (!translatedAttributeNames.has(attributeName)) {
+              return;
+            }
+
+            if (node.value?.type === 'Literal' && typeof node.value.value === 'string') {
+              report(node.value, node.value.value);
+              return;
+            }
+
+            if (node.value?.type !== 'JSXExpressionContainer') {
+              return;
+            }
+
+            const value = getStaticString(node.value.expression);
+
+            if (value !== false) {
+              report(node.value.expression, value);
+            }
+          },
+          JSXExpressionContainer(node) {
+            if (node.parent.type === 'JSXAttribute') {
+              return;
+            }
+
+            const value = getStaticString(node.expression);
+
+            if (value !== false) {
+              report(node.expression, value);
+            }
+          },
+          JSXText(node) {
+            report(node, node.value);
+          },
+          Property(node) {
+            const propertyName = getPropertyName(node.key);
+
+            if (propertyName === false || !translatedObjectPropertyNames.has(propertyName)) {
+              return;
+            }
+
+            const value = getStaticString(node.value);
+
+            if (value !== false) {
+              report(node.value, value);
+            }
+          },
+        };
+      },
+      meta: {
+        docs: {
+          description: 'Disallow visible UI text outside i18n resources.',
+        },
+        messages: {},
+        schema: [],
+        type: 'problem',
+      },
+    },
+  },
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -48,6 +228,7 @@ export default tseslint.config(
       },
     },
     plugins: {
+      'local-i18n': localI18nPlugin,
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
       'simple-import-sort': simpleImportSort,
@@ -94,6 +275,7 @@ export default tseslint.config(
           ],
         },
       ],
+      'local-i18n/no-untranslated-text': 'error',
       'unicorn/filename-case': [
         'error',
         {
@@ -111,6 +293,12 @@ export default tseslint.config(
       react: {
         version: 'detect',
       },
+    },
+  },
+  {
+    files: ['src/app/I18nProvider/resources.ts', 'src/mocks/**/*.ts'],
+    rules: {
+      'local-i18n/no-untranslated-text': 'off',
     },
   },
   {

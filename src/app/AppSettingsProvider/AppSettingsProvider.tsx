@@ -11,10 +11,11 @@ interface AppSettingsProviderProps {
 
 const defaultAppSettings: AppSettings = {
   areDictationSoundsEnabled: true,
+  effectiveUiLanguage: 'en',
   hotkey: 'Ctrl + Shift + Space',
   themePreference: 'light',
   triggerMode: 'press',
-  uiLanguage: 'ru',
+  uiLanguage: 'system',
 };
 
 const AppSettingsProvider: FC<AppSettingsProviderProps> = ({ children }) => {

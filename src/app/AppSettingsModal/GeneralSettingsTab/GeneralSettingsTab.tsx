@@ -1,6 +1,7 @@
 import { type FC, type ReactNode } from 'react';
 import { Segmented, Select, Switch } from 'antd';
 import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import SettingRow from '../SettingRow';
 
@@ -17,24 +18,6 @@ interface GeneralSettingsTabProps {
   uiLanguage: UiLanguage;
 }
 
-const themeOptions: { icon: ReactNode; label: string; value: ThemePreference }[] = [
-  {
-    icon: <SunIcon size={15} strokeWidth={2} />,
-    label: 'Светлая',
-    value: 'light',
-  },
-  {
-    icon: <MoonIcon size={15} strokeWidth={2} />,
-    label: 'Темная',
-    value: 'dark',
-  },
-  {
-    icon: <MonitorIcon size={15} strokeWidth={2} />,
-    label: 'Авто',
-    value: 'auto',
-  },
-];
-
 const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
   areDictationSoundsEnabled,
   onDictationSoundsEnabledChange,
@@ -42,45 +25,73 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
   onUiLanguageChange,
   themePreference,
   uiLanguage,
-}) => (
-  <div className={styles.settingsList}>
-    <SettingRow description="Выберите светлую, темную или системную тему" title="Тема">
-      <Segmented<ThemePreference>
-        className={styles.themePicker}
-        options={themeOptions}
-        value={themePreference}
-        onChange={onThemePreferenceChange}
-      />
-    </SettingRow>
+}) => {
+  const { t } = useTranslation();
+  const themeOptions: { icon: ReactNode; label: string; value: ThemePreference }[] = [
+    {
+      icon: <SunIcon size={15} strokeWidth={2} />,
+      label: t('settings.general.theme.light'),
+      value: 'light',
+    },
+    {
+      icon: <MoonIcon size={15} strokeWidth={2} />,
+      label: t('settings.general.theme.dark'),
+      value: 'dark',
+    },
+    {
+      icon: <MonitorIcon size={15} strokeWidth={2} />,
+      label: t('settings.general.theme.auto'),
+      value: 'auto',
+    },
+  ];
 
-    <SettingRow
-      description="Воспроизводить звук при старте и остановке записи"
-      title="Звуки диктовки"
-    >
-      <Switch checked={areDictationSoundsEnabled} onChange={onDictationSoundsEnabledChange} />
-    </SettingRow>
+  return (
+    <div className={styles.settingsList}>
+      <SettingRow
+        description={t('settings.general.theme.description')}
+        title={t('settings.general.theme.title')}
+      >
+        <Segmented<ThemePreference>
+          className={styles.themePicker}
+          options={themeOptions}
+          value={themePreference}
+          onChange={onThemePreferenceChange}
+        />
+      </SettingRow>
 
-    <SettingRow
-      description="Выберите язык, который используется в интерфейсе Transcriber"
-      title="Язык интерфейса"
-    >
-      <Select
-        className={styles.languageSelect}
-        value={uiLanguage}
-        options={[
-          {
-            label: 'Русский',
-            value: 'ru',
-          },
-          {
-            label: 'English',
-            value: 'en',
-          },
-        ]}
-        onChange={onUiLanguageChange}
-      />
-    </SettingRow>
-  </div>
-);
+      <SettingRow
+        description={t('settings.general.dictationSounds.description')}
+        title={t('settings.general.dictationSounds.title')}
+      >
+        <Switch checked={areDictationSoundsEnabled} onChange={onDictationSoundsEnabledChange} />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.general.language.description')}
+        title={t('settings.general.language.title')}
+      >
+        <Select
+          className={styles.languageSelect}
+          value={uiLanguage}
+          options={[
+            {
+              label: t('settings.general.language.system'),
+              value: 'system',
+            },
+            {
+              label: t('settings.general.language.ru'),
+              value: 'ru',
+            },
+            {
+              label: t('settings.general.language.en'),
+              value: 'en',
+            },
+          ]}
+          onChange={onUiLanguageChange}
+        />
+      </SettingRow>
+    </div>
+  );
+};
 
 export default GeneralSettingsTab;

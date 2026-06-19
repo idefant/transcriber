@@ -1,4 +1,4 @@
-import { type FC, useEffect, useMemo } from 'react';
+import { type FC, useCallback, useEffect, useMemo } from 'react';
 import {
   Button,
   Form,
@@ -12,6 +12,7 @@ import {
   Tag,
 } from 'antd';
 import { CheckCircleIcon, SparklesIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { providerOptions } from '../constants';
 
@@ -60,9 +61,6 @@ interface ProviderSettingsModalProps {
   onValidate: (input: ProviderConnectionInput) => Promise<void>;
 }
 
-const getProviderLabel = (provider: ProviderKind) =>
-  providerOptions.find(({ value }) => value === provider)?.label ?? 'Custom';
-
 const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
   catalog,
   editingProvider,
@@ -80,20 +78,33 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
   onSubmit,
   onValidate,
 }) => {
+  const { t } = useTranslation();
   const [form] = Form.useForm<ProviderSettingsFormValues>();
   const selectedProvider =
     (Form.useWatch('provider', form) as ProviderKind | undefined) ?? 'openai';
   const areAdvancedSettingsEnabled = Form.useWatch('areAdvancedSettingsEnabled', form) ?? false;
   const canUseAdvancedSettings = selectedProvider !== 'custom';
   const isApiKeyRequired = !editingProvider?.hasApiKey;
+  const getProviderLabel = useCallback(
+    (provider: ProviderKind) => {
+      const option = providerOptions.find(({ value }) => value === provider);
+
+      if (option?.value === 'custom') {
+        return t('common.custom');
+      }
+
+      return option?.label ?? t('common.custom');
+    },
+    [t],
+  );
   const apiKeyPlaceholder =
     editingProvider?.hasApiKey === true
-      ? `Ключ уже сохранен (${editingProvider.keyPreview})`
-      : 'Введите API key';
+      ? t('settings.providers.modal.keySaved', { preview: editingProvider.keyPreview })
+      : t('settings.providers.modal.keyPlaceholder');
   const tokenPlaceholder =
     editingProvider?.hasApiKey === true
-      ? `Токен уже сохранен (${editingProvider.keyPreview})`
-      : 'Введите токен';
+      ? t('settings.providers.modal.tokenSaved', { preview: editingProvider.keyPreview })
+      : t('settings.providers.modal.tokenPlaceholder');
 
   useEffect(() => {
     if (!open) {
@@ -112,7 +123,7 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
           : editingProvider.name,
       provider: editingProvider?.provider ?? 'openai',
     });
-  }, [editingProvider, form, open]);
+  }, [editingProvider, form, getProviderLabel, open]);
 
   // Curated models for the selected provider kind — derived, no state needed
   const catalogRows = useMemo<CatalogRow[]>(
@@ -161,7 +172,7 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
     () => [
       {
         dataIndex: 'label',
-        title: 'Модель',
+        title: t('settings.providers.modal.model'),
       },
       {
         align: 'right',
@@ -171,16 +182,16 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
           }
 
           return row.supported ? (
-            <Tag color="success">Поддерживается</Tag>
+            <Tag color="success">{t('settings.providers.modal.supported')}</Tag>
           ) : (
-            <Tag color="default">Не поддерживается</Tag>
+            <Tag color="default">{t('settings.providers.modal.unsupported')}</Tag>
           );
         },
         title: '',
         width: 180,
       },
     ],
-    [],
+    [t],
   );
 
   const buildConnectionInput = async (): Promise<ProviderConnectionInput> => {
@@ -242,17 +253,17 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
     >
       <div className={styles.providerCard}>
         <Form form={form} layout="vertical">
-          <Form.Item label="Провайдер" name="provider">
+          <Form.Item label={t('settings.providers.modal.provider')} name="provider">
             <Radio.Group className={styles.providerRadioGroup} buttonStyle="solid">
               {providerOptions.map((providerOption) => (
                 <Radio.Button key={providerOption.value} value={providerOption.value}>
-                  {providerOption.label}
+                  {providerOption.value === 'custom' ? t('common.custom') : providerOption.label}
                 </Radio.Button>
               ))}
             </Radio.Group>
           </Form.Item>
 
-          <Form.Item label="Название" name="name">
+          <Form.Item label={t('settings.providers.modal.name')} name="name">
             <Input placeholder={getProviderLabel(selectedProvider)} />
           </Form.Item>
 
@@ -261,10 +272,14 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
               <Form.Item label="URL" name="baseUrl" rules={[{ required: true }]}>
                 <Input placeholder="https://api.example.com/v1" />
               </Form.Item>
-              <Form.Item label="Токен" name="apiKey" rules={[{ required: isApiKeyRequired }]}>
+              <Form.Item
+                label={t('settings.providers.modal.token')}
+                name="apiKey"
+                rules={[{ required: isApiKeyRequired }]}
+              >
                 <Input.Password placeholder={tokenPlaceholder} />
               </Form.Item>
-              <Form.Item label="Заголовки запроса" name="headers">
+              <Form.Item label={t('settings.providers.modal.headers')} name="headers">
                 <Input.TextArea
                   className={styles.headersInput}
                   placeholder="X-Api-Gateway: transcriber&#10;X-Workspace: default"
@@ -273,7 +288,11 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
             </>
           ) : (
             <>
-              <Form.Item label="Ключ" name="apiKey" rules={[{ required: isApiKeyRequired }]}>
+              <Form.Item
+                label={t('settings.providers.modal.key')}
+                name="apiKey"
+                rules={[{ required: isApiKeyRequired }]}
+              >
                 <Input.Password placeholder={apiKeyPlaceholder} />
               </Form.Item>
               <Form.Item>
@@ -281,15 +300,15 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
                   <Form.Item name="areAdvancedSettingsEnabled" noStyle valuePropName="checked">
                     <Switch disabled={!canUseAdvancedSettings} />
                   </Form.Item>
-                  <span>Дополнительные параметры</span>
+                  <span>{t('settings.providers.modal.advanced')}</span>
                 </div>
               </Form.Item>
               {areAdvancedSettingsEnabled && (
                 <>
-                  <Form.Item label="Custom URL" name="baseUrl">
+                  <Form.Item label={t('settings.providers.modal.customUrl')} name="baseUrl">
                     <Input placeholder="https://api.example.com/v1" />
                   </Form.Item>
-                  <Form.Item label="Дополнительные заголовки" name="headers">
+                  <Form.Item label={t('settings.providers.modal.extraHeaders')} name="headers">
                     <Input.TextArea
                       className={styles.headersInput}
                       placeholder="X-Api-Gateway: transcriber&#10;Authorization: Bearer custom-token"
@@ -309,7 +328,7 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
               void handleValidate();
             }}
           >
-            Проверить валидность конфигурации
+            {t('settings.providers.modal.validate')}
           </Button>
           <Button
             icon={<SparklesIcon size={18} strokeWidth={2} />}
@@ -318,7 +337,9 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
               void handleLoadModels();
             }}
           >
-            {isModelListVisible ? 'Скрыть список моделей' : 'Показать список моделей'}
+            {isModelListVisible
+              ? t('settings.providers.modal.hideModels')
+              : t('settings.providers.modal.showModels')}
           </Button>
         </Space>
 

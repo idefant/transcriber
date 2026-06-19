@@ -9,6 +9,7 @@ use crate::{
     error::{AppError, AppResult},
     processing::load_processing_config,
     providers::resolve_provider_credentials,
+    settings::get_effective_ui_language,
 };
 
 // Substituted for `{{CLEANUP_TOOL_AGENT_NAME}}`. The app has no dedicated agent
@@ -65,6 +66,7 @@ async fn run_stt_test_inner(
     file_name: String,
 ) -> AppResult<String> {
     let config = load_processing_config(app)?;
+    let ui_language = get_effective_ui_language(app)?;
     let stt = &config.stt;
 
     let provider_id = stt.provider_id.clone().ok_or("Provider is not selected")?;
@@ -82,7 +84,7 @@ async fn run_stt_test_inner(
 
     let dictionary = dictionary::load_dictionary_words(app)?.join(", ");
     let prompt = apply_template(
-        stt.effective_system_prompt(),
+        stt.effective_system_prompt(&ui_language),
         &[
             ("STT_DICTIONARY", dictionary.as_str()),
             ("CLEANUP_TOOL_AGENT_NAME", AGENT_NAME),
@@ -144,6 +146,7 @@ async fn run_stt_test_inner(
 
 async fn run_post_process_test_inner(app: &tauri::AppHandle, text: String) -> AppResult<String> {
     let config = load_processing_config(app)?;
+    let ui_language = get_effective_ui_language(app)?;
     let post_process = &config.post_process;
 
     let provider_id = post_process
@@ -166,7 +169,7 @@ async fn run_post_process_test_inner(app: &tauri::AppHandle, text: String) -> Ap
     };
 
     let system_prompt = apply_template(
-        post_process.effective_system_prompt(),
+        post_process.effective_system_prompt(&ui_language),
         &[("CLEANUP_TOOL_AGENT_NAME", AGENT_NAME)],
     );
     let user_content = apply_template(

@@ -1,6 +1,7 @@
 import { type FC, useRef, useState } from 'react';
 import { Alert, Button, Space, Typography, Upload, type UploadFile } from 'antd';
 import { MicIcon, RotateCcwIcon, SquareIcon, UploadIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { useProcessing } from '#/app/processingContext';
 import * as processingApi from '#/shared/processingApi';
@@ -12,11 +13,9 @@ interface LastAudio {
   fileName: string;
 }
 
-const formatElapsed = (elapsedMs: number) =>
-  elapsedMs < 1000 ? `${elapsedMs} мс` : `${(elapsedMs / 1000).toFixed(1)} с`;
-
 const SttTestPanel: FC = () => {
   const { config } = useProcessing();
+  const { t } = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<string>();
@@ -28,6 +27,10 @@ const SttTestPanel: FC = () => {
 
   const canRun = Boolean(config.stt.providerId && config.stt.modelKey);
   const canRepeat = canRun && !isRunning && !isRecording && lastAudio !== undefined;
+  const formatElapsed = (value: number) =>
+    value < 1000
+      ? t('common.milliseconds', { value })
+      : t('common.seconds', { value: (value / 1000).toFixed(1) });
 
   const runTest = async (audio: Uint8Array, fileName: string) => {
     if (!config.stt.providerId || !config.stt.modelKey) return;
@@ -71,7 +74,7 @@ const SttTestPanel: FC = () => {
           .arrayBuffer()
           .then((buffer) => runTest(new Uint8Array(buffer), 'recording.webm'))
           .catch(() => {
-            setError('Не удалось прочитать аудиозапись');
+            setError(t('settings.tests.readRecordingError'));
           });
       };
 
@@ -81,7 +84,7 @@ const SttTestPanel: FC = () => {
       setResult(undefined);
       setError(undefined);
     } catch {
-      setError('Не удалось получить доступ к микрофону');
+      setError(t('settings.tests.microphoneError'));
     }
   };
 
@@ -97,7 +100,7 @@ const SttTestPanel: FC = () => {
       .arrayBuffer()
       .then((buffer) => runTest(new Uint8Array(buffer), rawFile.name))
       .catch(() => {
-        setError('Не удалось прочитать файл');
+        setError(t('settings.tests.readFileError'));
       });
 
     return false; // prevent default antd upload
@@ -111,7 +114,7 @@ const SttTestPanel: FC = () => {
 
   return (
     <div className={styles.panel}>
-      <Typography.Text strong>Тест конфигурации</Typography.Text>
+      <Typography.Text strong>{t('settings.tests.title')}</Typography.Text>
 
       <Space wrap>
         {isRecording ? (
@@ -120,7 +123,7 @@ const SttTestPanel: FC = () => {
             icon={<SquareIcon size={16} strokeWidth={2} />}
             onClick={handleStopRecording}
           >
-            Остановить запись
+            {t('settings.tests.stopRecording')}
           </Button>
         ) : (
           <Button
@@ -131,7 +134,7 @@ const SttTestPanel: FC = () => {
               void handleStartRecording();
             }}
           >
-            Записать голос
+            {t('settings.tests.recordVoice')}
           </Button>
         )}
 
@@ -148,7 +151,7 @@ const SttTestPanel: FC = () => {
             disabled={!canRun || isRunning || isRecording}
             icon={<UploadIcon size={16} strokeWidth={2} />}
           >
-            Загрузить файл
+            {t('settings.tests.uploadFile')}
           </Button>
         </Upload>
 
@@ -157,18 +160,20 @@ const SttTestPanel: FC = () => {
           icon={<RotateCcwIcon size={16} strokeWidth={2} />}
           onClick={handleRepeat}
         >
-          Повторить
+          {t('settings.tests.repeat')}
         </Button>
       </Space>
 
-      {!canRun && <Alert showIcon title="Выберите провайдера и модель выше" type="warning" />}
+      {!canRun && (
+        <Alert showIcon title={t('settings.processing.selectProviderAndModel')} type="warning" />
+      )}
 
       {error !== undefined && <Alert showIcon title={error} type="error" />}
 
       {result !== undefined && (
         <div className={styles.result}>
           <Typography.Text type="secondary">
-            Результат: ({formatElapsed(elapsedMs)})
+            {t('settings.tests.result', { elapsed: formatElapsed(elapsedMs) })}
           </Typography.Text>
           <Typography.Paragraph className={styles.resultText}>{result}</Typography.Paragraph>
         </div>

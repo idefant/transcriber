@@ -1,6 +1,7 @@
 import { type FC, type KeyboardEvent, type MouseEvent } from 'react';
 import { Button, Collapse, Space, Tooltip } from 'antd';
 import { CopyIcon, LoaderCircleIcon, RotateCcwIcon, Trash2Icon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import styles from './HistoryRecordsList.module.scss';
 
@@ -25,6 +26,7 @@ const HistoryRecordsList: FC<HistoryRecordsListProps> = ({
   onRecordSelect,
   selectedRecordId,
 }) => {
+  const { t } = useTranslation();
   const collapseItems = groups.map((group) => ({
     children: (
       <div className={styles.records}>
@@ -49,18 +51,18 @@ const HistoryRecordsList: FC<HistoryRecordsListProps> = ({
               <span className={styles.recordText}>{record.transcription.text}</span>
             </span>
             <Space className={styles.recordActions} size={4}>
-              <Tooltip title="Скопировать текст">
+              <Tooltip title={t('history.records.copyText')}>
                 <Button
-                  aria-label="Скопировать текст"
+                  aria-label={t('history.records.copyText')}
                   icon={<CopyIcon size={16} strokeWidth={2} />}
                   size="small"
                   type="text"
                   onClick={stopRecordActionClick}
                 />
               </Tooltip>
-              <Tooltip title="Повторить">
+              <Tooltip title={t('history.records.repeat')}>
                 <Button
-                  aria-label="Повторить"
+                  aria-label={t('history.records.repeat')}
                   icon={
                     record.transcription.isProcessing ? (
                       <LoaderCircleIcon className={styles.spinIcon} size={16} strokeWidth={2} />
@@ -74,9 +76,9 @@ const HistoryRecordsList: FC<HistoryRecordsListProps> = ({
                   onClick={stopRecordActionClick}
                 />
               </Tooltip>
-              <Tooltip title="Удалить">
+              <Tooltip title={t('history.records.delete')}>
                 <Button
-                  aria-label="Удалить"
+                  aria-label={t('history.records.delete')}
                   danger
                   icon={<Trash2Icon size={16} strokeWidth={2} />}
                   size="small"

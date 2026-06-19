@@ -2,6 +2,7 @@ import { type FC, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { Layout, Menu, type MenuProps, theme, Typography } from 'antd';
 import { BookOpenIcon, HistoryIcon, SettingsIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import AppSettingsModal from '#/app/AppSettingsModal';
 import { routes } from '#/shared/routes';
@@ -10,12 +11,8 @@ import styles from './RootLayout.module.scss';
 
 const { Content, Header, Sider } = Layout;
 
-const pageTitles = {
-  [routes.dictionary]: 'Словарь',
-  [routes.history]: 'История',
-} as const;
-
 const RootLayout: FC = () => {
+  const { t } = useTranslation();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const { token } = theme.useToken();
   const location = useLocation();
@@ -24,27 +21,28 @@ const RootLayout: FC = () => {
   const currentPageKey = location.pathname.startsWith(routes.dictionary)
     ? routes.dictionary
     : routes.history;
-  const currentPageTitle = pageTitles[currentPageKey];
+  const currentPageTitle =
+    currentPageKey === routes.dictionary ? t('navigation.dictionary') : t('navigation.history');
 
   const menuItems = useMemo<MenuProps['items']>(
     () => [
       {
         icon: <HistoryIcon size={18} strokeWidth={2} />,
         key: routes.history,
-        label: 'История',
+        label: t('navigation.history'),
       },
       {
         icon: <BookOpenIcon size={18} strokeWidth={2} />,
         key: routes.dictionary,
-        label: 'Словарь',
+        label: t('navigation.dictionary'),
       },
       {
         icon: <SettingsIcon size={18} strokeWidth={2} />,
         key: 'settings',
-        label: 'Настройки',
+        label: t('navigation.settings'),
       },
     ],
-    [],
+    [t],
   );
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
@@ -63,7 +61,7 @@ const RootLayout: FC = () => {
   return (
     <Layout className={styles.root}>
       <Sider className={styles.sider} theme="light" width={180}>
-        <div className={styles.brand}>Transcriber</div>
+        <div className={styles.brand}>{t('common.productName')}</div>
         <Menu
           className={styles.menu}
           items={menuItems}

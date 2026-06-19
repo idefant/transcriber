@@ -8,14 +8,16 @@ export type SettingsSectionKey =
 export type ThemeMode = 'dark' | 'light';
 export type ThemePreference = 'auto' | ThemeMode;
 export type TriggerMode = 'hold' | 'press';
-export type UiLanguage = 'en' | 'ru';
+export type EffectiveUiLanguage = 'en' | 'ru';
+export type UiLanguage = 'en' | 'ru' | 'system';
 
 export interface AppSettings {
   areDictationSoundsEnabled: boolean;
+  effectiveUiLanguage: EffectiveUiLanguage;
   hotkey: string;
   themePreference: ThemePreference;
   triggerMode: TriggerMode;
   uiLanguage: UiLanguage;
 }
 
-export type AppSettingsInput = Partial<AppSettings>;
+export type AppSettingsInput = Partial<Omit<AppSettings, 'effectiveUiLanguage'>>;
