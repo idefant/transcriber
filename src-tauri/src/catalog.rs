@@ -162,6 +162,20 @@ pub fn curated_models() -> Vec<CuratedModel> {
             }),
         },
         CuratedModel {
+            key: "gpt-4-1-mini",
+            label: "GPT-4.1 mini",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openai,
+                api_id: "gpt-4.1-mini",
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking: false,
+            }),
+        },
+        CuratedModel {
             key: "gpt-5-mini",
             label: "GPT-5 mini",
             task: ModelTask::PostProcess,
@@ -193,6 +207,102 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Openrouter,
                     api_id: "openai/gpt-5.4-mini",
+                },
+            ],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking: false,
+            }),
+        },
+        CuratedModel {
+            key: "gpt-5-4-nano",
+            label: "GPT-5.4 nano",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openai,
+                api_id: "gpt-5.4-nano",
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 1.0,
+                max_tokens: 4096,
+                disable_thinking: false,
+            }),
+        },
+        CuratedModel {
+            key: "gpt-oss-120b",
+            label: "GPT OSS 120B",
+            task: ModelTask::PostProcess,
+            entries: vec![
+                ProviderApiEntry {
+                    provider: ProviderKind::Groq,
+                    api_id: "openai/gpt-oss-120b",
+                },
+                ProviderApiEntry {
+                    provider: ProviderKind::Openrouter,
+                    api_id: "openai/gpt-oss-120b",
+                },
+            ],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking: false,
+            }),
+        },
+        CuratedModel {
+            key: "gemini-2-5-flash",
+            label: "Gemini 2.5 Flash",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openrouter,
+                api_id: "google/gemini-2.5-flash",
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking: false,
+            }),
+        },
+        CuratedModel {
+            key: "gemini-2-5-flash-lite",
+            label: "Gemini 2.5 Flash Lite",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openrouter,
+                api_id: "google/gemini-2.5-flash-lite",
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking: false,
+            }),
+        },
+        CuratedModel {
+            key: "gemini-3-1-flash-lite",
+            label: "Gemini 3.1 Flash Lite",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openrouter,
+                api_id: "google/gemini-3.1-flash-lite",
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking: false,
+            }),
+        },
+        CuratedModel {
+            key: "llama-4-scout",
+            label: "Llama 4 Scout",
+            task: ModelTask::PostProcess,
+            entries: vec![
+                ProviderApiEntry {
+                    provider: ProviderKind::Groq,
+                    api_id: "meta-llama/llama-4-scout-17b-16e-instruct",
+                },
+                ProviderApiEntry {
+                    provider: ProviderKind::Openrouter,
+                    api_id: "meta-llama/llama-4-scout",
                 },
             ],
             params: ModelParams::PostProcess(PostProcessParams {
