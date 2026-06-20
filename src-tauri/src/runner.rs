@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use reqwest::header::{HeaderMap, AUTHORIZATION};
+use reqwest::header::{AUTHORIZATION, HeaderMap};
 use serde::Deserialize;
 
 use crate::{
-    catalog::{model_by_key, ModelParams},
+    catalog::{ModelParams, model_by_key},
     dictionary,
     error::{AppError, AppResult},
     processing::load_processing_config,
@@ -74,9 +74,10 @@ async fn run_stt_test_inner(
 
     let credentials = resolve_provider_credentials(app, &provider_id)?;
     let model = model_by_key(&model_key).ok_or("Model not found in catalog")?;
-    let api_id = model
-        .api_id_for(credentials.kind)
+    let provider_entry = model
+        .entry_for(credentials.kind)
         .ok_or("Model is not available for this provider")?;
+    let api_id = provider_entry.api_id;
 
     let ModelParams::Stt(params) = model.params else {
         return Err("Expected STT model params".into());
@@ -160,9 +161,11 @@ async fn run_post_process_test_inner(app: &tauri::AppHandle, text: String) -> Ap
 
     let credentials = resolve_provider_credentials(app, &provider_id)?;
     let model = model_by_key(&model_key).ok_or("Model not found in catalog")?;
-    let api_id = model
-        .api_id_for(credentials.kind)
+    let provider_entry = model
+        .entry_for(credentials.kind)
         .ok_or("Model is not available for this provider")?;
+    let api_id = provider_entry.api_id;
+    let disable_reasoning = provider_entry.disable_reasoning;
 
     let ModelParams::PostProcess(params) = model.params else {
         return Err("Expected PostProcess model params".into());
@@ -170,10 +173,15 @@ async fn run_post_process_test_inner(app: &tauri::AppHandle, text: String) -> Ap
 
     let system_prompt_template = post_process.effective_system_prompt(&ui_language)?;
     let user_template = post_process.effective_user_template()?;
-    let system_prompt = apply_template(
+    let mut system_prompt = apply_template(
         &system_prompt_template,
         &[("CLEANUP_TOOL_AGENT_NAME", AGENT_NAME)],
     );
+
+    if params.disable_thinking_prompt && !system_prompt.contains("/no_think") {
+        system_prompt.push_str("\n\n/no_think");
+    }
+
     let user_content = apply_template(&user_template, &[("TRANSCRIBED_TEXT", text.as_str())]);
 
     let mut body = serde_json::json!({
@@ -188,8 +196,15 @@ async fn run_post_process_test_inner(app: &tauri::AppHandle, text: String) -> Ap
         "max_completion_tokens": params.max_tokens,
     });
 
-    if params.disable_thinking {
+    if params.disable_thinking_body {
         body["thinking"] = serde_json::json!({ "type": "disabled" });
+    }
+
+    if disable_reasoning {
+        body["reasoning"] = serde_json::json!({
+            "effort": "none",
+            "exclude": true,
+        });
     }
 
     let url = format!(

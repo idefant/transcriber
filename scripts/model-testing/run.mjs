@@ -11,7 +11,10 @@ const currentDirectory = path.dirname(currentFilePath);
 const rootDirectory = path.resolve(currentDirectory, '..', '..');
 const defaultRepeats = 5;
 const defaultLanguages = ['ru', 'en'];
+const languageScriptMinLetters = 4;
+const languageScriptThreshold = 0.65;
 const promptsFilePath = path.join(currentDirectory, 'post-process-prompts.json');
+const providerRulesFilePath = path.join(currentDirectory, 'provider-rules.json');
 
 const penaltyCatalog = {
   addressShift: {
@@ -22,16 +25,36 @@ const penaltyCatalog = {
     label: 'Unexpected empty output',
     points: 40,
   },
+  exactPunctuationMarks: {
+    label: 'Output has unexpected punctuation mark count',
+    points: 10,
+  },
+  initialCapital: {
+    label: 'Output should start with a capital letter',
+    points: 10,
+  },
   lengthDrift: {
     label: 'Output is too long compared with input',
+    points: 20,
+  },
+  lengthDrop: {
+    label: 'Output is too short compared with input',
+    points: 25,
+  },
+  languageShift: {
+    label: 'Output appears translated to another language',
     points: 20,
   },
   metaOutput: {
     label: 'Meta output, labels, markdown, or thinking leaked',
     points: 25,
   },
-  requiredForbiddenPhrase: {
-    label: 'Case-specific forbidden phrase found',
+  minPunctuationMarks: {
+    label: 'Output has too few punctuation marks',
+    points: 10,
+  },
+  textConditionMismatch: {
+    label: 'Case-specific text condition failed',
     points: 25,
   },
   roleDrift: {
@@ -85,6 +108,53 @@ const mathPromptPattern = /^(?:2\s*\+\s*2\s*=|два\s+плюс\s+два\s+ра�
 const mathAnswerPattern = /\b(?:4|четыре|four)\b/i;
 
 const readJson = async (filePath) => JSON.parse(await readFile(filePath, 'utf8'));
+
+const wait = (durationMs) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, durationMs);
+  });
+
+const assertNonNegativeInteger = (value, label) => {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`${label} must be a non-negative integer.`);
+  }
+};
+
+const normalizeProviderRule = (provider, rule) => {
+  if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
+    throw new Error(`Provider rule "${provider}" must be an object.`);
+  }
+
+  const concurrency = rule.concurrency ?? 1;
+  const delayAfterMs = rule.delayAfterMs ?? 0;
+
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw new Error(`Provider rule "${provider}".concurrency must be a positive integer.`);
+  }
+
+  assertNonNegativeInteger(delayAfterMs, `Provider rule "${provider}".delayAfterMs`);
+
+  return {
+    concurrency,
+    delayAfterMs,
+  };
+};
+
+const getEffectiveProviderRules = (providerRules, models) => {
+  const defaultRule = normalizeProviderRule('default', providerRules.default ?? {});
+  const effectiveRules = {
+    default: defaultRule,
+  };
+
+  for (const model of models) {
+    effectiveRules[model.provider] = normalizeProviderRule(
+      model.provider,
+      providerRules[model.provider] ?? defaultRule,
+    );
+  }
+
+  return effectiveRules;
+};
 
 const parseEnvironmentValue = (value) => {
   const trimmedValue = value.trim();
@@ -231,9 +301,11 @@ const selectCases = (cases, options) => {
       {
         input: options.prompt,
         key: 'smoke-prompt',
-        maxLengthRatio: 1.5,
-        mustNotContain: [],
+        lengthRatio: {
+          max: 1.5,
+        },
         preserveInformalYou: informalAddressPattern.test(options.prompt),
+        preserveLanguage: !symbolicMathPromptPattern.test(normalizeForComparison(options.prompt)),
         requireSentenceBoundaries: !symbolicMathPromptPattern.test(
           normalizeForComparison(options.prompt),
         ),
@@ -263,6 +335,12 @@ const applyTemplate = (template, variables) => {
   return result;
 };
 
+const applyThinkingMode = (prompt, model) => {
+  if (!model.params?.disableThinking) return prompt;
+
+  return prompt.includes('/no_think') ? prompt : `${prompt}\n\n/no_think`;
+};
+
 const normalizeForComparison = (value) =>
   value
     .trim()
@@ -271,11 +349,19 @@ const normalizeForComparison = (value) =>
     .replaceAll(/[.,!?;:"'`()[\]{}<>]/g, '')
     .replaceAll(/\s+/g, ' ');
 
-const tokenizeForComparison = (value) =>
-  normalizeForComparison(value).match(/[\p{L}\p{N}+=]+/gu) ?? [];
+const normalizeForTextCondition = (value, { caseSensitive = false } = {}) => {
+  const normalizedValue = String(value)
+    .trim()
+    .replaceAll(/[«»„“”]/g, '"')
+    .replaceAll(/\s+([.,!?;:])/g, '$1')
+    .replaceAll(/\s+/g, ' ');
 
-const includesPhrase = (text, phrase) =>
-  phraseMatchesTokens(tokenizeForComparison(text), tokenizeForComparison(phrase));
+  if (caseSensitive) {
+    return normalizedValue.replaceAll('ё', 'е').replaceAll('Ё', 'Е');
+  }
+
+  return normalizedValue.toLocaleLowerCase().replaceAll('ё', 'е');
+};
 
 const phraseMatchesTokens = (textTokens, phraseTokens) => {
   if (phraseTokens.length === 0 || textTokens.length < phraseTokens.length) {
@@ -305,6 +391,133 @@ const startsWithCapitalLetter = (value) => {
 };
 
 const endsWithSentencePunctuation = (value) => /[.!?…]\s*$/u.test(value);
+
+const countPunctuationMarks = (value) => (value.match(/[.,!?;:…]/gu) ?? []).length;
+
+const tokenizeTextConditionValue = (value, options) =>
+  normalizeForTextCondition(value, options).match(/[\p{L}\p{N}_]+/gu) ?? [];
+
+const conditionContains = (text, needle, options) => {
+  const mode = options.mode ?? 'sequence';
+
+  if (mode === 'word') {
+    return phraseMatchesTokens(
+      tokenizeTextConditionValue(text, options),
+      tokenizeTextConditionValue(needle, options),
+    );
+  }
+
+  return normalizeForTextCondition(text, options).includes(
+    normalizeForTextCondition(needle, options),
+  );
+};
+
+const evaluateTextCondition = (condition, text) => {
+  if (!condition) {
+    return {
+      passed: true,
+    };
+  }
+
+  if (condition.op === 'and') {
+    const failedArguments = condition.args
+      .map((argument) => evaluateTextCondition(argument, text))
+      .filter((result) => !result.passed)
+      .map((result) => result.failedCondition);
+
+    return failedArguments.length === 0
+      ? {
+          passed: true,
+        }
+      : {
+          failedCondition: {
+            op: 'and',
+            args: failedArguments,
+          },
+          passed: false,
+        };
+  }
+
+  if (condition.op === 'or') {
+    const results = condition.args.map((argument) => evaluateTextCondition(argument, text));
+
+    return results.some((result) => result.passed)
+      ? {
+          passed: true,
+        }
+      : {
+          failedCondition: {
+            op: 'or',
+            args: results.map((result) => result.failedCondition),
+          },
+          passed: false,
+        };
+  }
+
+  if (typeof condition.contains === 'string') {
+    const passed = conditionContains(text, condition.contains, condition);
+
+    return passed
+      ? {
+          passed,
+        }
+      : {
+          failedCondition: condition,
+          passed,
+        };
+  }
+
+  if (typeof condition.notContains === 'string') {
+    const passed = !conditionContains(text, condition.notContains, condition);
+
+    return passed
+      ? {
+          passed,
+        }
+      : {
+          failedCondition: condition,
+          passed,
+        };
+  }
+
+  return {
+    failedCondition: condition,
+    passed: false,
+  };
+};
+
+const getScriptStats = (value) => {
+  const letters = value.match(/\p{L}/gu) ?? [];
+
+  return {
+    cyrillic: (value.match(/\p{Script=Cyrillic}/gu) ?? []).length,
+    latin: (value.match(/\p{Script=Latin}/gu) ?? []).length,
+    totalLetters: letters.length,
+  };
+};
+
+const getDominantScript = (value) => {
+  const stats = getScriptStats(value);
+
+  if (stats.totalLetters < languageScriptMinLetters) return;
+
+  for (const script of ['cyrillic', 'latin']) {
+    const ratio = stats[script] / stats.totalLetters;
+
+    if (ratio >= languageScriptThreshold) {
+      return {
+        ratio,
+        script,
+        stats,
+      };
+    }
+  }
+
+  return;
+};
+
+const getScriptRatio = (stats, script) =>
+  stats.totalLetters > 0 ? stats[script] / stats.totalLetters : 0;
 
 const addPenalty = (penalties, key, detail) => {
   const penalty = penaltyCatalog[key];
@@ -338,6 +551,23 @@ const scoreOutput = ({ output, testCase }) => {
     addPenalty(penalties, 'wrongScript');
   }
 
+  if (testCase.preserveLanguage) {
+    const inputScript = getDominantScript(testCase.input);
+    const outputStats = getScriptStats(normalizedOutput);
+
+    if (inputScript && outputStats.totalLetters >= languageScriptMinLetters) {
+      const outputRatio = getScriptRatio(outputStats, inputScript.script);
+
+      if (outputRatio < languageScriptThreshold) {
+        addPenalty(
+          penalties,
+          'languageShift',
+          `${inputScript.script} ratio ${outputRatio.toFixed(2)}/${languageScriptThreshold}`,
+        );
+      }
+    }
+  }
+
   if (
     testCase.requireSentenceBoundaries &&
     (!startsWithCapitalLetter(normalizedOutput) || !endsWithSentencePunctuation(normalizedOutput))
@@ -345,21 +575,58 @@ const scoreOutput = ({ output, testCase }) => {
     addPenalty(penalties, 'sentenceBoundaries');
   }
 
+  if (testCase.requireInitialCapital && !startsWithCapitalLetter(normalizedOutput)) {
+    addPenalty(penalties, 'initialCapital');
+  }
+
+  if (
+    Number.isInteger(testCase.minPunctuationMarks) &&
+    countPunctuationMarks(normalizedOutput) < testCase.minPunctuationMarks
+  ) {
+    addPenalty(
+      penalties,
+      'minPunctuationMarks',
+      `${countPunctuationMarks(normalizedOutput)}/${testCase.minPunctuationMarks}`,
+    );
+  }
+
+  if (
+    Number.isInteger(testCase.exactPunctuationMarks) &&
+    countPunctuationMarks(normalizedOutput) !== testCase.exactPunctuationMarks
+  ) {
+    addPenalty(
+      penalties,
+      'exactPunctuationMarks',
+      `${countPunctuationMarks(normalizedOutput)}/${testCase.exactPunctuationMarks}`,
+    );
+  }
+
   if (testCase.preserveInformalYou && formalAddressPattern.test(normalizedOutput)) {
     addPenalty(penalties, 'addressShift');
   }
 
-  for (const phrase of testCase.mustNotContain ?? []) {
-    if (includesPhrase(normalizedOutput, phrase)) {
-      addPenalty(penalties, 'requiredForbiddenPhrase', phrase);
+  if (testCase.textCondition) {
+    const textConditionResult = evaluateTextCondition(testCase.textCondition, normalizedOutput);
+
+    if (!textConditionResult.passed) {
+      addPenalty(
+        penalties,
+        'textConditionMismatch',
+        JSON.stringify(textConditionResult.failedCondition),
+      );
     }
   }
 
   const inputLength = Math.max(testCase.input.trim().length, 1);
-  const maxLengthRatio = testCase.maxLengthRatio ?? 1.5;
+  const maxRatio = testCase.lengthRatio?.max ?? 1.5;
+  const minRatio = testCase.lengthRatio?.min;
 
-  if (normalizedOutput.length > inputLength * maxLengthRatio) {
+  if (normalizedOutput.length > inputLength * maxRatio) {
     addPenalty(penalties, 'lengthDrift', `ratio ${normalizedOutput.length / inputLength}`);
+  }
+
+  if (Number.isFinite(minRatio) && normalizedOutput.length < inputLength * minRatio) {
+    addPenalty(penalties, 'lengthDrop', `ratio ${normalizedOutput.length / inputLength}`);
   }
 
   if (mathPromptPattern.test(normalizedInput) && mathAnswerPattern.test(normalizedOutput)) {
@@ -421,13 +688,15 @@ const requestModel = async ({ language, model, prompts, testCase }) => {
     });
   }
 
-  const systemPrompt = prompts.system[language];
+  const baseSystemPrompt = prompts.system[language];
 
-  if (!systemPrompt) {
+  if (!baseSystemPrompt) {
     throw Object.assign(new Error(`Unsupported language: ${language}`), {
       kind: 'configuration',
     });
   }
+
+  const systemPrompt = applyThinkingMode(baseSystemPrompt, model);
 
   const userContent = applyTemplate(prompts.userTemplate, {
     TRANSCRIBED_TEXT: testCase.input,
@@ -450,6 +719,10 @@ const requestModel = async ({ language, model, prompts, testCase }) => {
 
   if (model.params?.thinking) {
     body.thinking = model.params.thinking;
+  }
+
+  if (model.params?.reasoning) {
+    body.reasoning = model.params.reasoning;
   }
 
   if (model.providerRouting) {
@@ -583,6 +856,90 @@ const createRunDirectory = async (options) => {
   return outputDirectory;
 };
 
+const createRunTasks = ({ languages, models, prompts, repeats, testCases }) => {
+  const tasks = [];
+
+  for (const model of models) {
+    for (const testCase of testCases) {
+      for (const language of languages) {
+        for (let repeatIndex = 1; repeatIndex <= repeats; repeatIndex += 1) {
+          tasks.push({
+            index: tasks.length,
+            language,
+            model,
+            prompts,
+            repeatIndex,
+            testCase,
+          });
+        }
+      }
+    }
+  }
+
+  return tasks;
+};
+
+const groupTasksByProvider = (tasks) => {
+  const groups = new Map();
+
+  for (const task of tasks) {
+    const providerTasks = groups.get(task.model.provider) ?? [];
+
+    providerTasks.push(task);
+    groups.set(task.model.provider, providerTasks);
+  }
+
+  return groups;
+};
+
+const formatTaskLabel = (task) =>
+  `${task.model.key} / ${task.testCase.key} / ${task.language} / ${task.repeatIndex}`;
+
+const runProviderTasks = async ({ provider, providerTasks, results, rule }) => {
+  let nextTaskIndex = 0;
+
+  const runWorker = async () => {
+    while (nextTaskIndex < providerTasks.length) {
+      const task = providerTasks[nextTaskIndex];
+
+      nextTaskIndex += 1;
+      console.log(`[start] ${provider} / ${formatTaskLabel(task)}`);
+      results[task.index] = await runOne(task);
+
+      const statusLabel = results[task.index].status === 'error' ? 'error' : 'done';
+
+      console.log(`[${statusLabel}] ${provider} / ${formatTaskLabel(task)}`);
+
+      if (rule.delayAfterMs > 0 && nextTaskIndex < providerTasks.length) {
+        await wait(rule.delayAfterMs);
+      }
+    }
+  };
+
+  const workerCount = Math.min(rule.concurrency, providerTasks.length);
+  const workers = Array.from({ length: workerCount }, () => runWorker());
+
+  await Promise.all(workers);
+};
+
+const runTasks = async ({ providerRules, tasks }) => {
+  const results = Array.from({ length: tasks.length });
+  const tasksByProvider = groupTasksByProvider(tasks);
+
+  await Promise.all(
+    [...tasksByProvider.entries()].map(([provider, providerTasks]) =>
+      runProviderTasks({
+        provider,
+        providerTasks,
+        results,
+        rule: providerRules[provider] ?? providerRules.default,
+      }),
+    ),
+  );
+
+  return results;
+};
+
 const run = async () => {
   await loadEnvironmentFiles();
 
@@ -590,45 +947,40 @@ const run = async () => {
   const allModels = await readJson(path.join(currentDirectory, 'models.json'));
   const allCases = await readJson(path.join(currentDirectory, 'cases.json'));
   const prompts = await readJson(promptsFilePath);
+  const rawProviderRules = await readJson(providerRulesFilePath);
   const selectedModels = selectModels(allModels, options);
   const selectedCases = selectCases(allCases, options);
+  const providerRules = getEffectiveProviderRules(rawProviderRules, selectedModels);
   const repeats = options.smoke ? Math.min(options.repeats, 1) : options.repeats;
   const outputDirectory = await createRunDirectory(options);
-  const runs = [];
   const startedAt = new Date().toISOString();
+  const tasks = createRunTasks({
+    languages: options.languages,
+    models: selectedModels,
+    prompts,
+    repeats,
+    testCases: selectedCases,
+  });
 
   console.log(
     `Running ${selectedModels.length} models x ${selectedCases.length} cases x ${options.languages.length} languages x ${repeats} repeats`,
   );
 
-  for (const model of selectedModels) {
-    for (const testCase of selectedCases) {
-      for (const language of options.languages) {
-        for (let repeatIndex = 1; repeatIndex <= repeats; repeatIndex += 1) {
-          console.log(`${model.key} / ${testCase.key} / ${language} / ${repeatIndex}`);
-          runs.push(
-            await runOne({
-              language,
-              model,
-              prompts,
-              repeatIndex,
-              testCase,
-            }),
-          );
-        }
-      }
-    }
-  }
+  const runs = await runTasks({
+    providerRules,
+    tasks,
+  });
 
   const results = {
     cases: selectedCases,
     config: {
       languages: options.languages,
+      providerRules,
       repeats,
       smoke: options.smoke,
     },
     finishedAt: new Date().toISOString(),
-    models: allModels,
+    models: selectedModels,
     runs,
     selectedModelKeys: selectedModels.map((model) => model.key),
     startedAt,

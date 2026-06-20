@@ -1,0 +1,18 @@
+{
+  "default": {
+    "concurrency": 1,
+    "delayAfterMs": 0
+  },
+  "groq": {
+    "concurrency": 1,
+    "delayAfterMs": 1000
+  },
+  "openrouter": {
+    "concurrency": 5,
+    "delayAfterMs": 0
+  },
+  "openai": {
+    "concurrency": 5,
+    "delayAfterMs": 0
+  }
+}

@@ -110,6 +110,22 @@ npm.cmd run check
 
 Post-processing model evals are documented in [docs/model-testing.md](docs/model-testing.md).
 
+## Available Post-processing Models
+
+| Модель                | Провайдер          | Рекомендуется |
+| --------------------- | ------------------ | ------------- |
+| gpt-4o-mini           | OpenAI, OpenRouter | ✅            |
+| gpt-4.1-mini          | OpenAI, OpenRouter | ✅            |
+| gpt-5.4-mini          | OpenAI, OpenRouter | ✅            |
+| gpt-5-mini            | OpenAI, OpenRouter | ❌            |
+| Qwen 3.6 27B          | Groq, OpenRouter   | ✅            |
+| GPT OSS 120B          | Groq, OpenRouter   | ✅            |
+| Llama 4 Scout         | Groq, OpenRouter   | ✅            |
+| Gemini 2.5 Flash      | OpenRouter         | ✅            |
+| Gemini 2.5 Flash Lite | OpenRouter         | ✅            |
+| Gemini 3.1 Flash Lite | OpenRouter         | ✅            |
+| Claude Haiku 4.5      | OpenRouter         | ✅            |
+
 ## Git Hooks
 
 Husky runs lint-staged before commits:

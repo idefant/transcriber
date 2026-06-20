@@ -17,8 +17,10 @@ pub struct SttParams {
 pub struct PostProcessParams {
     pub temperature: f32,
     pub max_tokens: u32,
+    /// Append `/no_think` to the system prompt for Qwen-style models.
+    pub disable_thinking_prompt: bool,
     /// Send `thinking: { type: "disabled" }` for Claude models on OpenRouter.
-    pub disable_thinking: bool,
+    pub disable_thinking_body: bool,
 }
 
 pub enum ModelParams {
@@ -29,6 +31,8 @@ pub enum ModelParams {
 pub struct ProviderApiEntry {
     pub provider: ProviderKind,
     pub api_id: &'static str,
+    pub is_recommended: bool,
+    pub disable_reasoning: bool,
 }
 
 pub struct CuratedModel {
@@ -40,11 +44,8 @@ pub struct CuratedModel {
 }
 
 impl CuratedModel {
-    pub fn api_id_for(&self, provider: ProviderKind) -> Option<&'static str> {
-        self.entries
-            .iter()
-            .find(|entry| entry.provider == provider)
-            .map(|entry| entry.api_id)
+    pub fn entry_for(&self, provider: ProviderKind) -> Option<&ProviderApiEntry> {
+        self.entries.iter().find(|entry| entry.provider == provider)
     }
 }
 
@@ -55,6 +56,15 @@ pub struct CuratedModelInfo {
     pub label: &'static str,
     pub task: ModelTask,
     pub provider_kinds: Vec<ProviderKind>,
+    pub provider_entries: Vec<ProviderModelInfo>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelInfo {
+    pub api_id: &'static str,
+    pub provider: ProviderKind,
+    pub is_recommended: bool,
 }
 
 pub fn curated_models() -> Vec<CuratedModel> {
@@ -67,6 +77,8 @@ pub fn curated_models() -> Vec<CuratedModel> {
             entries: vec![ProviderApiEntry {
                 provider: ProviderKind::Openai,
                 api_id: "gpt-4o-transcribe",
+                is_recommended: true,
+                disable_reasoning: false,
             }],
             params: ModelParams::Stt(SttParams {
                 temperature: 0.0,
@@ -80,6 +92,8 @@ pub fn curated_models() -> Vec<CuratedModel> {
             entries: vec![ProviderApiEntry {
                 provider: ProviderKind::Openai,
                 api_id: "gpt-4o-mini-transcribe",
+                is_recommended: true,
+                disable_reasoning: false,
             }],
             params: ModelParams::Stt(SttParams {
                 temperature: 0.0,
@@ -93,6 +107,8 @@ pub fn curated_models() -> Vec<CuratedModel> {
             entries: vec![ProviderApiEntry {
                 provider: ProviderKind::Groq,
                 api_id: "whisper-large-v3",
+                is_recommended: true,
+                disable_reasoning: false,
             }],
             params: ModelParams::Stt(SttParams {
                 temperature: 0.0,
@@ -106,6 +122,8 @@ pub fn curated_models() -> Vec<CuratedModel> {
             entries: vec![ProviderApiEntry {
                 provider: ProviderKind::Groq,
                 api_id: "whisper-large-v3-turbo",
+                is_recommended: true,
+                disable_reasoning: false,
             }],
             params: ModelParams::Stt(SttParams {
                 temperature: 0.0,
@@ -114,31 +132,20 @@ pub fn curated_models() -> Vec<CuratedModel> {
         },
         // ── PostProcess ──────────────────────────────────────────────────────
         CuratedModel {
-            key: "claude-haiku-3-5",
-            label: "Claude Haiku 3.5",
-            task: ModelTask::PostProcess,
-            entries: vec![ProviderApiEntry {
-                provider: ProviderKind::Openrouter,
-                api_id: "anthropic/claude-3-5-haiku",
-            }],
-            params: ModelParams::PostProcess(PostProcessParams {
-                temperature: 0.2,
-                max_tokens: 4096,
-                disable_thinking: true,
-            }),
-        },
-        CuratedModel {
             key: "claude-haiku-4-5",
             label: "Claude Haiku 4.5",
             task: ModelTask::PostProcess,
             entries: vec![ProviderApiEntry {
                 provider: ProviderKind::Openrouter,
-                api_id: "anthropic/claude-haiku-4-5",
+                api_id: "anthropic/claude-haiku-4.5",
+                is_recommended: true,
+                disable_reasoning: false,
             }],
             params: ModelParams::PostProcess(PostProcessParams {
                 temperature: 0.2,
-                max_tokens: 4096,
-                disable_thinking: true,
+                max_tokens: 1024,
+                disable_thinking_prompt: false,
+                disable_thinking_body: true,
             }),
         },
         CuratedModel {
@@ -149,30 +156,46 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Openai,
                     api_id: "gpt-4o-mini",
+                    is_recommended: true,
+                    disable_reasoning: false,
                 },
                 ProviderApiEntry {
                     provider: ProviderKind::Openrouter,
                     api_id: "openai/gpt-4o-mini",
+                    is_recommended: true,
+                    disable_reasoning: false,
                 },
             ],
             params: ModelParams::PostProcess(PostProcessParams {
                 temperature: 0.2,
-                max_tokens: 4096,
-                disable_thinking: false,
+                max_tokens: 1024,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
             }),
         },
         CuratedModel {
             key: "gpt-4-1-mini",
             label: "GPT-4.1 mini",
             task: ModelTask::PostProcess,
-            entries: vec![ProviderApiEntry {
-                provider: ProviderKind::Openai,
-                api_id: "gpt-4.1-mini",
-            }],
+            entries: vec![
+                ProviderApiEntry {
+                    provider: ProviderKind::Openai,
+                    api_id: "gpt-4.1-mini",
+                    is_recommended: true,
+                    disable_reasoning: false,
+                },
+                ProviderApiEntry {
+                    provider: ProviderKind::Openrouter,
+                    api_id: "openai/gpt-4.1-mini",
+                    is_recommended: true,
+                    disable_reasoning: false,
+                },
+            ],
             params: ModelParams::PostProcess(PostProcessParams {
                 temperature: 0.2,
-                max_tokens: 4096,
-                disable_thinking: false,
+                max_tokens: 1024,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
             }),
         },
         CuratedModel {
@@ -183,16 +206,21 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Openai,
                     api_id: "gpt-5-mini",
+                    is_recommended: false,
+                    disable_reasoning: false,
                 },
                 ProviderApiEntry {
                     provider: ProviderKind::Openrouter,
                     api_id: "openai/gpt-5-mini",
+                    is_recommended: false,
+                    disable_reasoning: false,
                 },
             ],
             params: ModelParams::PostProcess(PostProcessParams {
                 temperature: 1.0,
-                max_tokens: 4096,
-                disable_thinking: false,
+                max_tokens: 1024,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
             }),
         },
         CuratedModel {
@@ -203,30 +231,21 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Openai,
                     api_id: "gpt-5.4-mini",
+                    is_recommended: true,
+                    disable_reasoning: false,
                 },
                 ProviderApiEntry {
                     provider: ProviderKind::Openrouter,
                     api_id: "openai/gpt-5.4-mini",
+                    is_recommended: true,
+                    disable_reasoning: false,
                 },
             ],
             params: ModelParams::PostProcess(PostProcessParams {
-                temperature: 0.2,
-                max_tokens: 4096,
-                disable_thinking: false,
-            }),
-        },
-        CuratedModel {
-            key: "gpt-5-4-nano",
-            label: "GPT-5.4 nano",
-            task: ModelTask::PostProcess,
-            entries: vec![ProviderApiEntry {
-                provider: ProviderKind::Openai,
-                api_id: "gpt-5.4-nano",
-            }],
-            params: ModelParams::PostProcess(PostProcessParams {
                 temperature: 1.0,
-                max_tokens: 4096,
-                disable_thinking: false,
+                max_tokens: 1024,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
             }),
         },
         CuratedModel {
@@ -237,16 +256,46 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Groq,
                     api_id: "openai/gpt-oss-120b",
+                    is_recommended: true,
+                    disable_reasoning: false,
                 },
                 ProviderApiEntry {
                     provider: ProviderKind::Openrouter,
                     api_id: "openai/gpt-oss-120b",
+                    is_recommended: true,
+                    disable_reasoning: false,
                 },
             ],
             params: ModelParams::PostProcess(PostProcessParams {
                 temperature: 0.2,
-                max_tokens: 4096,
-                disable_thinking: false,
+                max_tokens: 1024,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
+            }),
+        },
+        CuratedModel {
+            key: "qwen-3-6-27b",
+            label: "Qwen 3.6 27B",
+            task: ModelTask::PostProcess,
+            entries: vec![
+                ProviderApiEntry {
+                    provider: ProviderKind::Groq,
+                    api_id: "qwen/qwen3.6-27b",
+                    is_recommended: true,
+                    disable_reasoning: false,
+                },
+                ProviderApiEntry {
+                    provider: ProviderKind::Openrouter,
+                    api_id: "qwen/qwen3.6-27b",
+                    is_recommended: true,
+                    disable_reasoning: true,
+                },
+            ],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 1024,
+                disable_thinking_prompt: true,
+                disable_thinking_body: false,
             }),
         },
         CuratedModel {
@@ -256,11 +305,14 @@ pub fn curated_models() -> Vec<CuratedModel> {
             entries: vec![ProviderApiEntry {
                 provider: ProviderKind::Openrouter,
                 api_id: "google/gemini-2.5-flash",
+                is_recommended: true,
+                disable_reasoning: false,
             }],
             params: ModelParams::PostProcess(PostProcessParams {
                 temperature: 0.2,
-                max_tokens: 4096,
-                disable_thinking: false,
+                max_tokens: 1024,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
             }),
         },
         CuratedModel {
@@ -270,11 +322,14 @@ pub fn curated_models() -> Vec<CuratedModel> {
             entries: vec![ProviderApiEntry {
                 provider: ProviderKind::Openrouter,
                 api_id: "google/gemini-2.5-flash-lite",
+                is_recommended: true,
+                disable_reasoning: false,
             }],
             params: ModelParams::PostProcess(PostProcessParams {
                 temperature: 0.2,
-                max_tokens: 4096,
-                disable_thinking: false,
+                max_tokens: 1024,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
             }),
         },
         CuratedModel {
@@ -284,11 +339,14 @@ pub fn curated_models() -> Vec<CuratedModel> {
             entries: vec![ProviderApiEntry {
                 provider: ProviderKind::Openrouter,
                 api_id: "google/gemini-3.1-flash-lite",
+                is_recommended: true,
+                disable_reasoning: false,
             }],
             params: ModelParams::PostProcess(PostProcessParams {
                 temperature: 0.2,
-                max_tokens: 4096,
-                disable_thinking: false,
+                max_tokens: 1024,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
             }),
         },
         CuratedModel {
@@ -299,16 +357,21 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Groq,
                     api_id: "meta-llama/llama-4-scout-17b-16e-instruct",
+                    is_recommended: true,
+                    disable_reasoning: false,
                 },
                 ProviderApiEntry {
                     provider: ProviderKind::Openrouter,
                     api_id: "meta-llama/llama-4-scout",
+                    is_recommended: true,
+                    disable_reasoning: false,
                 },
             ],
             params: ModelParams::PostProcess(PostProcessParams {
                 temperature: 0.2,
-                max_tokens: 4096,
-                disable_thinking: false,
+                max_tokens: 1024,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
             }),
         },
     ]
@@ -326,7 +389,16 @@ pub fn get_model_catalog() -> Vec<CuratedModelInfo> {
             key: model.key,
             label: model.label,
             task: model.task,
-            provider_kinds: model.entries.into_iter().map(|e| e.provider).collect(),
+            provider_kinds: model.entries.iter().map(|e| e.provider).collect(),
+            provider_entries: model
+                .entries
+                .into_iter()
+                .map(|entry| ProviderModelInfo {
+                    api_id: entry.api_id,
+                    provider: entry.provider,
+                    is_recommended: entry.is_recommended,
+                })
+                .collect(),
         })
         .collect()
 }

@@ -20,6 +20,20 @@ interface ProcessingSettingsFormProps {
   task: ModelTask;
 }
 
+interface ModelOption {
+  label: string;
+  value: string;
+}
+
+interface RecommendedModelOption extends ModelOption {
+  isRecommended: boolean;
+}
+
+interface ModelOptionGroup {
+  label: string;
+  options: ModelOption[];
+}
+
 const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = false, task }) => {
   const { providers } = useProviders();
   const { settings } = useAppSettings();
@@ -65,20 +79,62 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
     compatibleProviders[0];
 
   // Curated models for the selected provider
-  const modelOptions = useMemo(() => {
+  const modelOptions = useMemo<(ModelOption | ModelOptionGroup)[]>(() => {
     if (!selectedProvider) return [];
 
-    return catalog
-      .filter((m) => m.task === task && m.providerKinds.includes(selectedProvider.provider))
-      .map((m) => ({ label: m.label, value: m.key }));
-  }, [catalog, selectedProvider, task]);
+    const options: RecommendedModelOption[] = [];
+
+    for (const model of catalog) {
+      if (model.task !== task) {
+        continue;
+      }
+
+      const entry = model.providerEntries.find(
+        (item) => item.provider === selectedProvider.provider,
+      );
+
+      if (!entry) {
+        continue;
+      }
+
+      options.push({
+        isRecommended: entry.isRecommended,
+        label: model.label,
+        value: model.key,
+      });
+    }
+
+    const recommended = options
+      .filter((model) => model.isRecommended)
+      .map(({ label, value }) => ({ label, value }));
+    const unrecommended = options
+      .filter((model) => !model.isRecommended)
+      .map(({ label, value }) => ({ label, value }));
+
+    if (unrecommended.length === 0) {
+      return recommended;
+    }
+
+    return [
+      ...recommended,
+      {
+        label: t('settings.processing.unrecommendedModels'),
+        options: unrecommended,
+      },
+    ];
+  }, [catalog, selectedProvider, task, t]);
+
+  const selectableModelOptions = useMemo(
+    () => modelOptions.flatMap((option) => ('options' in option ? option.options : [option])),
+    [modelOptions],
+  );
 
   const providerOptions = compatibleProviders.map((p) => ({ label: p.name, value: p.id }));
 
   const effectiveProviderId = selectedProvider?.id ?? '';
-  const effectiveModelKey = modelOptions.some((o) => o.value === selectedModelKey)
+  const effectiveModelKey = selectableModelOptions.some((o) => o.value === selectedModelKey)
     ? selectedModelKey
-    : (modelOptions[0]?.value ?? '');
+    : (selectableModelOptions[0]?.value ?? '');
 
   // Primitive refs to avoid object identity issues in deps
   const storedProviderId = currentConfig.providerId;

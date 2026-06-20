@@ -93,6 +93,7 @@ const en = {
       provider: 'Provider',
       model: 'Model',
       noModels: 'No models are available for this provider',
+      unrecommendedModels: 'Not recommended',
       language: 'Language',
       languages: {
         auto: 'Auto',
@@ -253,6 +254,7 @@ const ru: typeof en = {
       provider: 'Провайдер',
       model: 'Модель',
       noModels: 'Нет доступных моделей для этого провайдера',
+      unrecommendedModels: 'Нерекомендованные',
       language: 'Язык',
       languages: {
         auto: 'Авто',

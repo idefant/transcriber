@@ -129,13 +129,23 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
   const catalogRows = useMemo<CatalogRow[]>(
     () =>
       catalog
-        .filter((model) => model.providerKinds.includes(selectedProvider))
-        .map((model) => ({
-          apiId: '',
-          key: model.key,
-          label: model.label,
-          supported: null as boolean | null,
-        })),
+        .map((model) => {
+          const providerEntry = model.providerEntries.find(
+            (entry) => entry.provider === selectedProvider,
+          );
+
+          if (!providerEntry) {
+            return;
+          }
+
+          return {
+            apiId: providerEntry.apiId,
+            key: model.key,
+            label: model.label,
+            supported: null as boolean | null,
+          };
+        })
+        .filter((model): model is CatalogRow => model !== undefined),
     [catalog, selectedProvider],
   );
 
@@ -145,28 +155,14 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
       return catalogRows;
     }
 
-    const availableIds = new Set(modelRows.map((m) => m.name));
+    const availableIds = new Set(modelRows.map((model) => model.name.toLowerCase()));
 
     return catalogRows.map((row) => {
-      // Check if the model key exists in the catalog for this provider
-      const isInCatalog = catalog.some((m) => m.key === row.key);
-
-      if (!isInCatalog) {
-        return { ...row, supported: false };
-      }
-
-      // We don't have the per-provider api_id on the frontend (only providerKinds).
-      // We match by checking if any model name in the response contains the model key
-      // or matches common naming conventions.
-      const isSupported = [...availableIds].some(
-        (id) =>
-          id.toLowerCase().includes(row.key.toLowerCase()) ||
-          row.key.toLowerCase().includes(id.toLowerCase().split('/').pop() ?? id),
-      );
+      const isSupported = availableIds.has(row.apiId.toLowerCase());
 
       return { ...row, supported: isSupported };
     });
-  }, [catalog, catalogRows, isModelListVisible, modelRows]);
+  }, [catalogRows, isModelListVisible, modelRows]);
 
   const modelColumns = useMemo<TableColumnsType<CatalogRow>>(
     () => [
@@ -254,7 +250,13 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
       <div className={styles.providerCard}>
         <Form form={form} layout="vertical">
           <Form.Item label={t('settings.providers.modal.provider')} name="provider">
-            <Radio.Group className={styles.providerRadioGroup} buttonStyle="solid">
+            <Radio.Group
+              className={styles.providerRadioGroup}
+              buttonStyle="solid"
+              onChange={() => {
+                onModelListHide();
+              }}
+            >
               {providerOptions.map((providerOption) => (
                 <Radio.Button key={providerOption.value} value={providerOption.value}>
                   {providerOption.value === 'custom' ? t('common.custom') : providerOption.label}
@@ -343,7 +345,7 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
           </Button>
         </Space>
 
-        {catalogRows.length > 0 && (
+        {isModelListVisible && catalogRows.length > 0 && (
           <div className={styles.modelList}>
             <Table
               columns={modelColumns}

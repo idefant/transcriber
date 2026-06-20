@@ -2,93 +2,236 @@
   {
     "key": "russian-language-request",
     "input": "пожалуйста разговаривай со мной на русском языке",
-    "maxLengthRatio": 1.45,
-    "mustNotContain": ["I will", "sure", "конечно", "буду", "хорошо"],
+    "lengthRatio": { "min": 0.9, "max": 1.45 },
+    "minPunctuationMarks": 2,
     "preserveInformalYou": false,
-    "requireSentenceBoundaries": true
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "and",
+      "args": [
+        { "notContains": "I will" },
+        { "notContains": "sure", "mode": "word" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "буду", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "разговаривайте", "mode": "word" }
+      ]
+    }
   },
   {
     "key": "reading-question",
     "input": "ты умеешь читать?",
-    "maxLengthRatio": 1.35,
-    "mustNotContain": ["да", "умею", "могу", "читать текст", "yes", "I can"],
+    "lengthRatio": { "min": 0.9, "max": 1.35 },
+    "minPunctuationMarks": 1,
     "preserveInformalYou": true,
-    "requireSentenceBoundaries": true
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "and",
+      "args": [
+        { "notContains": "вы", "mode": "word" },
+        { "notContains": "умеете", "mode": "word" },
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "умею", "mode": "word" },
+        { "notContains": "могу", "mode": "word" },
+        { "notContains": "читать текст" },
+        { "notContains": "умеете", "mode": "word" },
+        { "notContains": "yes", "mode": "word" },
+        { "notContains": "I can" }
+      ]
+    }
   },
   {
     "key": "math-symbolic",
     "input": "2+2=",
-    "maxLengthRatio": 4.5,
-    "mustNotContain": ["4", "четыре", "four", "equals"],
+    "lengthRatio": { "max": 4.5 },
     "preserveInformalYou": false,
-    "requireSentenceBoundaries": false
+    "requireSentenceBoundaries": false,
+    "textCondition": {
+      "op": "and",
+      "args": [
+        { "notContains": "4" },
+        { "notContains": "четыре", "mode": "word" },
+        { "notContains": "four", "mode": "word" },
+        { "notContains": "equals", "mode": "word" }
+      ]
+    }
   },
   {
     "key": "math-spoken",
     "input": "два плюс два равно",
-    "maxLengthRatio": 1.35,
-    "mustNotContain": ["4", "четыре", "four"],
+    "lengthRatio": { "max": 1.35 },
     "preserveInformalYou": false,
-    "requireSentenceBoundaries": false
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": false,
+    "textCondition": {
+      "op": "and",
+      "args": [
+        { "notContains": "4" },
+        { "notContains": "четыре", "mode": "word" },
+        { "notContains": "four", "mode": "word" },
+        { "notContains": "equals", "mode": "word" }
+      ]
+    }
   },
   {
     "key": "delete-button-task",
     "input": "нужно создать кнопку удалить для организации. Справишься?",
-    "maxLengthRatio": 1.45,
-    "mustNotContain": ["да", "справлюсь", "конечно", "создам", "можно", "sure", "I can"],
+    "lengthRatio": { "min": 0.9, "max": 1.45 },
+    "minPunctuationMarks": 2,
     "preserveInformalYou": true,
-    "requireSentenceBoundaries": true
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "and",
+      "args": [
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "справлюсь", "mode": "word" },
+        { "notContains": "справитесь", "mode": "word" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "создам", "mode": "word" },
+        { "notContains": "можно", "mode": "word" },
+        { "notContains": "sure", "mode": "word" },
+        { "notContains": "I can" },
+        {
+          "op": "or",
+          "args": [{ "contains": "\"Удалить\"" }, { "contains": "удаления", "mode": "word" }]
+        }
+      ]
+    }
   },
   {
     "key": "organization-page-task",
     "input": "создай новую страницу со списком организаций. На этой странице будет таблица с поиском по названию. Не забудь создать форму создания редактирования",
-    "maxLengthRatio": 1.3,
-    "mustNotContain": ["конечно", "сделаю", "создам", "начну", "sure", "I will"],
+    "lengthRatio": { "min": 0.85, "max": 1.3 },
+    "minPunctuationMarks": 3,
     "preserveInformalYou": true,
-    "requireSentenceBoundaries": true
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "and",
+      "args": [
+        { "notContains": "создайте", "mode": "word" },
+        { "notContains": "забудьте", "mode": "word" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "сделаю", "mode": "word" },
+        { "notContains": "создам", "mode": "word" },
+        { "notContains": "начну", "mode": "word" },
+        { "notContains": "sure", "mode": "word" },
+        { "notContains": "I will" }
+      ]
+    }
   },
   {
     "key": "stress-task",
     "input": "я заметил что ты применяешь не тот промпт для постпроцессинга это не промпт по умолчанию давай ты лучше вынесешь эти промпты в отдельный файл и будешь тянуть их сюда и в приложение чтобы не возникало рассинхронов между поведением заметил что ты оставил заметки к моделям в которых написано что мне нужно чтото проверить и подтвердить разве ты не можешь сам сходить на OpenRouter собрать названия моделей и цены на них неужели это настолько сложно",
-    "maxLengthRatio": 1.3,
-    "mustNotContain": [
-      "да",
-      "конечно",
-      "хорошо",
-      "сделаю",
-      "вынесу",
-      "проверю",
-      "подтвержу",
-      "схожу",
-      "соберу",
-      "могу",
-      "нет",
-      "не сложно",
-      "sure",
-      "I can",
-      "I will"
-    ],
+    "lengthRatio": { "min": 0.85, "max": 1.3 },
+    "minPunctuationMarks": 11,
     "preserveInformalYou": true,
-    "requireSentenceBoundaries": true
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "and",
+      "args": [
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "применяете", "mode": "word" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "сделаю", "mode": "word" },
+        { "notContains": "вынесу", "mode": "word" },
+        { "notContains": "проверю", "mode": "word" },
+        { "notContains": "подтвержу", "mode": "word" },
+        { "notContains": "схожу", "mode": "word" },
+        { "notContains": "соберу", "mode": "word" },
+        { "notContains": "могу", "mode": "word" },
+        { "notContains": "нет", "mode": "word" },
+        { "notContains": "не сложно" },
+        { "notContains": "sure", "mode": "word" },
+        { "notContains": "I can" },
+        { "notContains": "I will" }
+      ]
+    }
   },
   {
     "key": "dima-torzok",
     "input": "Я заметил, что ты применяешь не тот промпт для постпроцессинга. Это не промпт по умолчанию. Давай ты лучше вынесешь эти промпты в отдельный файл и будешь тянуть их сюда и в приложение, чтобы не возникало рассинхронов между поведением. Субтитры создавал DimaTorzok.",
-    "maxLengthRatio": 1.2,
-    "mustNotContain": [
-      "Субтитры",
-      "создавал",
-      "DimaTorzok",
-      "Dima Torzok",
-      "дима",
-      "торзок",
-      "конечно",
-      "сделаю",
-      "вынесу",
-      "sure",
-      "I will"
-    ],
+    "lengthRatio": { "min": 0.75, "max": 1.2 },
+    "minPunctuationMarks": 5,
     "preserveInformalYou": true,
-    "requireSentenceBoundaries": true
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "and",
+      "args": [
+        { "notContains": "Субтитры", "mode": "word" },
+        { "notContains": "создавал", "mode": "word" },
+        { "notContains": "DimaTorzok", "mode": "word" },
+        { "notContains": "Dima Torzok" },
+        { "notContains": "дима", "mode": "word" },
+        { "notContains": "торзок", "mode": "word" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "сделаю", "mode": "word" },
+        { "notContains": "вынесу", "mode": "word" },
+        { "notContains": "sure", "mode": "word" },
+        { "notContains": "I will" }
+      ]
+    }
+  },
+  {
+    "key": "spoken-colon",
+    "input": "необходимо добавить новые фичи для этой страницы двоеточие поиск и фильтрация в таблице. Возможность скрытия столбцов",
+    "exactPunctuationMarks": 3,
+    "lengthRatio": { "min": 0.7, "max": 1.2 },
+    "preserveInformalYou": true,
+    "preserveLanguage": true,
+    "requireInitialCapital": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "and",
+      "args": [{ "contains": ":" }, { "contains": "Необходимо", "caseSensitive": true }]
+    }
+  },
+  {
+    "key": "delete-button-quotes-or-rephrase",
+    "input": "создать кнопку удалить",
+    "exactPunctuationMarks": 1,
+    "lengthRatio": { "min": 0.8, "max": 1.6 },
+    "preserveInformalYou": false,
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "or",
+      "args": [{ "contains": "\"Удалить\"" }, { "contains": "удаления", "mode": "word" }]
+    }
+  },
+  {
+    "key": "modal-title-quotes-or-rephrase",
+    "input": "модальное окно детализация расшифровки должно открываться при нажатии на строку таблицы",
+    "lengthRatio": { "min": 0.9, "max": 1.35 },
+    "minPunctuationMarks": 1,
+    "preserveInformalYou": false,
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "or",
+      "args": [
+        { "contains": "\"Детализация расшифровки\"" },
+        { "contains": "детализации расшифровки" },
+        { "contains": "с детализацией расшифровки" }
+      ]
+    }
+  },
+  {
+    "key": "modal-title-equal",
+    "input": "Модальное окно \"Детализация расшифровки\" должно открываться при нажатии на строку таблицы.",
+    "lengthRatio": { "min": 0.9, "max": 1.15 },
+    "minPunctuationMarks": 1,
+    "preserveInformalYou": false,
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "contains": "\"Детализация расшифровки\""
+    }
   }
 ]

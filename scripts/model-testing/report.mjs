@@ -1,4 +1,4 @@
-﻿import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,6 +9,8 @@ const formatNumber = (value, digits = 2) =>
 
 const formatMoney = (value) => `$${formatNumber(value, 6)}`;
 
+const formatMicroDollars = (value) => `${formatNumber(value * 1_000_000, 2)} µ$`;
+
 const escapeHtml = (value) =>
   String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -16,8 +18,6 @@ const escapeHtml = (value) =>
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
-
-const getModelAnchor = (modelKey) => `model-${modelKey.replaceAll(/[^\w-]/g, '-')}`;
 
 const average = (values) => {
   const numericValues = values.filter((value) => Number.isFinite(value));
@@ -41,127 +41,179 @@ const groupBy = (items, getKey) => {
   return groups;
 };
 
-const getModelSummaries = (results) => {
+const isInvalidRun = (run) => run.status === 'error' || (run.penalties?.length ?? 0) > 0;
+
+const renderScoreBadge = (score) => {
+  const variant = score === 100 ? 'perfect' : 'warning';
+
+  return `<span class="scoreBadge scoreBadge-${variant}">score: ${formatNumber(score)}</span>`;
+};
+
+const getReportModels = (results) => {
+  const selectedModelKeys = new Set(results.selectedModelKeys);
+
+  if (selectedModelKeys.size > 0) {
+    return results.models.filter((model) => selectedModelKeys.has(model.key));
+  }
+
+  return results.models.filter((model) => model.enabled);
+};
+
+const getModelSummaries = (results, models) => {
   const byModel = groupBy(results.runs, (run) => run.modelKey);
 
-  return results.models
+  return models
     .map((model) => {
       const modelRuns = byModel.get(model.key) ?? [];
       const completedRuns = modelRuns.filter((run) => run.status === 'completed');
 
       return {
+        averageCostUsd: average(modelRuns.map((run) => run.estimatedCostUsd ?? 0)),
         averageLatencyMs: average(modelRuns.map((run) => run.elapsedMs)),
         averageScore: average(completedRuns.map((run) => run.responseScore)),
         completedRuns: completedRuns.length,
         errorRuns: modelRuns.filter((run) => run.status === 'error').length,
         model,
         runs: modelRuns.length,
-        totalCostUsd: modelRuns.reduce((sum, run) => sum + (run.estimatedCostUsd ?? 0), 0),
       };
     })
-    .toSorted((left, right) => {
-      if (left.model.enabled !== right.model.enabled) {
-        return left.model.enabled ? -1 : 1;
-      }
-
-      return (right.averageScore || 0) - (left.averageScore || 0);
-    });
+    .toSorted((left, right) => (right.averageScore || 0) - (left.averageScore || 0));
 };
 
 const renderSummaryRows = (summaries) =>
   summaries
     .map(
       (summary, index) => `
-        <tr class="${summary.model.enabled ? '' : 'muted'}">
-          <td>${summary.model.enabled ? index + 1 : '-'}</td>
+        <tr>
+          <td>${index + 1}</td>
           <td>
-            <a class="modelLink" href="#${escapeHtml(getModelAnchor(summary.model.key))}">
+            <button class="modelLink" type="button" data-model-key="${escapeHtml(summary.model.key)}">
               <strong>${escapeHtml(summary.model.label)}</strong>
-            </a>
+            </button>
             <div class="subtle">${escapeHtml(summary.model.apiId)}</div>
             ${summary.model.notes ? `<div class="warning">${escapeHtml(summary.model.notes)}</div>` : ''}
           </td>
           <td>${escapeHtml(summary.model.provider)}</td>
-          <td>${summary.model.enabled ? 'enabled' : 'disabled'}</td>
           <td>${formatNumber(summary.averageScore)}</td>
           <td>${summary.completedRuns}/${summary.runs}</td>
           <td>${summary.errorRuns}</td>
           <td>${formatNumber(summary.averageLatencyMs, 0)} ms</td>
-          <td>${formatMoney(summary.totalCostUsd)}</td>
+          <td>${formatMicroDollars(summary.averageCostUsd)}</td>
           <td>${formatMoney(summary.model.inputPricePer1M)} / ${formatMoney(summary.model.outputPricePer1M)}</td>
         </tr>
       `,
     )
     .join('');
 
-const renderDetailSections = (results) => {
-  const runsByModel = groupBy(results.runs, (run) => run.modelKey);
+const renderPenalties = (run) => {
+  if (!run.penalties?.length) {
+    return '<li class="subtle">No penalties</li>';
+  }
 
-  return results.models
+  return run.penalties
+    .map((penalty) => {
+      const detail = penalty.detail
+        ? ` <span class="subtle">${escapeHtml(penalty.detail)}</span>`
+        : '';
+
+      return `<li>${escapeHtml(penalty.label)} <span class="subtle">-${penalty.points}</span>${detail}</li>`;
+    })
+    .join('');
+};
+
+const renderRunCards = (runs) =>
+  runs
+    .map(
+      (run) => `
+        <article class="run" data-invalid="${isInvalidRun(run) ? 'true' : 'false'}">
+          <header>
+            <strong>Run ${run.repeatIndex}</strong>
+            <span>${run.status}</span>
+            ${renderScoreBadge(run.responseScore)}
+            <span>${formatNumber(run.elapsedMs, 0)} ms</span>
+            <span>${formatMoney(run.estimatedCostUsd ?? 0)}</span>
+          </header>
+          ${
+            run.status === 'error'
+              ? `<pre class="error">${escapeHtml(run.error?.message ?? 'Unknown error')}</pre>`
+              : `<pre>${escapeHtml(run.output)}</pre>`
+          }
+          <ul>${renderPenalties(run)}</ul>
+        </article>
+      `,
+    )
+    .join('');
+
+const renderModelPanels = (results, models) => {
+  const runsByModel = groupBy(results.runs, (run) => run.modelKey);
+  const caseOrder = new Map(results.cases.map((testCase, index) => [testCase.key, index]));
+  const languageOrder = new Map(
+    results.config.languages.map((language, index) => [language, index]),
+  );
+  const getCellOrder = (key) => {
+    const [caseKey, language] = key.split('::');
+
+    return {
+      caseIndex: caseOrder.get(caseKey) ?? Number.MAX_SAFE_INTEGER,
+      caseKey,
+      language,
+      languageIndex: languageOrder.get(language) ?? Number.MAX_SAFE_INTEGER,
+    };
+  };
+
+  return models
     .map((model) => {
       const modelRuns = runsByModel.get(model.key) ?? [];
       const cells = groupBy(modelRuns, (run) => `${run.caseKey}::${run.language}`);
 
       const cellSections = [...cells.entries()]
-        .toSorted(([left], [right]) => left.localeCompare(right))
+        .toSorted(([left], [right]) => {
+          const leftOrder = getCellOrder(left);
+          const rightOrder = getCellOrder(right);
+
+          return (
+            leftOrder.caseIndex - rightOrder.caseIndex ||
+            leftOrder.languageIndex - rightOrder.languageIndex ||
+            leftOrder.caseKey.localeCompare(rightOrder.caseKey) ||
+            leftOrder.language.localeCompare(rightOrder.language)
+          );
+        })
         .map(([key, runs]) => {
           const [caseKey, language] = key.split('::');
           const completedRuns = runs.filter((run) => run.status === 'completed');
           const cellScore = average(completedRuns.map((run) => run.responseScore));
           const cellLatency = average(runs.map((run) => run.elapsedMs));
-
-          const runCards = runs
-            .map((run) => {
-              const penalties = run.penalties?.length
-                ? run.penalties
-                    .map(
-                      (penalty) =>
-                        `<li>${escapeHtml(penalty.label)} <span class="subtle">-${penalty.points}</span></li>`,
-                    )
-                    .join('')
-                : '<li class="subtle">No penalties</li>';
-
-              return `
-                <article class="run">
-                  <header>
-                    <strong>Run ${run.repeatIndex}</strong>
-                    <span>${run.status}</span>
-                    <span>score: ${formatNumber(run.responseScore)}</span>
-                    <span>${formatNumber(run.elapsedMs, 0)} ms</span>
-                    <span>${formatMoney(run.estimatedCostUsd ?? 0)}</span>
-                  </header>
-                  ${
-                    run.status === 'error'
-                      ? `<pre class="error">${escapeHtml(run.error?.message ?? 'Unknown error')}</pre>`
-                      : `<pre>${escapeHtml(run.output)}</pre>`
-                  }
-                  <ul>${penalties}</ul>
-                </article>
-              `;
-            })
-            .join('');
+          const hasErrors = runs.some((run) => isInvalidRun(run));
 
           return `
-            <details class="cell">
+            <details class="cell" data-invalid="${hasErrors ? 'true' : 'false'}">
               <summary>
                 <strong>${escapeHtml(caseKey)}</strong>
                 <span>language: ${escapeHtml(language)}</span>
-                <span>score: ${formatNumber(cellScore)}</span>
+                ${renderScoreBadge(cellScore)}
                 <span>avg: ${formatNumber(cellLatency, 0)} ms</span>
               </summary>
-              <div class="prompt">${escapeHtml(runs[0]?.input ?? '')}</div>
-              ${runCards}
+              <div class="fullResult">
+                <div class="prompt">${escapeHtml(runs[0]?.input ?? '')}</div>
+                ${renderRunCards(runs)}
+              </div>
             </details>
           `;
         })
         .join('');
 
       return `
-        <section class="model" id="${escapeHtml(getModelAnchor(model.key))}">
-          <h2>${escapeHtml(model.label)}</h2>
-          <p class="subtle">${escapeHtml(model.provider)} / ${escapeHtml(model.apiId)} / ${
-            model.enabled ? 'enabled' : 'disabled'
-          }</p>
+        <section class="modelPanel" data-model-panel="${escapeHtml(model.key)}" hidden>
+          <header class="modelHeader">
+            <div>
+              <h2>${escapeHtml(model.label)}</h2>
+              <p class="subtle">${escapeHtml(model.provider)} / ${escapeHtml(model.apiId)}</p>
+              <label class="invalidToggle">
+                <input type="checkbox" data-invalid-toggle />
+                <span>Показать только невалидные</span>
+              </label>
+            </div>
+          </header>
           ${cellSections || '<p class="subtle">No runs for this model.</p>'}
         </section>
       `;
@@ -170,7 +222,8 @@ const renderDetailSections = (results) => {
 };
 
 const buildHtml = (results) => {
-  const summaries = getModelSummaries(results);
+  const models = getReportModels(results);
+  const summaries = getModelSummaries(results, models);
 
   return `<!doctype html>
 <html lang="ru">
@@ -190,6 +243,10 @@ const buildHtml = (results) => {
       padding: 32px;
     }
 
+    body.modalOpen {
+      overflow: hidden;
+    }
+
     main {
       max-width: 1440px;
       margin: 0 auto;
@@ -201,7 +258,6 @@ const buildHtml = (results) => {
     }
 
     .panel,
-    .model,
     .cell,
     .run {
       border: 1px solid #d9e0ec;
@@ -209,8 +265,7 @@ const buildHtml = (results) => {
       background: #fff;
     }
 
-    .panel,
-    .model {
+    .panel {
       padding: 20px;
       margin-bottom: 20px;
     }
@@ -254,6 +309,8 @@ const buildHtml = (results) => {
     summary {
       display: flex;
       gap: 16px;
+      margin: -12px;
+      padding: 12px;
       cursor: pointer;
       flex-wrap: wrap;
     }
@@ -271,6 +328,24 @@ const buildHtml = (results) => {
       color: #526071;
       flex-wrap: wrap;
       font-size: 13px;
+    }
+
+    .scoreBadge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      color: #172033;
+      font-weight: 600;
+    }
+
+    .scoreBadge-perfect {
+      background: #dcfce7;
+    }
+
+    .scoreBadge-warning {
+      background: #fef3c7;
     }
 
     pre {
@@ -306,52 +381,85 @@ const buildHtml = (results) => {
     }
 
     .modelLink {
+      padding: 0;
+      border: 0;
+      background: transparent;
       color: #175cd3;
-      text-decoration: none;
+      cursor: pointer;
+      font: inherit;
+      text-align: left;
     }
 
     .modelLink:hover {
       text-decoration: underline;
     }
 
-    .backToTop {
+    .modalBackdrop {
       position: fixed;
-      right: 24px;
-      bottom: 24px;
-      display: inline-flex;
+      inset: 0;
+      z-index: 10;
+      display: flex;
       align-items: center;
       justify-content: center;
-      width: 48px;
-      height: 48px;
-      padding: 0;
-      border: 1px solid #b2c3dc;
-      border-radius: 999px;
-      background: #fff;
-      color: #175cd3;
-      box-shadow: 0 8px 24px rgb(16 24 40 / 14%);
-      text-decoration: none;
+      padding: 32px;
+      background: rgb(16 24 40 / 58%);
     }
 
-    .backToTop:hover {
-      background: #eef6ff;
-    }
-
-    .backToTop[hidden] {
+    .modalBackdrop[hidden] {
       display: none;
     }
 
-    .backToTop svg {
-      width: 22px;
-      height: 22px;
+    .modal {
+      position: relative;
+      width: min(1120px, 100%);
+      max-height: min(860px, calc(100vh - 64px));
+      overflow: auto;
+      padding: 24px;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 24px 80px rgb(16 24 40 / 24%);
     }
 
-    .muted {
-      opacity: 0.58;
+    .modalClose {
+      position: sticky;
+      top: 0;
+      float: right;
+      width: 36px;
+      height: 36px;
+      border: 1px solid #d0d7e2;
+      border-radius: 999px;
+      background: #fff;
+      color: #344054;
+      cursor: pointer;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .modelHeader {
+      margin-bottom: 16px;
+      padding-right: 48px;
+    }
+
+    .invalidToggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      color: #344054;
+      font-size: 14px;
+    }
+
+    .modelPanel.showInvalidOnly .cell[data-invalid="false"] {
+      display: none;
+    }
+
+    .modelPanel.showInvalidOnly .run[data-invalid="false"] {
+      display: none;
     }
   </style>
 </head>
 <body>
-  <main id="top">
+  <main>
     <section class="panel">
       <h1>Post-processing model report</h1>
       <p class="subtle">Started: ${escapeHtml(results.startedAt)}. Finished: ${escapeHtml(
@@ -369,42 +477,84 @@ const buildHtml = (results) => {
             <th>#</th>
             <th>Model</th>
             <th>Provider</th>
-            <th>Status</th>
             <th>Score</th>
             <th>Runs</th>
             <th>Errors</th>
             <th>Avg time</th>
-            <th>Cost</th>
+            <th>Avg cost</th>
             <th>Input/output per 1M</th>
           </tr>
         </thead>
         <tbody>${renderSummaryRows(summaries)}</tbody>
       </table>
     </section>
-
-    ${renderDetailSections(results)}
-    <a class="backToTop" href="#top" aria-label="Пролистать наверх" hidden>
-      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-        <path d="m18 15-6-6-6 6" />
-      </svg>
-    </a>
   </main>
+
+  <div class="modalBackdrop" data-modal hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-label="Model run details">
+      <button class="modalClose" type="button" data-modal-close aria-label="Закрыть">×</button>
+      ${renderModelPanels(results, models)}
+    </section>
+  </div>
+
   <script>
-    const backToTop = document.querySelector('.backToTop');
-    const ranking = document.querySelector('#ranking');
+    const modal = document.querySelector('[data-modal]');
+    const closeButton = document.querySelector('[data-modal-close]');
+    const modelButtons = document.querySelectorAll('[data-model-key]');
+    const modelPanels = document.querySelectorAll('[data-model-panel]');
+    let activePanel = null;
 
-    const updateBackToTop = () => {
-      if (!backToTop || !ranking) return;
+    const closeModal = () => {
+      if (!modal) return;
 
-      const rankingRect = ranking.getBoundingClientRect();
-      const rankingVisible = rankingRect.bottom > 0 && rankingRect.top < window.innerHeight;
+      modal.hidden = true;
+      document.body.classList.remove('modalOpen');
+      activePanel = null;
 
-      backToTop.hidden = rankingVisible;
+      for (const panel of modelPanels) {
+        panel.hidden = true;
+      }
     };
 
-    updateBackToTop();
-    window.addEventListener('scroll', updateBackToTop, { passive: true });
-    window.addEventListener('resize', updateBackToTop);
+    const openModal = (modelKey) => {
+      if (!modal) return;
+
+      closeModal();
+      activePanel = document.querySelector(\`[data-model-panel="\${CSS.escape(modelKey)}"]\`);
+
+      if (!activePanel) return;
+
+      activePanel.hidden = false;
+      modal.hidden = false;
+      document.body.classList.add('modalOpen');
+      closeButton?.focus();
+    };
+
+    for (const button of modelButtons) {
+      button.addEventListener('click', () => openModal(button.dataset.modelKey));
+    }
+
+    for (const toggle of document.querySelectorAll('[data-invalid-toggle]')) {
+      toggle.addEventListener('change', () => {
+        const panel = toggle.closest('[data-model-panel]');
+
+        panel?.classList.toggle('showInvalidOnly', toggle.checked);
+      });
+    }
+
+    closeButton?.addEventListener('click', closeModal);
+
+    modal?.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        closeModal();
+      }
+    });
+
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !modal?.hidden) {
+        closeModal();
+      }
+    });
   </script>
 </body>
 </html>`;

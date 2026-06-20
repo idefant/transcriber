@@ -15,6 +15,26 @@
     }
   },
   {
+    "key": "openrouter-gpt-oss-20b",
+    "label": "OpenRouter GPT OSS 20B",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "openai/gpt-oss-20b",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.075,
+    "outputPricePer1M": 0.3,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 1024
+    },
+    "providerRouting": {
+      "order": ["groq"],
+      "only": ["groq"],
+      "allow_fallbacks": false
+    }
+  },
+  {
     "key": "groq-gpt-oss-120b",
     "label": "Groq GPT OSS 120B 128k",
     "enabled": false,
@@ -52,7 +72,7 @@
   {
     "key": "groq-llama-4-scout",
     "label": "Groq Llama 4 Scout",
-    "enabled": true,
+    "enabled": false,
     "provider": "groq",
     "apiId": "meta-llama/llama-4-scout-17b-16e-instruct",
     "baseUrl": "https://api.groq.com/openai/v1",
@@ -95,14 +115,40 @@
     "inputPricePer1M": 0.29,
     "outputPricePer1M": 0.59,
     "params": {
+      "disableThinking": true,
       "temperature": 0.2,
       "maxCompletionTokens": 1024
     }
   },
   {
+    "key": "openrouter-qwen3-32b",
+    "label": "OpenRouter Qwen3 32B",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "qwen/qwen3-32b",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.08,
+    "outputPricePer1M": 0.28,
+    "params": {
+      "disableThinking": true,
+      "reasoning": {
+        "effort": "none",
+        "exclude": true
+      },
+      "temperature": 0.2,
+      "maxCompletionTokens": 1024
+    },
+    "providerRouting": {
+      "order": ["groq"],
+      "only": ["groq"],
+      "allow_fallbacks": false
+    }
+  },
+  {
     "key": "groq-llama-3-3-70b-versatile",
     "label": "Groq Llama 3.3 70B Versatile 128k",
-    "enabled": true,
+    "enabled": false,
     "provider": "groq",
     "apiId": "llama-3.3-70b-versatile",
     "baseUrl": "https://api.groq.com/openai/v1",
@@ -137,7 +183,7 @@
   {
     "key": "groq-llama-3-1-8b-instant",
     "label": "Groq Llama 3.1 8B Instant 128k",
-    "enabled": true,
+    "enabled": false,
     "provider": "groq",
     "apiId": "llama-3.1-8b-instant",
     "baseUrl": "https://api.groq.com/openai/v1",
@@ -180,6 +226,27 @@
     "inputPricePer1M": 0.6,
     "outputPricePer1M": 3,
     "params": {
+      "disableThinking": true,
+      "temperature": 0.2,
+      "maxCompletionTokens": 1024
+    }
+  },
+  {
+    "key": "openrouter-qwen-3-6-27b",
+    "label": "OpenRouter Qwen 3.6 27B 131k",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "qwen/qwen3.6-27b",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.2885,
+    "outputPricePer1M": 3.17,
+    "params": {
+      "disableThinking": true,
+      "reasoning": {
+        "effort": "none",
+        "exclude": true
+      },
       "temperature": 0.2,
       "maxCompletionTokens": 1024
     }
@@ -187,28 +254,13 @@
   {
     "key": "openai-gpt-5-4-mini",
     "label": "OpenAI gpt-5.4-mini",
-    "enabled": false,
+    "enabled": true,
     "provider": "openai",
     "apiId": "gpt-5.4-mini",
     "baseUrl": "https://api.openai.com/v1",
     "apiKeyEnv": "OPENAI_API_KEY",
     "inputPricePer1M": 0.75,
     "outputPricePer1M": 4.5,
-    "params": {
-      "temperature": 1,
-      "maxCompletionTokens": 1024
-    }
-  },
-  {
-    "key": "openai-gpt-5-4-nano",
-    "label": "OpenAI gpt-5.4-nano",
-    "enabled": false,
-    "provider": "openai",
-    "apiId": "gpt-5.4-nano",
-    "baseUrl": "https://api.openai.com/v1",
-    "apiKeyEnv": "OPENAI_API_KEY",
-    "inputPricePer1M": 0.2,
-    "outputPricePer1M": 1.6,
     "params": {
       "temperature": 1,
       "maxCompletionTokens": 1024
@@ -247,7 +299,7 @@
   {
     "key": "openai-gpt-4-1-mini",
     "label": "OpenAI gpt-4.1-mini",
-    "enabled": false,
+    "enabled": true,
     "provider": "openai",
     "apiId": "gpt-4.1-mini",
     "baseUrl": "https://api.openai.com/v1",
@@ -262,7 +314,7 @@
   {
     "key": "openai-gpt-4-1-nano",
     "label": "OpenAI gpt-4.1-nano",
-    "enabled": false,
+    "enabled": true,
     "provider": "openai",
     "apiId": "gpt-4.1-nano",
     "baseUrl": "https://api.openai.com/v1",
@@ -277,7 +329,7 @@
   {
     "key": "openai-gpt-4o-mini",
     "label": "OpenAI gpt-4o-mini",
-    "enabled": false,
+    "enabled": true,
     "provider": "openai",
     "apiId": "gpt-4o-mini",
     "baseUrl": "https://api.openai.com/v1",
@@ -292,7 +344,7 @@
   {
     "key": "openrouter-gemini-3-1-flash-lite",
     "label": "OpenRouter Gemini 3.1 Flash Lite",
-    "enabled": false,
+    "enabled": true,
     "provider": "openrouter",
     "apiId": "google/gemini-3.1-flash-lite",
     "baseUrl": "https://openrouter.ai/api/v1",
@@ -307,7 +359,7 @@
   {
     "key": "openrouter-gemini-2-5-flash-lite",
     "label": "OpenRouter Gemini 2.5 Flash Lite",
-    "enabled": false,
+    "enabled": true,
     "provider": "openrouter",
     "apiId": "google/gemini-2.5-flash-lite",
     "baseUrl": "https://openrouter.ai/api/v1",
@@ -322,7 +374,7 @@
   {
     "key": "openrouter-gemini-2-5-flash",
     "label": "OpenRouter Gemini 2.5 Flash",
-    "enabled": false,
+    "enabled": true,
     "provider": "openrouter",
     "apiId": "google/gemini-2.5-flash",
     "baseUrl": "https://openrouter.ai/api/v1",
@@ -335,27 +387,9 @@
     }
   },
   {
-    "key": "openrouter-claude-haiku-3-5",
-    "label": "OpenRouter Claude Haiku 3.5",
-    "enabled": false,
-    "provider": "openrouter",
-    "apiId": "anthropic/claude-3.5-haiku",
-    "baseUrl": "https://openrouter.ai/api/v1",
-    "apiKeyEnv": "OPENROUTER_API_KEY",
-    "inputPricePer1M": 0.8,
-    "outputPricePer1M": 4,
-    "params": {
-      "temperature": 0.2,
-      "maxCompletionTokens": 1024,
-      "thinking": {
-        "type": "disabled"
-      }
-    }
-  },
-  {
     "key": "openrouter-claude-haiku-4-5",
     "label": "OpenRouter Claude Haiku 4.5",
-    "enabled": false,
+    "enabled": true,
     "provider": "openrouter",
     "apiId": "anthropic/claude-haiku-4.5",
     "baseUrl": "https://openrouter.ai/api/v1",
