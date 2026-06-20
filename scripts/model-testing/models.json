@@ -11,7 +11,9 @@
     "outputPricePer1M": 0.3,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096,
+      "reasoningEffort": "low",
+      "includeReasoning": false
     }
   },
   {
@@ -26,7 +28,11 @@
     "outputPricePer1M": 0.3,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "effort": "low",
+        "exclude": true
+      }
     },
     "providerRouting": {
       "order": ["groq"],
@@ -46,7 +52,9 @@
     "outputPricePer1M": 0.6,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096,
+      "reasoningEffort": "low",
+      "includeReasoning": false
     }
   },
   {
@@ -61,7 +69,11 @@
     "outputPricePer1M": 0.18,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "effort": "low",
+        "exclude": true
+      }
     },
     "providerRouting": {
       "order": ["groq"],
@@ -81,7 +93,7 @@
     "outputPricePer1M": 0.34,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096
     }
   },
   {
@@ -96,7 +108,7 @@
     "outputPricePer1M": 0.3,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096
     },
     "providerRouting": {
       "order": ["groq"],
@@ -115,9 +127,10 @@
     "inputPricePer1M": 0.29,
     "outputPricePer1M": 0.59,
     "params": {
-      "disableThinking": true,
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096,
+      "disableThinking": true,
+      "reasoningFormat": "hidden"
     }
   },
   {
@@ -131,13 +144,13 @@
     "inputPricePer1M": 0.08,
     "outputPricePer1M": 0.28,
     "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 4096,
       "disableThinking": true,
       "reasoning": {
         "effort": "none",
         "exclude": true
-      },
-      "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      }
     },
     "providerRouting": {
       "order": ["groq"],
@@ -157,7 +170,7 @@
     "outputPricePer1M": 0.79,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096
     }
   },
   {
@@ -172,7 +185,7 @@
     "outputPricePer1M": 0.32,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096
     },
     "providerRouting": {
       "order": ["groq"],
@@ -192,7 +205,7 @@
     "outputPricePer1M": 0.08,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096
     }
   },
   {
@@ -207,7 +220,7 @@
     "outputPricePer1M": 0.03,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096
     },
     "providerRouting": {
       "order": ["groq"],
@@ -226,9 +239,11 @@
     "inputPricePer1M": 0.6,
     "outputPricePer1M": 3,
     "params": {
-      "disableThinking": true,
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096,
+      "disableThinking": true,
+      "reasoningFormat": "hidden",
+      "reasoningEffort": "none"
     }
   },
   {
@@ -242,13 +257,13 @@
     "inputPricePer1M": 0.2885,
     "outputPricePer1M": 3.17,
     "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 4096,
       "disableThinking": true,
       "reasoning": {
         "effort": "none",
         "exclude": true
-      },
-      "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      }
     }
   },
   {
@@ -263,13 +278,14 @@
     "outputPricePer1M": 4.5,
     "params": {
       "temperature": 1,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096,
+      "reasoningEffort": "none"
     }
   },
   {
     "key": "openai-gpt-5-mini",
     "label": "OpenAI gpt-5-mini",
-    "enabled": false,
+    "enabled": true,
     "provider": "openai",
     "apiId": "gpt-5-mini",
     "baseUrl": "https://api.openai.com/v1",
@@ -278,13 +294,14 @@
     "outputPricePer1M": 2,
     "params": {
       "temperature": 1,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096,
+      "reasoningEffort": "minimal"
     }
   },
   {
     "key": "openai-gpt-5-nano",
     "label": "OpenAI gpt-5-nano",
-    "enabled": false,
+    "enabled": true,
     "provider": "openai",
     "apiId": "gpt-5-nano",
     "baseUrl": "https://api.openai.com/v1",
@@ -293,7 +310,8 @@
     "outputPricePer1M": 0.4,
     "params": {
       "temperature": 1,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096,
+      "reasoningEffort": "minimal"
     }
   },
   {
@@ -308,7 +326,7 @@
     "outputPricePer1M": 1.6,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096
     }
   },
   {
@@ -323,7 +341,7 @@
     "outputPricePer1M": 0.4,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096
     }
   },
   {
@@ -338,7 +356,7 @@
     "outputPricePer1M": 0.6,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096
     }
   },
   {
@@ -353,7 +371,11 @@
     "outputPricePer1M": 1.5,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "effort": "none",
+        "exclude": true
+      }
     }
   },
   {
@@ -368,7 +390,11 @@
     "outputPricePer1M": 0.4,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "effort": "none",
+        "exclude": true
+      }
     }
   },
   {
@@ -383,7 +409,11 @@
     "outputPricePer1M": 2.5,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "effort": "none",
+        "exclude": true
+      }
     }
   },
   {
@@ -398,7 +428,7 @@
     "outputPricePer1M": 5,
     "params": {
       "temperature": 0.2,
-      "maxCompletionTokens": 1024,
+      "maxCompletionTokens": 4096,
       "thinking": {
         "type": "disabled"
       }

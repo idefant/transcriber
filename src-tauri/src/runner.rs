@@ -165,9 +165,8 @@ async fn run_post_process_test_inner(app: &tauri::AppHandle, text: String) -> Ap
         .entry_for(credentials.kind)
         .ok_or("Model is not available for this provider")?;
     let api_id = provider_entry.api_id;
-    let disable_reasoning = provider_entry.disable_reasoning;
 
-    let ModelParams::PostProcess(params) = model.params else {
+    let ModelParams::PostProcess(params) = &model.params else {
         return Err("Expected PostProcess model params".into());
     };
 
@@ -200,11 +199,23 @@ async fn run_post_process_test_inner(app: &tauri::AppHandle, text: String) -> Ap
         body["thinking"] = serde_json::json!({ "type": "disabled" });
     }
 
-    if disable_reasoning {
+    if let Some(reasoning) = &provider_entry.reasoning {
         body["reasoning"] = serde_json::json!({
-            "effort": "none",
-            "exclude": true,
+            "effort": reasoning.effort,
+            "exclude": reasoning.exclude,
         });
+    }
+
+    if let Some(reasoning_effort) = provider_entry.reasoning_effort {
+        body["reasoning_effort"] = serde_json::json!(reasoning_effort);
+    }
+
+    if let Some(reasoning_format) = provider_entry.reasoning_format {
+        body["reasoning_format"] = serde_json::json!(reasoning_format);
+    }
+
+    if let Some(include_reasoning) = provider_entry.include_reasoning {
+        body["include_reasoning"] = serde_json::json!(include_reasoning);
     }
 
     let url = format!(

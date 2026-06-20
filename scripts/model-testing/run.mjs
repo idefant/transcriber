@@ -725,6 +725,18 @@ const requestModel = async ({ language, model, prompts, testCase }) => {
     body.reasoning = model.params.reasoning;
   }
 
+  if (model.params?.reasoningEffort) {
+    body.reasoning_effort = model.params.reasoningEffort;
+  }
+
+  if (model.params?.reasoningFormat) {
+    body.reasoning_format = model.params.reasoningFormat;
+  }
+
+  if (model.params?.includeReasoning !== undefined) {
+    body.include_reasoning = model.params.includeReasoning;
+  }
+
   if (model.providerRouting) {
     body.provider = model.providerRouting;
   }
