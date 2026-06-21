@@ -10,14 +10,37 @@ import type { ProcessingDetails } from '#/models/History';
 const { Paragraph, Title } = Typography;
 
 interface ModelResultProps {
+  canCopy: boolean;
+  canRepeat: boolean;
   copyLabel: string;
   details: ProcessingDetails;
+  onCopy: () => void;
+  onRepeat: () => void;
   repeatLabel: string;
+  showBody?: boolean;
   title: string;
 }
 
-const ModelResult: FC<ModelResultProps> = ({ copyLabel, details, repeatLabel, title }) => {
+const ModelResult: FC<ModelResultProps> = ({
+  canCopy,
+  canRepeat,
+  copyLabel,
+  details,
+  onCopy,
+  onRepeat,
+  repeatLabel,
+  showBody = true,
+  title,
+}) => {
   const { t } = useTranslation();
+  const displayText = details.errorMessage ?? details.text;
+  const displayCost =
+    typeof details.cost === 'string' &&
+    details.cost.length > 0 &&
+    details.cost !== '—' &&
+    details.cost !== '-'
+      ? details.cost
+      : undefined;
 
   return (
     <section className={styles.modelResult}>
@@ -29,8 +52,10 @@ const ModelResult: FC<ModelResultProps> = ({ copyLabel, details, repeatLabel, ti
           <Tooltip title={copyLabel}>
             <Button
               aria-label={copyLabel}
+              disabled={!canCopy}
               icon={<CopyIcon size={16} strokeWidth={2} />}
               size="small"
+              onClick={onCopy}
             />
           </Tooltip>
           <Tooltip title={repeatLabel}>
@@ -43,31 +68,48 @@ const ModelResult: FC<ModelResultProps> = ({ copyLabel, details, repeatLabel, ti
                   <RotateCcwIcon size={16} strokeWidth={2} />
                 )
               }
-              disabled={details.isProcessing}
+              disabled={details.isProcessing || details.status === 'processing' || !canRepeat}
               size="small"
+              onClick={onRepeat}
             />
           </Tooltip>
         </Space>
       </div>
-      <dl className={styles.metaList}>
-        <div>
-          <dt>{t('history.details.provider')}</dt>
-          <dd>{details.provider}</dd>
-        </div>
-        <div>
-          <dt>{t('history.details.model')}</dt>
-          <dd>{details.model}</dd>
-        </div>
-        <div>
-          <dt>{t('history.details.time')}</dt>
-          <dd>{details.duration}</dd>
-        </div>
-        <div>
-          <dt>{t('history.details.cost')}</dt>
-          <dd>{details.cost}</dd>
-        </div>
-      </dl>
-      <Paragraph className={styles.text}>{details.text}</Paragraph>
+      {showBody ? (
+        <>
+          <dl className={styles.metaList}>
+            {details.provider.length > 0 ? (
+              <div>
+                <dt>{t('history.details.provider')}</dt>
+                <dd>{details.provider}</dd>
+              </div>
+            ) : undefined}
+            {details.model.length > 0 ? (
+              <div>
+                <dt>{t('history.details.model')}</dt>
+                <dd>{details.model}</dd>
+              </div>
+            ) : undefined}
+            {details.durationMs === null || details.durationMs === undefined ? undefined : (
+              <div>
+                <dt>{t('history.details.time')}</dt>
+                <dd>{details.duration}</dd>
+              </div>
+            )}
+            {displayCost === undefined ? undefined : (
+              <div>
+                <dt>{t('history.details.cost')}</dt>
+                <dd>{displayCost}</dd>
+              </div>
+            )}
+          </dl>
+          {displayText.length > 0 ? (
+            <Paragraph className={details.status === 'error' ? styles.errorText : styles.text}>
+              {displayText}
+            </Paragraph>
+          ) : undefined}
+        </>
+      ) : undefined}
     </section>
   );
 };

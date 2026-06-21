@@ -417,8 +417,9 @@ fn parse_headers(headers: &Option<String>) -> AppResult<HeaderMap> {
 }
 
 pub struct ProviderCredentials {
+    pub id: String,
+    pub name: String,
     pub kind: ProviderKind,
-    pub api_key: String,
     pub base_url: String,
     pub headers: reqwest::header::HeaderMap,
 }
@@ -462,11 +463,21 @@ pub fn resolve_provider_credentials(
     };
 
     Ok(ProviderCredentials {
+        id: provider.id,
+        name: provider.name,
         kind: provider.provider,
-        api_key: provider.api_key,
         base_url,
         headers,
     })
+}
+
+pub fn resolve_provider_api_key(app: &tauri::AppHandle, provider_id: &str) -> AppResult<String> {
+    load_providers(app)?
+        .into_iter()
+        .find(|provider| provider.id == provider_id)
+        .map(|provider| provider.api_key)
+        .filter(|api_key| !api_key.trim().is_empty())
+        .ok_or_else(|| "Provider API key was not found".into())
 }
 
 fn load_providers(app: &tauri::AppHandle) -> AppResult<Vec<StoredProvider>> {

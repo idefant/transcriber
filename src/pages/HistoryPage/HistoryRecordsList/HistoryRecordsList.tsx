@@ -11,7 +11,11 @@ interface HistoryRecordsListProps {
   activeDate?: string;
   groups: HistoryGroup[];
   onActiveDateChange: (date?: string) => void;
+  onCopyRecordText: (record: HistoryRecord) => void;
+  onDeleteRecord: (record: HistoryRecord) => void;
   onRecordSelect: (record: HistoryRecord) => void;
+  onRepeatTranscription: (record: HistoryRecord) => void;
+  processingRecordId?: string;
   selectedRecordId?: string;
 }
 
@@ -19,76 +23,120 @@ const stopRecordActionClick = (event: MouseEvent<HTMLElement>) => {
   event.stopPropagation();
 };
 
+const hasDisplayText = (record: HistoryRecord) =>
+  record.postprocessing.status === 'success' || record.transcription.status === 'success';
+
+const getDisplayText = (record: HistoryRecord) => {
+  if (record.postprocessing.status === 'success') {
+    return record.postprocessing.text;
+  }
+
+  if (record.transcription.status === 'success') {
+    return record.transcription.text;
+  }
+
+  return record.transcription.errorMessage ?? '';
+};
+
 const HistoryRecordsList: FC<HistoryRecordsListProps> = ({
   activeDate,
   groups,
   onActiveDateChange,
+  onCopyRecordText,
+  onDeleteRecord,
   onRecordSelect,
+  onRepeatTranscription,
+  processingRecordId,
   selectedRecordId,
 }) => {
   const { t } = useTranslation();
   const collapseItems = groups.map((group) => ({
     children: (
       <div className={styles.records}>
-        {group.records.map((record) => (
-          <div
-            className={record.id === selectedRecordId ? styles.recordActive : styles.record}
-            key={record.id}
-            role="button"
-            tabIndex={0}
-            onClick={() => {
-              onRecordSelect(record);
-            }}
-            onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
+        {group.records.map((record) => {
+          const displayText = getDisplayText(record);
+          const canCopy = hasDisplayText(record);
+          const isProcessing =
+            record.transcription.isProcessing ||
+            record.postprocessing.isProcessing ||
+            processingRecordId === record.id;
+
+          return (
+            <div
+              className={record.id === selectedRecordId ? styles.recordActive : styles.record}
+              key={record.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => {
                 onRecordSelect(record);
-              }
-            }}
-          >
-            <span className={styles.recordContent}>
-              <span className={styles.recordTime}>{record.time}</span>
-              <span className={styles.recordText}>{record.transcription.text}</span>
-            </span>
-            <Space className={styles.recordActions} size={4}>
-              <Tooltip title={t('history.records.copyText')}>
-                <Button
-                  aria-label={t('history.records.copyText')}
-                  icon={<CopyIcon size={16} strokeWidth={2} />}
-                  size="small"
-                  type="text"
-                  onClick={stopRecordActionClick}
-                />
-              </Tooltip>
-              <Tooltip title={t('history.records.repeat')}>
-                <Button
-                  aria-label={t('history.records.repeat')}
-                  icon={
-                    record.transcription.isProcessing ? (
-                      <LoaderCircleIcon className={styles.spinIcon} size={16} strokeWidth={2} />
-                    ) : (
-                      <RotateCcwIcon size={16} strokeWidth={2} />
-                    )
+              }}
+              onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onRecordSelect(record);
+                }
+              }}
+            >
+              <span className={styles.recordContent}>
+                <span className={styles.recordTime}>{record.time}</span>
+                <span
+                  className={
+                    record.transcription.status === 'error' ? styles.recordError : styles.recordText
                   }
-                  disabled={record.transcription.isProcessing}
-                  size="small"
-                  type="text"
-                  onClick={stopRecordActionClick}
-                />
-              </Tooltip>
-              <Tooltip title={t('history.records.delete')}>
-                <Button
-                  aria-label={t('history.records.delete')}
-                  danger
-                  icon={<Trash2Icon size={16} strokeWidth={2} />}
-                  size="small"
-                  type="text"
-                  onClick={stopRecordActionClick}
-                />
-              </Tooltip>
-            </Space>
-          </div>
-        ))}
+                >
+                  {displayText}
+                </span>
+              </span>
+              <Space className={styles.recordActions} size={4}>
+                <Tooltip title={t('history.records.copyText')}>
+                  <Button
+                    aria-label={t('history.records.copyText')}
+                    icon={<CopyIcon size={16} strokeWidth={2} />}
+                    size="small"
+                    type="text"
+                    disabled={!canCopy}
+                    onClick={(event) => {
+                      stopRecordActionClick(event);
+                      onCopyRecordText(record);
+                    }}
+                  />
+                </Tooltip>
+                <Tooltip title={t('history.records.repeat')}>
+                  <Button
+                    aria-label={t('history.records.repeat')}
+                    icon={
+                      isProcessing ? (
+                        <LoaderCircleIcon className={styles.spinIcon} size={16} strokeWidth={2} />
+                      ) : (
+                        <RotateCcwIcon size={16} strokeWidth={2} />
+                      )
+                    }
+                    disabled={isProcessing}
+                    size="small"
+                    type="text"
+                    onClick={(event) => {
+                      stopRecordActionClick(event);
+                      onRepeatTranscription(record);
+                    }}
+                  />
+                </Tooltip>
+                <Tooltip title={t('history.records.delete')}>
+                  <Button
+                    aria-label={t('history.records.delete')}
+                    danger
+                    icon={<Trash2Icon size={16} strokeWidth={2} />}
+                    size="small"
+                    type="text"
+                    onClick={(event) => {
+                      stopRecordActionClick(event);
+                      onDeleteRecord(record);
+                    }}
+                  />
+                </Tooltip>
+              </Space>
+            </div>
+          );
+        })}
       </div>
     ),
     key: group.date,

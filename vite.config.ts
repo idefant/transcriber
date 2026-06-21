@@ -4,6 +4,14 @@ import { defineConfig } from 'vite';
 import checker from 'vite-plugin-checker';
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('index.html', import.meta.url)),
+        overlay: fileURLToPath(new URL('src/overlay/index.html', import.meta.url)),
+      },
+    },
+  },
   clearScreen: false,
   plugins: [
     react(),

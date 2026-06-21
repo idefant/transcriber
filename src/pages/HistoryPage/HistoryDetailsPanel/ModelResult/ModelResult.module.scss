@@ -45,12 +45,17 @@
   }
 }
 
-.text {
+.text,
+.errorText {
   padding: 12px;
   margin: 0;
   line-height: 1.6;
   background: var(--app-color-fill-tertiary);
   border-radius: 8px;
+}
+
+.errorText {
+  color: #cf1322;
 }
 
 .spinIcon {

@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    dictation,
     error::{AppError, AppResult},
-    storage,
+    shortcut_hook, storage,
 };
 
 const SETTINGS_FILE_NAME: &str = "settings.json";
@@ -21,9 +22,9 @@ impl Default for ThemePreference {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-enum TriggerMode {
+pub enum TriggerMode {
     Hold,
     Press,
 }
@@ -91,6 +92,16 @@ impl Default for AppSettings {
     }
 }
 
+impl AppSettings {
+    pub fn hotkey(&self) -> &str {
+        &self.hotkey
+    }
+
+    pub fn trigger_mode(&self) -> &TriggerMode {
+        &self.trigger_mode
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettingsInput {
@@ -106,7 +117,7 @@ fn default_dictation_sounds_enabled() -> bool {
 }
 
 fn default_hotkey() -> String {
-    "Ctrl + Shift + Space".to_string()
+    "Ctrl+Space".to_string()
 }
 
 #[tauri::command]
@@ -143,7 +154,7 @@ fn update_app_settings_inner(
     }
 
     if let Some(hotkey) = input.hotkey {
-        settings.hotkey = hotkey.trim().to_string();
+        settings.hotkey = shortcut_hook::normalize_hotkey(&hotkey)?;
     }
 
     if let Some(trigger_mode) = input.trigger_mode {
@@ -153,12 +164,17 @@ fn update_app_settings_inner(
     settings.effective_ui_language = resolve_effective_ui_language(&settings.ui_language);
 
     save_app_settings(app, &settings)?;
+    dictation::update_dictation_shortcut(app)?;
 
     Ok(settings)
 }
 
-fn load_app_settings(app: &tauri::AppHandle) -> AppResult<AppSettings> {
-    storage::load_json_or_default(app, SETTINGS_FILE_NAME)
+pub fn load_app_settings(app: &tauri::AppHandle) -> AppResult<AppSettings> {
+    let mut settings: AppSettings = storage::load_json_or_default(app, SETTINGS_FILE_NAME)?;
+
+    settings.hotkey = shortcut_hook::normalize_hotkey(&settings.hotkey)?;
+
+    Ok(settings)
 }
 
 fn save_app_settings(app: &tauri::AppHandle, settings: &AppSettings) -> AppResult<()> {

@@ -12,7 +12,7 @@ interface AppSettingsProviderProps {
 const defaultAppSettings: AppSettings = {
   areDictationSoundsEnabled: true,
   effectiveUiLanguage: 'en',
-  hotkey: 'Ctrl + Shift + Space',
+  hotkey: 'Ctrl+Space',
   themePreference: 'light',
   triggerMode: 'press',
   uiLanguage: 'system',

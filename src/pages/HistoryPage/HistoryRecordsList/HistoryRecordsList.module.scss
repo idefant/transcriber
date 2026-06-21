@@ -45,9 +45,14 @@
   color: var(--app-color-text-tertiary);
 }
 
-.recordText {
+.recordText,
+.recordError {
   font-size: 12px;
   line-height: 1.5;
+}
+
+.recordError {
+  color: #cf1322;
 }
 
 .recordActions {

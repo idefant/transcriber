@@ -50,11 +50,11 @@ impl Default for SttConfig {
 
 impl SttConfig {
     /// Effective system prompt template (still contains `{{...}}` placeholders).
-    pub fn effective_system_prompt(&self, language: &EffectiveUiLanguage) -> &str {
+    pub fn effective_system_prompt(&self) -> &str {
         if self.use_custom_prompt && !self.system_prompt.trim().is_empty() {
             &self.system_prompt
         } else {
-            default_stt_system_prompt(language)
+            DEFAULT_STT_SYSTEM_PROMPT_EN
         }
     }
 }
