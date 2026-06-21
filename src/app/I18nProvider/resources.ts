@@ -46,6 +46,11 @@ const en = {
         ru: 'Russian',
         en: 'English',
       },
+      debugLogging: {
+        title: 'Enable logging',
+        description: 'Logs are not sent to a server and are only used for debugging.',
+        openFolder: 'Open logs folder',
+      },
     },
     hotkeys: {
       startRecording: {
@@ -206,6 +211,11 @@ const ru: typeof en = {
         system: 'Системный',
         ru: 'Русский',
         en: 'English',
+      },
+      debugLogging: {
+        title: 'Включить логирование',
+        description: 'Логи не отправляются на сервер и нужны только для отладки.',
+        openFolder: 'Открыть папку логов',
       },
     },
     hotkeys: {

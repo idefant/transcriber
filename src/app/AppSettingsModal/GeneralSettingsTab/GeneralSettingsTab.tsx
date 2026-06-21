@@ -1,5 +1,5 @@
 import { type FC, type ReactNode } from 'react';
-import { Segmented, Select, Switch } from 'antd';
+import { Button, Segmented, Select, Switch } from 'antd';
 import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -11,6 +11,9 @@ import type { ThemePreference, UiLanguage } from '#/models/Settings';
 
 interface GeneralSettingsTabProps {
   areDictationSoundsEnabled: boolean;
+  isDebugLoggingEnabled: boolean;
+  onDebugLogsFolderOpen: () => void;
+  onDebugLoggingEnabledChange: (value: boolean) => void;
   onDictationSoundsEnabledChange: (value: boolean) => void;
   onThemePreferenceChange: (value: ThemePreference) => void;
   onUiLanguageChange: (value: UiLanguage) => void;
@@ -20,6 +23,9 @@ interface GeneralSettingsTabProps {
 
 const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
   areDictationSoundsEnabled,
+  isDebugLoggingEnabled,
+  onDebugLogsFolderOpen,
+  onDebugLoggingEnabledChange,
   onDictationSoundsEnabledChange,
   onThemePreferenceChange,
   onUiLanguageChange,
@@ -90,6 +96,20 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
           onChange={onUiLanguageChange}
         />
       </SettingRow>
+
+      <div className={styles.debugLoggingGroup}>
+        <SettingRow
+          description={t('settings.general.debugLogging.description')}
+          title={t('settings.general.debugLogging.title')}
+        >
+          <Switch checked={isDebugLoggingEnabled} onChange={onDebugLoggingEnabledChange} />
+        </SettingRow>
+        {isDebugLoggingEnabled && (
+          <Button block size="middle" type="primary" onClick={onDebugLogsFolderOpen}>
+            {t('settings.general.debugLogging.openFolder')}
+          </Button>
+        )}
+      </div>
     </div>
   );
 };

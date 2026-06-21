@@ -6,3 +6,5 @@ export const getAppSettings = () => invoke<AppSettings>('get_app_settings');
 
 export const updateAppSettings = (input: AppSettingsInput) =>
   invoke<AppSettings>('update_app_settings', { input });
+
+export const openDebugLogsFolder = () => invoke('open_debug_logs_folder');

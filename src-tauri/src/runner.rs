@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     catalog::{model_by_key, ModelParams},
+    debug_log::{self, ModelRunLogContext, ModelRunStage},
     dictionary,
     error::{AppError, AppResult},
     processing::load_processing_config,
@@ -149,11 +150,23 @@ pub async fn run_stt(
     audio: Vec<u8>,
     file_name: String,
 ) -> AppResult<String> {
-    Ok(run_stt_detailed(app, audio, file_name, None).await?.text)
+    Ok(run_stt_detailed(
+        app,
+        audio,
+        file_name,
+        None,
+        Some(ModelRunLogContext::settings_test()),
+    )
+    .await?
+    .text)
 }
 
 pub async fn run_post_process(app: &tauri::AppHandle, text: String) -> AppResult<String> {
-    Ok(run_post_process_detailed(app, text).await?.text)
+    Ok(
+        run_post_process_detailed(app, text, Some(ModelRunLogContext::settings_test()))
+            .await?
+            .text,
+    )
 }
 
 pub async fn run_stt_detailed(
@@ -161,19 +174,29 @@ pub async fn run_stt_detailed(
     audio: Vec<u8>,
     file_name: String,
     audio_duration_ms: Option<u64>,
+    log_context: Option<ModelRunLogContext>,
 ) -> AppResult<SttRunOutput> {
     let snapshot = build_stt_snapshot(app)?;
 
-    run_stt_with_snapshot(app, &snapshot, audio, file_name, audio_duration_ms).await
+    run_stt_with_snapshot(
+        app,
+        &snapshot,
+        audio,
+        file_name,
+        audio_duration_ms,
+        log_context,
+    )
+    .await
 }
 
 pub async fn run_post_process_detailed(
     app: &tauri::AppHandle,
     text: String,
+    log_context: Option<ModelRunLogContext>,
 ) -> AppResult<PostProcessRunOutput> {
     let snapshot = build_post_process_snapshot(app)?;
 
-    run_post_process_with_snapshot(app, &snapshot, text).await
+    run_post_process_with_snapshot(app, &snapshot, text, log_context).await
 }
 
 pub async fn run_stt_with_snapshot(
@@ -182,11 +205,13 @@ pub async fn run_stt_with_snapshot(
     audio: Vec<u8>,
     file_name: String,
     audio_duration_ms: Option<u64>,
+    log_context: Option<ModelRunLogContext>,
 ) -> AppResult<SttRunOutput> {
     let api_key = resolve_provider_api_key(app, &snapshot.provider.provider_id)?;
     let mime = mime_from_filename(&file_name);
+    let audio_size_bytes = audio.len();
     let file_part = reqwest::multipart::Part::bytes(audio)
-        .file_name(file_name)
+        .file_name(file_name.clone())
         .mime_str(mime)
         .map_err(|e| format!("Invalid MIME type: {e}"))?;
 
@@ -212,6 +237,33 @@ pub async fn run_stt_with_snapshot(
         "{}/audio/transcriptions",
         snapshot.provider.base_url.trim_end_matches('/')
     );
+    debug_log::log_model_event(
+        app,
+        "speechToText.request",
+        ModelRunStage::SpeechToText,
+        log_context.as_ref(),
+        serde_json::json!({
+            "provider": provider_payload(&snapshot.provider),
+            "request": {
+                "method": "POST",
+                "url": url,
+                "endpoint": "/audio/transcriptions",
+                "headers": debug_log::sanitized_headers(&snapshot.provider.headers),
+                "multipart": {
+                    "file": {
+                        "fileName": file_name,
+                        "mime": mime,
+                        "sizeBytes": audio_size_bytes,
+                    },
+                    "model": snapshot.api_model_id,
+                    "responseFormat": snapshot.response_format,
+                    "temperature": snapshot.temperature,
+                    "language": optional_stt_language(snapshot),
+                    "prompt": optional_prompt(&snapshot.prompt),
+                },
+            },
+        }),
+    );
     let client = build_client()?;
     let started_at = Instant::now();
     let mut request = client
@@ -225,20 +277,82 @@ pub async fn run_stt_with_snapshot(
         request = request.headers(headers);
     }
 
-    let response = request.send().await?;
+    let response = match request.send().await {
+        Ok(response) => response,
+        Err(error) => {
+            debug_log::log_model_event(
+                app,
+                "speechToText.error",
+                ModelRunStage::SpeechToText,
+                log_context.as_ref(),
+                serde_json::json!({
+                    "error": error.to_string(),
+                }),
+            );
+
+            return Err(error.into());
+        }
+    };
     let status = response.status();
 
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
+        debug_log::log_model_event(
+            app,
+            "speechToText.error",
+            ModelRunStage::SpeechToText,
+            log_context.as_ref(),
+            serde_json::json!({
+                "response": {
+                    "status": status.as_u16(),
+                    "body": body,
+                },
+            }),
+        );
         return Err(format!("STT request failed with status {status}: {body}").into());
     }
 
-    let stt_response = response.json::<SttResponse>().await?;
+    let stt_response = match response.json::<SttResponse>().await {
+        Ok(stt_response) => stt_response,
+        Err(error) => {
+            debug_log::log_model_event(
+                app,
+                "speechToText.error",
+                ModelRunStage::SpeechToText,
+                log_context.as_ref(),
+                serde_json::json!({
+                    "response": {
+                        "status": status.as_u16(),
+                    },
+                    "error": error.to_string(),
+                }),
+            );
+
+            return Err(error.into());
+        }
+    };
     let duration_ms = elapsed_ms(started_at);
     let cost = stt_cost(snapshot, audio_duration_ms, stt_response.usage.as_ref());
+    let text = stt_response.text.trim().to_string();
+
+    debug_log::log_model_event(
+        app,
+        "speechToText.response",
+        ModelRunStage::SpeechToText,
+        log_context.as_ref(),
+        serde_json::json!({
+            "response": {
+                "status": status.as_u16(),
+                "durationMs": duration_ms,
+                "text": text.clone(),
+                "usage": stt_response.usage,
+                "cost": cost,
+            },
+        }),
+    );
 
     Ok(SttRunOutput {
-        text: stt_response.text.trim().to_string(),
+        text,
         provider: snapshot.provider.provider_name.clone(),
         model: snapshot.model_label.clone(),
         duration_ms,
@@ -252,6 +366,7 @@ pub async fn run_post_process_with_snapshot(
     app: &tauri::AppHandle,
     snapshot: &PostProcessSettingsSnapshot,
     text: String,
+    log_context: Option<ModelRunLogContext>,
 ) -> AppResult<PostProcessRunOutput> {
     let api_key = resolve_provider_api_key(app, &snapshot.provider.provider_id)?;
     let mut system_prompt = apply_template(
@@ -305,6 +420,22 @@ pub async fn run_post_process_with_snapshot(
         "{}/chat/completions",
         snapshot.provider.base_url.trim_end_matches('/')
     );
+    debug_log::log_model_event(
+        app,
+        "postProcessing.request",
+        ModelRunStage::PostProcessing,
+        log_context.as_ref(),
+        serde_json::json!({
+            "provider": provider_payload(&snapshot.provider),
+            "request": {
+                "method": "POST",
+                "url": url,
+                "endpoint": "/chat/completions",
+                "headers": debug_log::sanitized_headers(&snapshot.provider.headers),
+                "body": body,
+            },
+        }),
+    );
     let client = build_client()?;
     let started_at = Instant::now();
     let mut request = client
@@ -318,15 +449,60 @@ pub async fn run_post_process_with_snapshot(
         request = request.headers(headers);
     }
 
-    let response = request.send().await?;
+    let response = match request.send().await {
+        Ok(response) => response,
+        Err(error) => {
+            debug_log::log_model_event(
+                app,
+                "postProcessing.error",
+                ModelRunStage::PostProcessing,
+                log_context.as_ref(),
+                serde_json::json!({
+                    "error": error.to_string(),
+                }),
+            );
+
+            return Err(error.into());
+        }
+    };
     let status = response.status();
 
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
+        debug_log::log_model_event(
+            app,
+            "postProcessing.error",
+            ModelRunStage::PostProcessing,
+            log_context.as_ref(),
+            serde_json::json!({
+                "response": {
+                    "status": status.as_u16(),
+                    "body": body,
+                },
+            }),
+        );
         return Err(format!("Post-process request failed with status {status}: {body}").into());
     }
 
-    let chat_response = response.json::<ChatResponse>().await?;
+    let chat_response = match response.json::<ChatResponse>().await {
+        Ok(chat_response) => chat_response,
+        Err(error) => {
+            debug_log::log_model_event(
+                app,
+                "postProcessing.error",
+                ModelRunStage::PostProcessing,
+                log_context.as_ref(),
+                serde_json::json!({
+                    "response": {
+                        "status": status.as_u16(),
+                    },
+                    "error": error.to_string(),
+                }),
+            );
+
+            return Err(error.into());
+        }
+    };
     let duration_ms = elapsed_ms(started_at);
     let content = chat_response
         .choices
@@ -341,6 +517,23 @@ pub async fn run_post_process_with_snapshot(
         chat_response.usage.as_ref(),
     )
     .await;
+    let usage = chat_response.usage.clone();
+
+    debug_log::log_model_event(
+        app,
+        "postProcessing.response",
+        ModelRunStage::PostProcessing,
+        log_context.as_ref(),
+        serde_json::json!({
+            "response": {
+                "status": status.as_u16(),
+                "durationMs": duration_ms,
+                "text": content.clone(),
+                "usage": usage,
+                "cost": cost,
+            },
+        }),
+    );
 
     Ok(PostProcessRunOutput {
         text: content,
@@ -451,6 +644,32 @@ fn provider_snapshot(credentials: &crate::providers::ProviderCredentials) -> Pro
                 })
             })
             .collect(),
+    }
+}
+
+fn provider_payload(provider: &ProviderSnapshot) -> serde_json::Value {
+    serde_json::json!({
+        "providerId": provider.provider_id,
+        "providerName": provider.provider_name,
+        "providerKind": provider.provider_kind,
+        "baseUrl": provider.base_url,
+        "headers": debug_log::sanitized_headers(&provider.headers),
+    })
+}
+
+fn optional_stt_language(snapshot: &SttSettingsSnapshot) -> Option<&str> {
+    if snapshot.language == "auto" || snapshot.language.trim().is_empty() {
+        None
+    } else {
+        Some(snapshot.language.as_str())
+    }
+}
+
+fn optional_prompt(prompt: &str) -> Option<&str> {
+    if prompt.trim().is_empty() {
+        None
+    } else {
+        Some(prompt)
     }
 }
 

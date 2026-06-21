@@ -5,8 +5,10 @@ use std::sync::{
 
 use serde::Serialize;
 use tauri::{Emitter, Manager};
+use uuid::Uuid;
 
 use crate::{
+    debug_log::{ModelRunLogContext, ModelRunSource},
     error::{AppError, AppResult},
     history, keyboard, overlay,
     processing::load_processing_config,
@@ -192,6 +194,7 @@ async fn process_recording_inner(
     }
 
     let audio = recording.stop()?;
+    let history_record_id = Uuid::new_v4().to_string();
 
     if !is_current_session(app, id) {
         return Ok(());
@@ -203,12 +206,23 @@ async fn process_recording_inner(
     } else {
         None
     };
+    let stt_log_context = ModelRunLogContext {
+        source: ModelRunSource::Dictation,
+        operation_id: Uuid::new_v4().to_string(),
+        history_record_id: Some(history_record_id.clone()),
+        recording_started_at: Some(audio.started_at.to_rfc3339()),
+        audio_duration_ms: Some(audio.duration_ms),
+        audio_file_name: Some(audio.file_name.clone()),
+        audio_size_bytes: Some(audio.bytes.len()),
+        audio_path: None,
+    };
     let transcription = match runner::run_stt_with_snapshot(
         app,
         &stt_snapshot,
         audio.bytes.clone(),
         audio.file_name.clone(),
         Some(audio.duration_ms),
+        Some(stt_log_context),
     )
     .await
     {
@@ -218,6 +232,7 @@ async fn process_recording_inner(
             let _ = history::save_new_history_record(
                 app,
                 history::NewHistoryRecord {
+                    id: Some(history_record_id.clone()),
                     audio,
                     postprocessing: None,
                     postprocessing_snapshot,
@@ -237,10 +252,21 @@ async fn process_recording_inner(
         set_processing(app, id)?;
         overlay::show_processing_overlay(app)?;
         let postprocessing_snapshot = runner::build_post_process_snapshot(app)?;
+        let postprocessing_log_context = ModelRunLogContext {
+            source: ModelRunSource::Dictation,
+            operation_id: Uuid::new_v4().to_string(),
+            history_record_id: Some(history_record_id.clone()),
+            recording_started_at: Some(audio.started_at.to_rfc3339()),
+            audio_duration_ms: Some(audio.duration_ms),
+            audio_file_name: Some(audio.file_name.clone()),
+            audio_size_bytes: Some(audio.bytes.len()),
+            audio_path: None,
+        };
         match runner::run_post_process_with_snapshot(
             app,
             &postprocessing_snapshot,
             transcription.text.clone(),
+            Some(postprocessing_log_context),
         )
         .await
         {
@@ -250,6 +276,7 @@ async fn process_recording_inner(
                 let _ = history::save_new_history_record(
                     app,
                     history::NewHistoryRecord {
+                        id: Some(history_record_id.clone()),
                         audio,
                         postprocessing: Some(Err((
                             postprocessing_snapshot,
@@ -271,6 +298,7 @@ async fn process_recording_inner(
         let _ = history::save_new_history_record(
             app,
             history::NewHistoryRecord {
+                id: Some(history_record_id),
                 audio,
                 postprocessing,
                 postprocessing_snapshot,

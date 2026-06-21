@@ -115,6 +115,10 @@ npm run check
 
 Post-processing model evals are documented in [model-testing.md](model-testing.md).
 
+## Debug Logging
+
+Local model-call debug logging is documented in [debug-logging.md](debug-logging.md).
+
 ## Git Hooks
 
 Husky runs lint-staged before commits:

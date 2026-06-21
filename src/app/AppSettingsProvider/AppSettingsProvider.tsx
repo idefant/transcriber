@@ -13,6 +13,7 @@ const defaultAppSettings: AppSettings = {
   areDictationSoundsEnabled: true,
   effectiveUiLanguage: 'en',
   hotkey: 'Ctrl+Space',
+  isDebugLoggingEnabled: false,
   themePreference: 'light',
   triggerMode: 'press',
   uiLanguage: 'system',

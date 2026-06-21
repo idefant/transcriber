@@ -15,6 +15,7 @@ export interface AppSettings {
   areDictationSoundsEnabled: boolean;
   effectiveUiLanguage: EffectiveUiLanguage;
   hotkey: string;
+  isDebugLoggingEnabled: boolean;
   themePreference: ThemePreference;
   triggerMode: TriggerMode;
   uiLanguage: UiLanguage;

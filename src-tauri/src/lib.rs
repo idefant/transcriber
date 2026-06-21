@@ -1,4 +1,5 @@
 mod catalog;
+mod debug_log;
 mod dictation;
 mod dictionary;
 mod error;
@@ -15,6 +16,7 @@ mod storage;
 
 pub fn run() {
     tauri::Builder::default()
+        .manage(debug_log::DebugLogRuntime::default())
         .manage(dictation::DictationRuntime::default())
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -27,6 +29,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             settings::get_app_settings,
             settings::update_app_settings,
+            debug_log::open_debug_logs_folder,
             dictionary::get_dictionary_words,
             dictionary::add_dictionary_word,
             dictionary::delete_dictionary_word,

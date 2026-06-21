@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    dictation,
+    debug_log, dictation,
     error::{AppError, AppResult},
     shortcut_hook, storage,
 };
@@ -73,6 +73,8 @@ pub struct AppSettings {
     effective_ui_language: EffectiveUiLanguage,
     #[serde(default = "default_dictation_sounds_enabled")]
     are_dictation_sounds_enabled: bool,
+    #[serde(default)]
+    is_debug_logging_enabled: bool,
     #[serde(default = "default_hotkey")]
     hotkey: String,
     #[serde(default)]
@@ -86,6 +88,7 @@ impl Default for AppSettings {
             ui_language: UiLanguage::default(),
             effective_ui_language: resolve_effective_ui_language(&UiLanguage::default()),
             are_dictation_sounds_enabled: default_dictation_sounds_enabled(),
+            is_debug_logging_enabled: false,
             hotkey: default_hotkey(),
             trigger_mode: TriggerMode::default(),
         }
@@ -108,6 +111,7 @@ pub struct AppSettingsInput {
     theme_preference: Option<ThemePreference>,
     ui_language: Option<UiLanguage>,
     are_dictation_sounds_enabled: Option<bool>,
+    is_debug_logging_enabled: Option<bool>,
     hotkey: Option<String>,
     trigger_mode: Option<TriggerMode>,
 }
@@ -140,6 +144,7 @@ fn update_app_settings_inner(
     input: AppSettingsInput,
 ) -> AppResult<AppSettings> {
     let mut settings = load_app_settings(app)?;
+    let previous_debug_logging_enabled = settings.is_debug_logging_enabled;
 
     if let Some(theme_preference) = input.theme_preference {
         settings.theme_preference = theme_preference;
@@ -151,6 +156,10 @@ fn update_app_settings_inner(
 
     if let Some(are_dictation_sounds_enabled) = input.are_dictation_sounds_enabled {
         settings.are_dictation_sounds_enabled = are_dictation_sounds_enabled;
+    }
+
+    if let Some(is_debug_logging_enabled) = input.is_debug_logging_enabled {
+        settings.is_debug_logging_enabled = is_debug_logging_enabled;
     }
 
     if let Some(hotkey) = input.hotkey {
@@ -165,6 +174,10 @@ fn update_app_settings_inner(
 
     save_app_settings(app, &settings)?;
     dictation::update_dictation_shortcut(app)?;
+
+    if settings.is_debug_logging_enabled != previous_debug_logging_enabled {
+        debug_log::handle_logging_setting_changed(app, settings.is_debug_logging_enabled);
+    }
 
     Ok(settings)
 }
@@ -185,6 +198,10 @@ pub fn get_effective_ui_language(app: &tauri::AppHandle) -> AppResult<EffectiveU
     let settings = load_app_settings(app)?;
 
     Ok(resolve_effective_ui_language(&settings.ui_language))
+}
+
+pub fn is_debug_logging_enabled(app: &tauri::AppHandle) -> AppResult<bool> {
+    Ok(load_app_settings(app)?.is_debug_logging_enabled)
 }
 
 fn with_effective_ui_language(mut settings: AppSettings) -> AppSettings {

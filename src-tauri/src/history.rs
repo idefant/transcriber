@@ -6,6 +6,7 @@ use tauri::{Emitter, Manager};
 use uuid::Uuid;
 
 use crate::{
+    debug_log::{self, ModelRunLogContext, ModelRunSource},
     error::{AppError, AppResult},
     processing::load_processing_config,
     recording::RecordedAudio,
@@ -89,6 +90,7 @@ struct HistoryStore {
 }
 
 pub struct NewHistoryRecord {
+    pub id: Option<String>,
     pub audio: RecordedAudio,
     pub postprocessing:
         Option<Result<PostProcessRunOutput, (PostProcessSettingsSnapshot, AppError)>>,
@@ -149,7 +151,7 @@ pub fn save_new_history_record(
     input: NewHistoryRecord,
 ) -> AppResult<HistoryRecord> {
     let mut store = load_history_store(app)?;
-    let id = Uuid::new_v4().to_string();
+    let id = input.id.unwrap_or_else(|| Uuid::new_v4().to_string());
     let created_at = input.audio.started_at;
     let audio_path = save_audio_file(app, created_at, &id, &input.audio.bytes)?;
     let transcription = match input.transcription {
@@ -182,6 +184,28 @@ pub fn save_new_history_record(
     sort_records(&mut store.records);
     save_history_store(app, &store)?;
     emit_history_updated(app);
+    debug_log::log_event(
+        app,
+        "history.recordSaved",
+        Some(&ModelRunLogContext {
+            source: ModelRunSource::Dictation,
+            operation_id: Uuid::new_v4().to_string(),
+            history_record_id: Some(record.id.clone()),
+            recording_started_at: Some(record.created_at.clone()),
+            audio_duration_ms: Some(record.audio.duration_ms),
+            audio_file_name: Some(input.audio.file_name.clone()),
+            audio_size_bytes: Some(input.audio.bytes.len()),
+            audio_path: Some(record.audio.path.clone()),
+        }),
+        serde_json::json!({
+            "record": {
+                "id": record.id.clone(),
+                "createdAt": record.created_at.clone(),
+                "audio": record.audio.clone(),
+                "status": record.status.clone(),
+            },
+        }),
+    );
 
     Ok(record)
 }
@@ -292,6 +316,7 @@ async fn repeat_history_transcription_inner(
     let index = find_record_index(&store.records, record_id)?;
     let audio_path = store.records[index].audio.path.clone();
     let audio_duration_ms = store.records[index].audio.duration_ms;
+    let created_at = store.records[index].created_at.clone();
 
     store.records[index].transcription = processing_result();
     store.records[index].final_text = final_text(
@@ -303,6 +328,16 @@ async fn repeat_history_transcription_inner(
     emit_history_updated(app);
 
     let audio_bytes = fs::read(&audio_path)?;
+    let log_context = ModelRunLogContext {
+        source: ModelRunSource::HistoryRepeat,
+        operation_id: Uuid::new_v4().to_string(),
+        history_record_id: Some(record_id.to_string()),
+        recording_started_at: Some(created_at),
+        audio_duration_ms: Some(audio_duration_ms),
+        audio_file_name: Some("dictation.wav".to_string()),
+        audio_size_bytes: Some(audio_bytes.len()),
+        audio_path: Some(audio_path.clone()),
+    };
     let stt_snapshot = match runner::build_stt_snapshot(app) {
         Ok(snapshot) => snapshot,
         Err(error) => {
@@ -315,6 +350,7 @@ async fn repeat_history_transcription_inner(
         audio_bytes,
         "dictation.wav".to_string(),
         Some(audio_duration_ms),
+        Some(log_context),
     )
     .await;
 
@@ -384,6 +420,9 @@ async fn repeat_history_post_processing_inner(
     }
 
     let input_text = store.records[index].transcription.text.clone();
+    let created_at = store.records[index].created_at.clone();
+    let audio_duration_ms = store.records[index].audio.duration_ms;
+    let audio_path = store.records[index].audio.path.clone();
     let snapshot = match runner::build_post_process_snapshot(app) {
         Ok(snapshot) => snapshot,
         Err(error) => {
@@ -412,7 +451,20 @@ async fn repeat_history_post_processing_inner(
     save_history_store(app, &store)?;
     emit_history_updated(app);
 
-    let result = runner::run_post_process_with_snapshot(app, &snapshot, input_text).await;
+    let log_context = ModelRunLogContext {
+        source: ModelRunSource::HistoryRepeat,
+        operation_id: Uuid::new_v4().to_string(),
+        history_record_id: Some(record_id.to_string()),
+        recording_started_at: Some(created_at),
+        audio_duration_ms: Some(audio_duration_ms),
+        audio_file_name: Some("dictation.wav".to_string()),
+        audio_size_bytes: fs::metadata(&audio_path)
+            .ok()
+            .and_then(|metadata| metadata.len().try_into().ok()),
+        audio_path: Some(audio_path),
+    };
+    let result =
+        runner::run_post_process_with_snapshot(app, &snapshot, input_text, Some(log_context)).await;
     let mut store = load_history_store(app)?;
     let index = find_record_index(&store.records, record_id)?;
 

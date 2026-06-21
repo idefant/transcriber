@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useProviders } from '#/app/providersContext';
 import { useAppSettings } from '#/app/settingsContext';
 import * as catalogApi from '#/shared/catalogApi';
+import * as settingsApi from '#/shared/settingsApi';
 
 import GeneralSettingsTab from './GeneralSettingsTab';
 import HotkeysSettingsTab from './HotkeysSettingsTab';
@@ -117,6 +118,14 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
     }
   };
 
+  const handleOpenDebugLogsFolder = async () => {
+    try {
+      await settingsApi.openDebugLogsFolder();
+    } catch (error) {
+      void messageApi.error(getErrorMessage(error));
+    }
+  };
+
   const handleDeleteProvider = async (providerId: string) => {
     try {
       await deleteProvider(providerId);
@@ -184,8 +193,15 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
         return (
           <GeneralSettingsTab
             areDictationSoundsEnabled={settings.areDictationSoundsEnabled}
+            isDebugLoggingEnabled={settings.isDebugLoggingEnabled}
             themePreference={settings.themePreference}
             uiLanguage={settings.uiLanguage}
+            onDebugLogsFolderOpen={() => {
+              void handleOpenDebugLogsFolder();
+            }}
+            onDebugLoggingEnabledChange={(isDebugLoggingEnabled) => {
+              void handleSettingsChange({ isDebugLoggingEnabled });
+            }}
             onDictationSoundsEnabledChange={(areDictationSoundsEnabled) => {
               void handleSettingsChange({ areDictationSoundsEnabled });
             }}
