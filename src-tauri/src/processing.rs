@@ -7,16 +7,7 @@ use crate::{
 };
 
 const PROCESSING_FILE_NAME: &str = "processing.json";
-const POST_PROCESS_PROMPTS_JSON: &str =
-    include_str!("../../scripts/model-testing/post-process-prompts.json");
-
-// Default prompts. These are templates: `{{...}}` placeholders are substituted
-// at execution time (see runner.rs). They are the single source of truth and are
-// exposed to the frontend through `get_default_prompts` for display.
-const DEFAULT_STT_SYSTEM_PROMPT_EN: &str =
-    "Custom Dictionary (use these exact spellings when they appear in the text): {{STT_DICTIONARY}}";
-const DEFAULT_STT_SYSTEM_PROMPT_RU: &str =
-    "Пользовательский словарь (используй эти точные написания, когда они встречаются в тексте): {{STT_DICTIONARY}}";
+const PROMPTS_JSON: &str = include_str!("../../resources/promps.json");
 
 // ── Stored / public structs ───────────────────────────────────────────────────
 
@@ -50,11 +41,11 @@ impl Default for SttConfig {
 
 impl SttConfig {
     /// Effective system prompt template (still contains `{{...}}` placeholders).
-    pub fn effective_system_prompt(&self) -> &str {
+    pub fn effective_system_prompt(&self) -> AppResult<String> {
         if self.use_custom_prompt && !self.system_prompt.trim().is_empty() {
-            &self.system_prompt
+            Ok(self.system_prompt.clone())
         } else {
-            DEFAULT_STT_SYSTEM_PROMPT_EN
+            default_stt_system_prompt(&self.language)
         }
     }
 }
@@ -117,13 +108,20 @@ pub struct DefaultPrompts {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct PromptDefaults {
+    stt_system: LocalizedPrompts,
+    post_process: PostProcessPromptDefaults,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct PostProcessPromptDefaults {
-    system: PostProcessSystemPrompts,
+    system: LocalizedPrompts,
     user_template: String,
 }
 
 #[derive(Deserialize)]
-struct PostProcessSystemPrompts {
+struct LocalizedPrompts {
     en: String,
     ru: String,
 }
@@ -160,15 +158,19 @@ pub fn get_processing_config(app: tauri::AppHandle) -> Result<ProcessingConfig, 
 
 #[tauri::command]
 pub fn get_default_prompts(app: tauri::AppHandle) -> Result<DefaultPrompts, String> {
-    let language = get_effective_ui_language(&app).map_err(AppError::into_message)?;
+    let config = load_processing_config(&app).map_err(AppError::into_message)?;
+    let ui_language = get_effective_ui_language(&app).map_err(AppError::into_message)?;
 
-    default_prompts_for_language(&language).map_err(AppError::into_message)
+    default_prompts_for_config(&config, &ui_language).map_err(AppError::into_message)
 }
 
-pub fn default_prompts_for_language(language: &EffectiveUiLanguage) -> AppResult<DefaultPrompts> {
+pub fn default_prompts_for_config(
+    config: &ProcessingConfig,
+    ui_language: &EffectiveUiLanguage,
+) -> AppResult<DefaultPrompts> {
     Ok(DefaultPrompts {
-        stt_system: default_stt_system_prompt(language).to_string(),
-        post_process_system: default_post_process_system_prompt(language)?,
+        stt_system: default_stt_system_prompt(&config.stt.language)?,
+        post_process_system: default_post_process_system_prompt(ui_language)?,
         post_process_user_template: default_post_process_user_template()?,
     })
 }
@@ -279,27 +281,32 @@ fn default_language() -> String {
     "auto".to_string()
 }
 
-fn default_stt_system_prompt(language: &EffectiveUiLanguage) -> &'static str {
-    match language {
-        EffectiveUiLanguage::En => DEFAULT_STT_SYSTEM_PROMPT_EN,
-        EffectiveUiLanguage::Ru => DEFAULT_STT_SYSTEM_PROMPT_RU,
-    }
+fn default_stt_system_prompt(language: &str) -> AppResult<String> {
+    let prompt_language = match language.trim().to_ascii_lowercase().as_str() {
+        "ru" => EffectiveUiLanguage::Ru,
+        "en" => EffectiveUiLanguage::En,
+        _ => EffectiveUiLanguage::En,
+    };
+
+    localized_prompt(load_prompt_defaults()?.stt_system, &prompt_language)
 }
 
 fn default_post_process_system_prompt(language: &EffectiveUiLanguage) -> AppResult<String> {
-    let prompts = load_post_process_prompt_defaults()?;
-
-    Ok(match language {
-        EffectiveUiLanguage::En => prompts.system.en,
-        EffectiveUiLanguage::Ru => prompts.system.ru,
-    })
+    localized_prompt(load_prompt_defaults()?.post_process.system, language)
 }
 
 fn default_post_process_user_template() -> AppResult<String> {
-    Ok(load_post_process_prompt_defaults()?.user_template)
+    Ok(load_prompt_defaults()?.post_process.user_template)
 }
 
-fn load_post_process_prompt_defaults() -> AppResult<PostProcessPromptDefaults> {
-    serde_json::from_str(POST_PROCESS_PROMPTS_JSON)
-        .map_err(|error| format!("Invalid post-process prompt defaults: {error}").into())
+fn localized_prompt(prompts: LocalizedPrompts, language: &EffectiveUiLanguage) -> AppResult<String> {
+    Ok(match language {
+        EffectiveUiLanguage::En => prompts.en,
+        EffectiveUiLanguage::Ru => prompts.ru,
+    })
+}
+
+fn load_prompt_defaults() -> AppResult<PromptDefaults> {
+    serde_json::from_str(PROMPTS_JSON)
+        .map_err(|error| format!("Invalid prompt defaults: {error}").into())
 }

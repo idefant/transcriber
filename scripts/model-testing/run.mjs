@@ -13,7 +13,7 @@ const defaultRepeats = 5;
 const defaultLanguages = ['ru', 'en'];
 const languageScriptMinLetters = 4;
 const languageScriptThreshold = 0.65;
-const promptsFilePath = path.join(currentDirectory, 'post-process-prompts.json');
+const promptsFilePath = path.join(rootDirectory, 'resources', 'promps.json');
 const providerRulesFilePath = path.join(currentDirectory, 'provider-rules.json');
 
 const penaltyCatalog = {
@@ -688,7 +688,7 @@ const requestModel = async ({ language, model, prompts, testCase }) => {
     });
   }
 
-  const baseSystemPrompt = prompts.system[language];
+  const baseSystemPrompt = prompts.postProcess.system[language];
 
   if (!baseSystemPrompt) {
     throw Object.assign(new Error(`Unsupported language: ${language}`), {
@@ -698,7 +698,7 @@ const requestModel = async ({ language, model, prompts, testCase }) => {
 
   const systemPrompt = applyThinkingMode(baseSystemPrompt, model);
 
-  const userContent = applyTemplate(prompts.userTemplate, {
+  const userContent = applyTemplate(prompts.postProcess.userTemplate, {
     TRANSCRIBED_TEXT: testCase.input,
   });
   const body = {

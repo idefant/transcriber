@@ -367,8 +367,9 @@ pub fn build_stt_snapshot(app: &tauri::AppHandle) -> AppResult<SttSettingsSnapsh
         return Err("Expected STT model params".into());
     };
     let dictionary = dictionary::load_dictionary_words(app)?.join(", ");
+    let system_prompt = stt.effective_system_prompt()?;
     let prompt = apply_template(
-        stt.effective_system_prompt(),
+        &system_prompt,
         &[
             ("STT_DICTIONARY", dictionary.as_str()),
             ("CLEANUP_TOOL_AGENT_NAME", AGENT_NAME),

@@ -10,9 +10,11 @@ Files live in `scripts/model-testing/`:
 - `models.json` - model list, provider URL, API key env var, enabled flag, request params, and prices per 1M tokens.
 - `cases.json` - input prompts and deterministic scoring rules.
 - `provider-rules.json` - per-provider concurrency and cooldown rules.
-- `post-process-prompts.json` - shared default post-processing prompts used by both the app and the runner.
 - `run.mjs` - executes the matrix and writes `results.json`.
 - `report.mjs` - generates `report.html`.
+
+Shared default app prompts live in `resources/promps.json`. The runner uses its
+`postProcess` section.
 
 API keys are read from process env, `.env`, then `.env.local`:
 

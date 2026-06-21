@@ -59,7 +59,7 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
       .getDefaultPrompts()
       .then(setDefaultPrompts)
       .catch(() => {});
-  }, [settings.effectiveUiLanguage]);
+  }, [config.stt.language, settings.effectiveUiLanguage]);
 
   const isStt = task === 'stt';
   const currentConfig = isStt ? config.stt : config.postProcess;
