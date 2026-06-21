@@ -67,7 +67,7 @@ the HTTP request is sent to OpenRouter.
 Run all enabled models with default settings:
 
 ```bash
-npm.cmd run model-test
+npm run model-test
 ```
 
 Defaults:
@@ -80,25 +80,25 @@ Defaults:
 Run a smoke test for one model and one prompt:
 
 ```bash
-npm.cmd run model-test:smoke -- --models openai-gpt-4o-mini --prompt "ты умеешь читать?" --languages ru --repeats 1
+npm run model-test:smoke -- --models openai-gpt-4o-mini --prompt "ты умеешь читать?" --languages ru --repeats 1
 ```
 
 Override repeats and languages:
 
 ```bash
-npm.cmd run model-test -- --repeats 3 --languages ru,en
+npm run model-test -- --repeats 3 --languages ru,en
 ```
 
 Run only selected models or cases:
 
 ```bash
-npm.cmd run model-test -- --models openai-gpt-4o-mini,openrouter-claude-haiku-4-5 --cases reading-question,math-spoken
+npm run model-test -- --models openai-gpt-4o-mini,openrouter-claude-haiku-4-5 --cases reading-question,math-spoken
 ```
 
 Write output to a fixed folder:
 
 ```bash
-npm.cmd run model-test -- --output reports/model-testing/manual-run
+npm run model-test -- --output reports/model-testing/manual-run
 ```
 
 ## Output

@@ -2,28 +2,30 @@
 
 After code, styles, config, or documentation edits, run the relevant project checks before the final response.
 
-Use `npm.cmd` on Windows:
+Use `npm` for project scripts:
 
 ```bash
-npm.cmd run typecheck
-npm.cmd run lint
-npm.cmd run stylelint
-npm.cmd run format:check
+npm run typecheck
+npm run lint
+npm run stylelint
+npm run format:check
 ```
 
 Also run the production build when the change affects application code, routing, Vite/TypeScript configuration, dependencies, or other build-sensitive behavior:
 
 ```bash
-npm.cmd run build
+npm run build
 ```
 
 Use autofix commands only for mechanical fixes:
 
 ```bash
-npm.cmd run lint:fix
-npm.cmd run stylelint:fix
-npm.cmd run format
+npm run lint:fix
+npm run stylelint:fix
+npm run format
 ```
+
+In Windows PowerShell, `npm` can resolve to `npm.ps1`. If execution policy blocks that script, use `npm.cmd` for the same command or run the command from Git Bash/Command Prompt.
 
 Do not rely on Husky or lint-staged as the only verification path. They run on commit, while Codex should verify changes before handing work back.
 

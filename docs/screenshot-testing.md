@@ -14,7 +14,7 @@ Use `900px` height unless the tested scenario needs a taller viewport.
 
 ## Workflow
 
-1. Start the app with `npm.cmd run dev -- --host 127.0.0.1 --port 5173`.
+1. Start the app with `npm run dev -- --host 127.0.0.1 --port 5173`.
 2. Open the app with Playwright Chromium.
 3. Capture screenshots for the touched flows in both light and dark themes.
 4. Check browser console warnings/errors during the run.

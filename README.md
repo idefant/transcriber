@@ -8,12 +8,12 @@ React + TypeScript + Vite starter with React Router, SCSS modules, strict ESLint
 - npm 11+
 - Rust stable toolchain
 
-On this Windows setup, use `npm.cmd` if PowerShell blocks `npm.ps1`.
+Use `npm` for project commands. In Windows PowerShell, `npm` can resolve to `npm.ps1`; if execution policy blocks it, use `npm.cmd` for the same command or run the command from Git Bash/Command Prompt.
 
 ## Install
 
 ```bash
-npm.cmd install
+npm install
 ```
 
 The project includes `.npmrc` with `legacy-peer-deps=true`, so a plain install works with the current ESLint 10 plugin peer ranges.
@@ -23,7 +23,7 @@ The project includes `.npmrc` with `legacy-peer-deps=true`, so a plain install w
 ## Development
 
 ```bash
-npm.cmd run dev
+npm run dev
 ```
 
 The dev server runs Vite with fast TypeScript transpilation. TypeScript, ESLint, and Stylelint diagnostics are shown in the terminal and in the browser overlay through `vite-plugin-checker`.
@@ -37,13 +37,13 @@ http://localhost:5173
 Run the desktop application through Tauri:
 
 ```bash
-npm.cmd run dev:tauri
+npm run dev:tauri
 ```
 
 ## Build
 
 ```bash
-npm.cmd run build
+npm run build
 ```
 
 The build script runs TypeScript checks first and then creates a production bundle in `dist`.
@@ -51,59 +51,62 @@ The build script runs TypeScript checks first and then creates a production bund
 Preview the production build:
 
 ```bash
-npm.cmd run preview
+npm run preview
 ```
 
 Build the desktop bundle:
 
 ```bash
-npm.cmd run build:tauri
+npm run build:tauri
 ```
 
 ## Available Commands
 
 ```bash
 # Start the Vite development server.
-npm.cmd run dev
+npm run dev
 
 # Start the Tauri desktop app in development mode.
-npm.cmd run dev:tauri
+npm run dev:tauri
 
 # Run typecheck and build the production bundle.
-npm.cmd run build
+npm run build
 
 # Build the Tauri desktop bundle.
-npm.cmd run build:tauri
+npm run build:tauri
 
 # Run the Tauri CLI.
-npm.cmd run tauri
+npm run tauri
 
 # Serve the production build locally.
-npm.cmd run preview
+npm run preview
 
 # Check TypeScript without emitting files.
-npm.cmd run typecheck
+npm run typecheck
 
 # Run ESLint.
-npm.cmd run lint
+npm run lint
 
 # Run ESLint and apply safe fixes.
-npm.cmd run lint:fix
+npm run lint:fix
 
 # Run Stylelint for CSS and SCSS files.
-npm.cmd run stylelint
+npm run stylelint
 
 # Run Stylelint and apply safe fixes.
-npm.cmd run stylelint:fix
+npm run stylelint:fix
 
 # Format the project with Prettier.
-npm.cmd run format
+npm run format
 
 # Check Prettier formatting without writing changes.
-npm.cmd run format:check
+npm run format:check
 
-# Run the full quality gate: TypeScript, ESLint, Stylelint, Prettier check, and production build.
-npm.cmd run check
+# Check text files for common UTF-8/Windows-codepage mojibake sequences.
+npm run encoding:check
+
+# Run the full quality gate: TypeScript, ESLint, Stylelint, Prettier check, encoding check, and production build.
+npm run check
 ```
 
 ## Model Testing

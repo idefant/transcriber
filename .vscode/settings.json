@@ -11,6 +11,9 @@
   "[jsonc]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
   "files.autoGuessEncoding": false,
   "files.encoding": "utf8",
   "css.validate": false,
