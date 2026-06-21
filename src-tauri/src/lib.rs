@@ -1,3 +1,5 @@
+mod autostart;
+mod background;
 mod catalog;
 mod debug_log;
 mod dictation;
@@ -16,6 +18,7 @@ mod storage;
 
 pub fn run() {
     tauri::Builder::default()
+        .manage(background::BackgroundRuntime::default())
         .manage(debug_log::DebugLogRuntime::default())
         .manage(dictation::DictationRuntime::default())
         .setup(|app| {
@@ -23,6 +26,7 @@ pub fn run() {
 
             overlay::create_recording_overlay(&app_handle)?;
             dictation::register_dictation_shortcut(&app_handle)?;
+            background::setup_background_mode(&app_handle)?;
 
             Ok(())
         })

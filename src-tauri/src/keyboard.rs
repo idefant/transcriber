@@ -2,7 +2,7 @@ use crate::error::{AppError, AppResult};
 
 #[cfg(target_os = "windows")]
 pub fn paste_text(text: &str) -> AppResult<()> {
-    set_clipboard_text(text)?;
+    copy_text(text)?;
     send_ctrl_v()?;
 
     Ok(())
@@ -16,7 +16,7 @@ pub fn paste_text(_text: &str) -> AppResult<()> {
 }
 
 #[cfg(target_os = "windows")]
-fn set_clipboard_text(text: &str) -> AppResult<()> {
+pub fn copy_text(text: &str) -> AppResult<()> {
     use std::ptr;
 
     use windows_sys::Win32::System::{
@@ -64,6 +64,13 @@ fn set_clipboard_text(text: &str) -> AppResult<()> {
     }
 
     Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn copy_text(_text: &str) -> AppResult<()> {
+    Err(AppError::from(
+        "Clipboard copy is only implemented on Windows in this version",
+    ))
 }
 
 #[cfg(target_os = "windows")]

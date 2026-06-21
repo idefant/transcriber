@@ -39,6 +39,10 @@ const en = {
         title: 'Dictation sounds',
         description: 'Play a sound when recording starts and stops',
       },
+      launchAtLogin: {
+        title: 'Launch at login',
+        description: 'Start Transcriber in the background when you sign in to Windows',
+      },
       language: {
         title: 'Interface language',
         description: 'Choose the language used in the Transcriber interface',
@@ -204,6 +208,10 @@ const ru: typeof en = {
       dictationSounds: {
         title: 'Звуки диктовки',
         description: 'Воспроизводить звук при старте и остановке записи',
+      },
+      launchAtLogin: {
+        title: 'Запускать при входе в Windows',
+        description: 'Запускать Transcriber в фоновом режиме после входа в Windows',
       },
       language: {
         title: 'Язык интерфейса',

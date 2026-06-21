@@ -16,6 +16,7 @@ export interface AppSettings {
   effectiveUiLanguage: EffectiveUiLanguage;
   hotkey: string;
   isDebugLoggingEnabled: boolean;
+  isLaunchAtLoginEnabled: boolean;
   themePreference: ThemePreference;
   triggerMode: TriggerMode;
   uiLanguage: UiLanguage;

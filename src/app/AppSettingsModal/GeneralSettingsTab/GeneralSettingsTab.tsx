@@ -12,9 +12,11 @@ import type { ThemePreference, UiLanguage } from '#/models/Settings';
 interface GeneralSettingsTabProps {
   areDictationSoundsEnabled: boolean;
   isDebugLoggingEnabled: boolean;
+  isLaunchAtLoginEnabled: boolean;
   onDebugLogsFolderOpen: () => void;
   onDebugLoggingEnabledChange: (value: boolean) => void;
   onDictationSoundsEnabledChange: (value: boolean) => void;
+  onLaunchAtLoginEnabledChange: (value: boolean) => void;
   onThemePreferenceChange: (value: ThemePreference) => void;
   onUiLanguageChange: (value: UiLanguage) => void;
   themePreference: ThemePreference;
@@ -24,9 +26,11 @@ interface GeneralSettingsTabProps {
 const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
   areDictationSoundsEnabled,
   isDebugLoggingEnabled,
+  isLaunchAtLoginEnabled,
   onDebugLogsFolderOpen,
   onDebugLoggingEnabledChange,
   onDictationSoundsEnabledChange,
+  onLaunchAtLoginEnabledChange,
   onThemePreferenceChange,
   onUiLanguageChange,
   themePreference,
@@ -70,6 +74,13 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
         title={t('settings.general.dictationSounds.title')}
       >
         <Switch checked={areDictationSoundsEnabled} onChange={onDictationSoundsEnabledChange} />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.general.launchAtLogin.description')}
+        title={t('settings.general.launchAtLogin.title')}
+      >
+        <Switch checked={isLaunchAtLoginEnabled} onChange={onLaunchAtLoginEnabledChange} />
       </SettingRow>
 
       <SettingRow

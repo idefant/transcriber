@@ -14,6 +14,7 @@ const defaultAppSettings: AppSettings = {
   effectiveUiLanguage: 'en',
   hotkey: 'Ctrl+Space',
   isDebugLoggingEnabled: false,
+  isLaunchAtLoginEnabled: true,
   themePreference: 'light',
   triggerMode: 'press',
   uiLanguage: 'system',

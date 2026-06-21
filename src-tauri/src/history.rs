@@ -210,6 +210,17 @@ pub fn save_new_history_record(
     Ok(record)
 }
 
+pub fn latest_history_text(app: &tauri::AppHandle) -> AppResult<String> {
+    let mut records = load_history_store(app)?.records;
+
+    sort_records(&mut records);
+
+    Ok(records
+        .first()
+        .map(|record| record.final_text.clone())
+        .unwrap_or_default())
+}
+
 fn get_history_groups_inner(
     app: &tauri::AppHandle,
     month: Option<&str>,
@@ -773,4 +784,5 @@ fn format_cost(cost: Option<f64>) -> Option<String> {
 
 fn emit_history_updated(app: &tauri::AppHandle) {
     let _ = app.emit(HISTORY_UPDATED_EVENT, ());
+    crate::background::refresh_tray_history_state(app);
 }

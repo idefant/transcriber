@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    debug_log, dictation,
+    autostart, debug_log, dictation,
     error::{AppError, AppResult},
     shortcut_hook, storage,
 };
@@ -75,6 +75,8 @@ pub struct AppSettings {
     are_dictation_sounds_enabled: bool,
     #[serde(default)]
     is_debug_logging_enabled: bool,
+    #[serde(default = "default_launch_at_login_enabled")]
+    is_launch_at_login_enabled: bool,
     #[serde(default = "default_hotkey")]
     hotkey: String,
     #[serde(default)]
@@ -89,6 +91,7 @@ impl Default for AppSettings {
             effective_ui_language: resolve_effective_ui_language(&UiLanguage::default()),
             are_dictation_sounds_enabled: default_dictation_sounds_enabled(),
             is_debug_logging_enabled: false,
+            is_launch_at_login_enabled: default_launch_at_login_enabled(),
             hotkey: default_hotkey(),
             trigger_mode: TriggerMode::default(),
         }
@@ -112,11 +115,16 @@ pub struct AppSettingsInput {
     ui_language: Option<UiLanguage>,
     are_dictation_sounds_enabled: Option<bool>,
     is_debug_logging_enabled: Option<bool>,
+    is_launch_at_login_enabled: Option<bool>,
     hotkey: Option<String>,
     trigger_mode: Option<TriggerMode>,
 }
 
 fn default_dictation_sounds_enabled() -> bool {
+    true
+}
+
+fn default_launch_at_login_enabled() -> bool {
     true
 }
 
@@ -126,9 +134,7 @@ fn default_hotkey() -> String {
 
 #[tauri::command]
 pub fn get_app_settings(app: tauri::AppHandle) -> Result<AppSettings, String> {
-    load_app_settings(&app)
-        .map(with_effective_ui_language)
-        .map_err(AppError::into_message)
+    get_app_settings_inner(&app).map_err(AppError::into_message)
 }
 
 #[tauri::command]
@@ -162,6 +168,10 @@ fn update_app_settings_inner(
         settings.is_debug_logging_enabled = is_debug_logging_enabled;
     }
 
+    if let Some(is_launch_at_login_enabled) = input.is_launch_at_login_enabled {
+        settings.is_launch_at_login_enabled = is_launch_at_login_enabled;
+    }
+
     if let Some(hotkey) = input.hotkey {
         settings.hotkey = shortcut_hook::normalize_hotkey(&hotkey)?;
     }
@@ -173,11 +183,20 @@ fn update_app_settings_inner(
     settings.effective_ui_language = resolve_effective_ui_language(&settings.ui_language);
 
     save_app_settings(app, &settings)?;
+    autostart::sync_launch_at_login(settings.is_launch_at_login_enabled)?;
     dictation::update_dictation_shortcut(app)?;
 
     if settings.is_debug_logging_enabled != previous_debug_logging_enabled {
         debug_log::handle_logging_setting_changed(app, settings.is_debug_logging_enabled);
     }
+
+    Ok(settings)
+}
+
+fn get_app_settings_inner(app: &tauri::AppHandle) -> AppResult<AppSettings> {
+    let settings = with_effective_ui_language(load_app_settings(app)?);
+
+    autostart::sync_launch_at_login(settings.is_launch_at_login_enabled)?;
 
     Ok(settings)
 }
