@@ -18,8 +18,6 @@ npm install
 
 The project includes `.npmrc` with `legacy-peer-deps=true`, so a plain install works with the current ESLint 10 plugin peer ranges.
 
-`lint-staged` is pinned to a Git 2.30-compatible version for this local environment.
-
 ## Development
 
 ```bash
@@ -139,5 +137,4 @@ Husky runs lint-staged before commits:
 
 ## ToDo
 
-- [Тестирование качества моделей](todo/model-testing.md) — отдельный CLI-харнесс (promptfoo) для массового тестирования качества ответов на любых моделях: тест-кейсы, шаблонные объекты-параметры, дешёвые прогоны.
 - Локализация промптов — дефолтные системные промпты и шаблоны (STT и постобработка) должны зависеть от языка интерфейса (`uiLanguage` из настроек). Сейчас они захардкожены только на английском в `src-tauri/src/processing.rs` (`DEFAULT_STT_SYSTEM_PROMPT`, `DEFAULT_POST_PROCESS_SYSTEM_PROMPT`, `DEFAULT_POST_PROCESS_USER_TEMPLATE`) и отдаются через `get_default_prompts` без учёта языка.
