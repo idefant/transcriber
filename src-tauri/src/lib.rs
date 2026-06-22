@@ -1,3 +1,4 @@
+mod audio_mute;
 mod autostart;
 mod background;
 mod catalog;

@@ -17,6 +17,7 @@ export interface AppSettings {
   hotkey: string;
   isDebugLoggingEnabled: boolean;
   isLaunchAtLoginEnabled: boolean;
+  isMuteWhileRecordingEnabled: boolean;
   themePreference: ThemePreference;
   triggerMode: TriggerMode;
   uiLanguage: UiLanguage;

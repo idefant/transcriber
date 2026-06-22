@@ -39,6 +39,10 @@ const en = {
         title: 'Dictation sounds',
         description: 'Play a sound when recording starts and stops',
       },
+      muteWhileRecording: {
+        title: 'Mute audio while recording',
+        description: 'Mute the default output device while recording and restore it afterwards',
+      },
       launchAtLogin: {
         title: 'Launch at login',
         description: 'Start Transcriber in the background when you sign in to Windows',
@@ -208,6 +212,11 @@ const ru: typeof en = {
       dictationSounds: {
         title: 'Звуки диктовки',
         description: 'Воспроизводить звук при старте и остановке записи',
+      },
+      muteWhileRecording: {
+        title: 'Заглушать звук при записи',
+        description:
+          'Отключать вывод звука устройства по умолчанию на время записи и восстанавливать после',
       },
       launchAtLogin: {
         title: 'Запускать при входе в Windows',

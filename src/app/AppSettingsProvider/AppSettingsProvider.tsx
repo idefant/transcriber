@@ -15,6 +15,7 @@ const defaultAppSettings: AppSettings = {
   hotkey: 'Ctrl+Space',
   isDebugLoggingEnabled: false,
   isLaunchAtLoginEnabled: true,
+  isMuteWhileRecordingEnabled: true,
   themePreference: 'light',
   triggerMode: 'press',
   uiLanguage: 'system',

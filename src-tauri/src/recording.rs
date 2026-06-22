@@ -11,8 +11,9 @@ use cpal::{
 };
 
 use crate::{
+    audio_mute::OutputMuteGuard,
     error::{AppError, AppResult},
-    overlay,
+    overlay, settings,
 };
 
 const LEVEL_EMIT_INTERVAL: Duration = Duration::from_millis(50);
@@ -23,6 +24,8 @@ pub struct AudioRecording {
     sample_rate: u32,
     channels: u16,
     started_at: DateTime<Utc>,
+    // Held for its Drop side-effect: unmutes the default output device.
+    _mute_guard: Option<OutputMuteGuard>,
 }
 
 pub struct RecordedAudio {
@@ -33,6 +36,22 @@ pub struct RecordedAudio {
 }
 
 pub fn start_recording(app: tauri::AppHandle) -> AppResult<AudioRecording> {
+    let is_mute_enabled = settings::load_app_settings(&app)
+        .map(|s| s.is_mute_while_recording_enabled())
+        .unwrap_or(false);
+
+    let mute_guard = if is_mute_enabled {
+        match OutputMuteGuard::new() {
+            Ok(guard) => Some(guard),
+            Err(e) => {
+                eprintln!("Failed to mute system audio: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     let host = cpal::default_host();
     let device = host
         .default_input_device()
@@ -87,6 +106,7 @@ pub fn start_recording(app: tauri::AppHandle) -> AppResult<AudioRecording> {
         sample_rate,
         channels,
         started_at: Utc::now(),
+        _mute_guard: mute_guard,
     })
 }
 

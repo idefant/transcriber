@@ -195,6 +195,7 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
             areDictationSoundsEnabled={settings.areDictationSoundsEnabled}
             isDebugLoggingEnabled={settings.isDebugLoggingEnabled}
             isLaunchAtLoginEnabled={settings.isLaunchAtLoginEnabled}
+            isMuteWhileRecordingEnabled={settings.isMuteWhileRecordingEnabled}
             themePreference={settings.themePreference}
             uiLanguage={settings.uiLanguage}
             onDebugLogsFolderOpen={() => {
@@ -208,6 +209,9 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
             }}
             onLaunchAtLoginEnabledChange={(isLaunchAtLoginEnabled) => {
               void handleSettingsChange({ isLaunchAtLoginEnabled });
+            }}
+            onMuteWhileRecordingEnabledChange={(isMuteWhileRecordingEnabled) => {
+              void handleSettingsChange({ isMuteWhileRecordingEnabled });
             }}
             onThemePreferenceChange={(themePreference) => {
               void handleSettingsChange({ themePreference });

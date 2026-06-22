@@ -13,10 +13,12 @@ interface GeneralSettingsTabProps {
   areDictationSoundsEnabled: boolean;
   isDebugLoggingEnabled: boolean;
   isLaunchAtLoginEnabled: boolean;
+  isMuteWhileRecordingEnabled: boolean;
   onDebugLogsFolderOpen: () => void;
   onDebugLoggingEnabledChange: (value: boolean) => void;
   onDictationSoundsEnabledChange: (value: boolean) => void;
   onLaunchAtLoginEnabledChange: (value: boolean) => void;
+  onMuteWhileRecordingEnabledChange: (value: boolean) => void;
   onThemePreferenceChange: (value: ThemePreference) => void;
   onUiLanguageChange: (value: UiLanguage) => void;
   themePreference: ThemePreference;
@@ -27,10 +29,12 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
   areDictationSoundsEnabled,
   isDebugLoggingEnabled,
   isLaunchAtLoginEnabled,
+  isMuteWhileRecordingEnabled,
   onDebugLogsFolderOpen,
   onDebugLoggingEnabledChange,
   onDictationSoundsEnabledChange,
   onLaunchAtLoginEnabledChange,
+  onMuteWhileRecordingEnabledChange,
   onThemePreferenceChange,
   onUiLanguageChange,
   themePreference,
@@ -74,6 +78,16 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
         title={t('settings.general.dictationSounds.title')}
       >
         <Switch checked={areDictationSoundsEnabled} onChange={onDictationSoundsEnabledChange} />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.general.muteWhileRecording.description')}
+        title={t('settings.general.muteWhileRecording.title')}
+      >
+        <Switch
+          checked={isMuteWhileRecordingEnabled}
+          onChange={onMuteWhileRecordingEnabledChange}
+        />
       </SettingRow>
 
       <SettingRow
