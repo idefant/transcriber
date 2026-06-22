@@ -79,6 +79,8 @@ pub struct AppSettings {
     is_launch_at_login_enabled: bool,
     #[serde(default = "default_hotkey")]
     hotkey: String,
+    #[serde(default = "default_cancel_hotkey")]
+    cancel_hotkey: String,
     #[serde(default)]
     trigger_mode: TriggerMode,
 }
@@ -93,6 +95,7 @@ impl Default for AppSettings {
             is_debug_logging_enabled: false,
             is_launch_at_login_enabled: default_launch_at_login_enabled(),
             hotkey: default_hotkey(),
+            cancel_hotkey: default_cancel_hotkey(),
             trigger_mode: TriggerMode::default(),
         }
     }
@@ -105,6 +108,10 @@ impl AppSettings {
 
     pub fn hotkey(&self) -> &str {
         &self.hotkey
+    }
+
+    pub fn cancel_hotkey(&self) -> &str {
+        &self.cancel_hotkey
     }
 
     pub fn trigger_mode(&self) -> &TriggerMode {
@@ -121,6 +128,7 @@ pub struct AppSettingsInput {
     is_debug_logging_enabled: Option<bool>,
     is_launch_at_login_enabled: Option<bool>,
     hotkey: Option<String>,
+    cancel_hotkey: Option<String>,
     trigger_mode: Option<TriggerMode>,
 }
 
@@ -134,6 +142,10 @@ fn default_launch_at_login_enabled() -> bool {
 
 fn default_hotkey() -> String {
     "Ctrl+Space".to_string()
+}
+
+fn default_cancel_hotkey() -> String {
+    "Escape".to_string()
 }
 
 #[tauri::command]
@@ -180,6 +192,14 @@ fn update_app_settings_inner(
         settings.hotkey = shortcut_hook::normalize_hotkey(&hotkey)?;
     }
 
+    if let Some(cancel_hotkey) = input.cancel_hotkey {
+        settings.cancel_hotkey = if cancel_hotkey.trim().is_empty() {
+            String::new()
+        } else {
+            shortcut_hook::normalize_hotkey(&cancel_hotkey)?
+        };
+    }
+
     if let Some(trigger_mode) = input.trigger_mode {
         settings.trigger_mode = trigger_mode;
     }
@@ -209,6 +229,10 @@ pub fn load_app_settings(app: &tauri::AppHandle) -> AppResult<AppSettings> {
     let mut settings: AppSettings = storage::load_json_or_default(app, SETTINGS_FILE_NAME)?;
 
     settings.hotkey = shortcut_hook::normalize_hotkey(&settings.hotkey)?;
+
+    if !settings.cancel_hotkey.trim().is_empty() {
+        settings.cancel_hotkey = shortcut_hook::normalize_hotkey(&settings.cancel_hotkey)?;
+    }
 
     Ok(settings)
 }

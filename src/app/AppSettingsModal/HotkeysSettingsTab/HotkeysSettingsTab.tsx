@@ -9,14 +9,18 @@ import styles from './HotkeysSettingsTab.module.scss';
 import type { TriggerMode } from '#/models/Settings';
 
 interface HotkeysSettingsTabProps {
+  cancelHotkey: string;
   hotkey: string;
+  onCancelHotkeyChange: (value: string) => void;
   onHotkeyChange: (value: string) => void;
   onTriggerModeChange: (value: TriggerMode) => void;
   triggerMode: TriggerMode;
 }
 
 const HotkeysSettingsTab: FC<HotkeysSettingsTabProps> = ({
+  cancelHotkey,
   hotkey,
+  onCancelHotkeyChange,
   onHotkeyChange,
   onTriggerModeChange,
   triggerMode,
@@ -34,6 +38,21 @@ const HotkeysSettingsTab: FC<HotkeysSettingsTabProps> = ({
           value={hotkey}
           onChange={(event) => {
             onHotkeyChange(event.target.value);
+          }}
+        />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.hotkeys.cancelRecording.description')}
+        title={t('settings.hotkeys.cancelRecording.title')}
+      >
+        <Input
+          allowClear
+          className={styles.hotkeyInput}
+          placeholder={t('settings.hotkeys.cancelRecording.placeholder')}
+          value={cancelHotkey}
+          onChange={(event) => {
+            onCancelHotkeyChange(event.target.value);
           }}
         />
       </SettingRow>

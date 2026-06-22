@@ -77,6 +77,12 @@ pub fn handle_shortcut_event(app: &tauri::AppHandle, state: ShortcutState) {
     }
 }
 
+pub fn handle_cancel_shortcut(app: &tauri::AppHandle) {
+    if let Err(error) = cancel_dictation_inner(app.clone()) {
+        emit_dictation_error(app, error.into_message());
+    }
+}
+
 #[tauri::command]
 pub fn cancel_dictation(app: tauri::AppHandle) -> Result<(), String> {
     cancel_dictation_inner(app).map_err(AppError::into_message)
@@ -134,6 +140,14 @@ fn start_dictation_inner(app: &tauri::AppHandle) -> AppResult<()> {
     let id = runtime.next_session_id.fetch_add(1, Ordering::Relaxed) + 1;
 
     *session = DictationSession::Recording { id, recording };
+
+    // Arm the cancel hotkey for the duration of this session. A missing or
+    // empty cancel hotkey silently disarms the hook (no key is consumed).
+    if let Ok(app_settings) = settings::load_app_settings(app) {
+        if let Err(error) = shortcut_hook::arm_cancel_hotkey(app_settings.cancel_hotkey()) {
+            emit_dictation_error(app, error.into_message());
+        }
+    }
 
     Ok(())
 }
@@ -360,6 +374,7 @@ fn finish_session(app: &tauri::AppHandle, id: u64) {
                 if current == id
         ) {
             *session = DictationSession::Idle;
+            shortcut_hook::disarm_cancel_hotkey();
             let _ = overlay::hide_recording_overlay(app);
         }
     }
@@ -375,10 +390,12 @@ fn cancel_dictation_inner(app: tauri::AppHandle) -> AppResult<()> {
     match std::mem::replace(&mut *session, DictationSession::Idle) {
         DictationSession::Idle | DictationSession::Cancelled { .. } => {}
         DictationSession::Recording { .. } => {
+            shortcut_hook::disarm_cancel_hotkey();
             let _ = overlay::hide_recording_overlay(&app);
         }
         DictationSession::Transcribing { id } | DictationSession::Processing { id } => {
             *session = DictationSession::Cancelled { id };
+            shortcut_hook::disarm_cancel_hotkey();
             let _ = overlay::hide_recording_overlay(&app);
         }
     }

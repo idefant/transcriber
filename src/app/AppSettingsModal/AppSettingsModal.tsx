@@ -222,8 +222,12 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
       case 'hotkeys': {
         return (
           <HotkeysSettingsTab
+            cancelHotkey={settings.cancelHotkey}
             hotkey={settings.hotkey}
             triggerMode={settings.triggerMode}
+            onCancelHotkeyChange={(cancelHotkey) => {
+              void handleSettingsChange({ cancelHotkey });
+            }}
             onHotkeyChange={(hotkey) => {
               void handleSettingsChange({ hotkey });
             }}

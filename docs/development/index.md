@@ -119,6 +119,10 @@ Post-processing model evals are documented in [model-testing.md](model-testing.m
 
 Local model-call debug logging is documented in [debug-logging.md](debug-logging.md).
 
+## Cancel Hotkey
+
+The arm/disarm pattern used for the cancel hotkey is documented in [cancel-hotkey.md](cancel-hotkey.md).
+
 ## Git Hooks
 
 Husky runs lint-staged before commits:

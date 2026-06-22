@@ -32,6 +32,24 @@ pub fn set_dictation_hotkey(_hotkey: &str) -> AppResult<()> {
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
+pub fn arm_cancel_hotkey(hotkey: &str) -> AppResult<()> {
+    windows_hook::arm_cancel_hotkey(hotkey)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn arm_cancel_hotkey(_hotkey: &str) -> AppResult<()> {
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn disarm_cancel_hotkey() {
+    windows_hook::disarm_cancel_hotkey();
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn disarm_cancel_hotkey() {}
+
 #[derive(Clone, Copy)]
 struct Hotkey {
     ctrl: bool,
@@ -309,8 +327,14 @@ mod windows_hook {
     const VK_LWIN: u32 = 0x5B;
     const VK_RWIN: u32 = 0x5C;
 
+    enum HookEvent {
+        Dictation(ShortcutState),
+        Cancel,
+    }
+
     static HOTKEY: OnceLock<Mutex<HookHotkey>> = OnceLock::new();
-    static EVENT_SENDER: OnceLock<Sender<ShortcutState>> = OnceLock::new();
+    static CANCEL_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>> = OnceLock::new();
+    static EVENT_SENDER: OnceLock<Sender<HookEvent>> = OnceLock::new();
 
     struct HookHotkey {
         hotkey: Hotkey,
@@ -320,12 +344,15 @@ mod windows_hook {
     pub fn install(app: AppHandle, hotkey: &str) -> AppResult<()> {
         set_hotkey(hotkey)?;
 
-        let (sender, receiver) = mpsc::channel::<ShortcutState>();
+        let (sender, receiver) = mpsc::channel::<HookEvent>();
         let _ = EVENT_SENDER.set(sender);
 
         thread::spawn(move || {
-            for state in receiver {
-                dictation::handle_shortcut_event(&app, state);
+            for event in receiver {
+                match event {
+                    HookEvent::Dictation(state) => dictation::handle_shortcut_event(&app, state),
+                    HookEvent::Cancel => dictation::handle_cancel_shortcut(&app),
+                }
             }
         });
 
@@ -368,6 +395,41 @@ mod windows_hook {
         Ok(())
     }
 
+    fn get_cancel_hotkey() -> &'static Mutex<Option<HookHotkey>> {
+        CANCEL_HOTKEY.get_or_init(|| Mutex::new(None))
+    }
+
+    pub fn arm_cancel_hotkey(value: &str) -> AppResult<()> {
+        let mut cancel = get_cancel_hotkey()
+            .lock()
+            .map_err(|_| AppError::from("Could not lock cancel hotkey state"))?;
+
+        if value.trim().is_empty() {
+            *cancel = None;
+            return Ok(());
+        }
+
+        match Hotkey::parse(value) {
+            Ok(hotkey) => {
+                *cancel = Some(HookHotkey {
+                    hotkey,
+                    is_main_key_down: false,
+                });
+                Ok(())
+            }
+            Err(e) => {
+                *cancel = None;
+                Err(e)
+            }
+        }
+    }
+
+    pub fn disarm_cancel_hotkey() {
+        if let Ok(mut cancel) = get_cancel_hotkey().lock() {
+            *cancel = None;
+        }
+    }
+
     unsafe extern "system" fn keyboard_proc(code: i32, w_param: usize, l_param: isize) -> isize {
         if code < 0 {
             return CallNextHookEx(ptr::null_mut::<HHOOK>() as HHOOK, code, w_param, l_param);
@@ -389,6 +451,11 @@ mod windows_hook {
     }
 
     fn should_consume_event(vk_code: u32, is_key_down: bool, is_key_up: bool) -> bool {
+        try_consume_dictation_event(vk_code, is_key_down, is_key_up)
+            || try_consume_cancel_event(vk_code, is_key_down, is_key_up)
+    }
+
+    fn try_consume_dictation_event(vk_code: u32, is_key_down: bool, is_key_up: bool) -> bool {
         let Some(config_mutex) = HOTKEY.get() else {
             return false;
         };
@@ -402,7 +469,7 @@ mod windows_hook {
 
         if is_key_up && config.is_main_key_down {
             config.is_main_key_down = false;
-            send_shortcut_event(ShortcutState::Released);
+            send_hook_event(HookEvent::Dictation(ShortcutState::Released));
 
             return true;
         }
@@ -414,7 +481,7 @@ mod windows_hook {
         if is_key_down {
             if !config.is_main_key_down {
                 config.is_main_key_down = true;
-                send_shortcut_event(ShortcutState::Pressed);
+                send_hook_event(HookEvent::Dictation(ShortcutState::Pressed));
             }
 
             return true;
@@ -422,7 +489,41 @@ mod windows_hook {
 
         if is_key_up {
             config.is_main_key_down = false;
-            send_shortcut_event(ShortcutState::Released);
+            send_hook_event(HookEvent::Dictation(ShortcutState::Released));
+
+            return true;
+        }
+
+        false
+    }
+
+    fn try_consume_cancel_event(vk_code: u32, is_key_down: bool, is_key_up: bool) -> bool {
+        let Ok(mut cancel) = get_cancel_hotkey().lock() else {
+            return false;
+        };
+
+        let Some(ref mut config) = *cancel else {
+            return false;
+        };
+
+        if vk_code != config.hotkey.main_key.vk {
+            return false;
+        }
+
+        if is_key_up && config.is_main_key_down {
+            config.is_main_key_down = false;
+            return true;
+        }
+
+        if !modifiers_match(config.hotkey) {
+            return false;
+        }
+
+        if is_key_down {
+            if !config.is_main_key_down {
+                config.is_main_key_down = true;
+                send_hook_event(HookEvent::Cancel);
+            }
 
             return true;
         }
@@ -441,9 +542,9 @@ mod windows_hook {
         unsafe { GetAsyncKeyState(vk as i32) & 0x8000u16 as i16 != 0 }
     }
 
-    fn send_shortcut_event(state: ShortcutState) {
+    fn send_hook_event(event: HookEvent) {
         if let Some(sender) = EVENT_SENDER.get() {
-            let _ = sender.send(state);
+            let _ = sender.send(event);
         }
     }
 

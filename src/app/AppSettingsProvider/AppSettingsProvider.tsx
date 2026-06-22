@@ -10,6 +10,7 @@ interface AppSettingsProviderProps {
 }
 
 const defaultAppSettings: AppSettings = {
+  cancelHotkey: 'Escape',
   effectiveUiLanguage: 'en',
   hotkey: 'Ctrl+Space',
   isDebugLoggingEnabled: false,
