@@ -12,7 +12,6 @@ export type EffectiveUiLanguage = 'en' | 'ru';
 export type UiLanguage = 'en' | 'ru' | 'system';
 
 export interface AppSettings {
-  areDictationSoundsEnabled: boolean;
   effectiveUiLanguage: EffectiveUiLanguage;
   hotkey: string;
   isDebugLoggingEnabled: boolean;

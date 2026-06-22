@@ -112,6 +112,11 @@ pub fn start_recording(app: tauri::AppHandle) -> AppResult<AudioRecording> {
 
 impl AudioRecording {
     pub fn stop(mut self) -> AppResult<RecordedAudio> {
+        // Explicitly pause before drop so the WASAPI capture client stops
+        // immediately, releasing the OS microphone indicator without delay.
+        if let Some(stream) = &self.stream {
+            let _ = stream.pause();
+        }
         self.stream.take();
 
         let samples = self

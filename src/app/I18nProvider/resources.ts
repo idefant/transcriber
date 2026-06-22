@@ -35,10 +35,6 @@ const en = {
         dark: 'Dark',
         auto: 'Auto',
       },
-      dictationSounds: {
-        title: 'Dictation sounds',
-        description: 'Play a sound when recording starts and stops',
-      },
       muteWhileRecording: {
         title: 'Mute audio while recording',
         description: 'Mute the default output device while recording and restore it afterwards',
@@ -208,10 +204,6 @@ const ru: typeof en = {
         light: 'Светлая',
         dark: 'Темная',
         auto: 'Авто',
-      },
-      dictationSounds: {
-        title: 'Звуки диктовки',
-        description: 'Воспроизводить звук при старте и остановке записи',
       },
       muteWhileRecording: {
         title: 'Заглушать звук при записи',

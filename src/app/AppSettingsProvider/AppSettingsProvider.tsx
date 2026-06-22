@@ -10,7 +10,6 @@ interface AppSettingsProviderProps {
 }
 
 const defaultAppSettings: AppSettings = {
-  areDictationSoundsEnabled: true,
   effectiveUiLanguage: 'en',
   hotkey: 'Ctrl+Space',
   isDebugLoggingEnabled: false,

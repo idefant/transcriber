@@ -22,7 +22,7 @@ pub struct SttConfig {
     pub language: String,
     #[serde(default)]
     pub use_custom_prompt: bool,
-    /// Custom system prompt override. Empty means "use the default".
+    /// Custom system prompt override. Empty string sends no prompt to the API.
     #[serde(default, alias = "prompt")]
     pub system_prompt: String,
 }
@@ -42,7 +42,7 @@ impl Default for SttConfig {
 impl SttConfig {
     /// Effective system prompt template (still contains `{{...}}` placeholders).
     pub fn effective_system_prompt(&self) -> AppResult<String> {
-        if self.use_custom_prompt && !self.system_prompt.trim().is_empty() {
+        if self.use_custom_prompt {
             Ok(self.system_prompt.clone())
         } else {
             default_stt_system_prompt(&self.language)
@@ -61,7 +61,7 @@ pub struct PostProcessConfig {
     pub model_key: Option<String>,
     #[serde(default)]
     pub use_custom_prompts: bool,
-    /// Custom system prompt override. Empty means "use the default".
+    /// Custom system prompt override. Empty string sends no system message.
     #[serde(default, alias = "prompt")]
     pub system_prompt: String,
     /// Custom user prompt template override. Empty means "use the default".
@@ -72,7 +72,7 @@ pub struct PostProcessConfig {
 impl PostProcessConfig {
     /// Effective system prompt template (still contains `{{...}}` placeholders).
     pub fn effective_system_prompt(&self, language: &EffectiveUiLanguage) -> AppResult<String> {
-        if self.use_custom_prompts && !self.system_prompt.trim().is_empty() {
+        if self.use_custom_prompts {
             Ok(self.system_prompt.clone())
         } else {
             default_post_process_system_prompt(language)

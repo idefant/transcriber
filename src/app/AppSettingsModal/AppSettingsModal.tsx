@@ -192,7 +192,6 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
       case 'general': {
         return (
           <GeneralSettingsTab
-            areDictationSoundsEnabled={settings.areDictationSoundsEnabled}
             isDebugLoggingEnabled={settings.isDebugLoggingEnabled}
             isLaunchAtLoginEnabled={settings.isLaunchAtLoginEnabled}
             isMuteWhileRecordingEnabled={settings.isMuteWhileRecordingEnabled}
@@ -203,9 +202,6 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
             }}
             onDebugLoggingEnabledChange={(isDebugLoggingEnabled) => {
               void handleSettingsChange({ isDebugLoggingEnabled });
-            }}
-            onDictationSoundsEnabledChange={(areDictationSoundsEnabled) => {
-              void handleSettingsChange({ areDictationSoundsEnabled });
             }}
             onLaunchAtLoginEnabledChange={(isLaunchAtLoginEnabled) => {
               void handleSettingsChange({ isLaunchAtLoginEnabled });

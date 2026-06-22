@@ -10,13 +10,11 @@ import styles from './GeneralSettingsTab.module.scss';
 import type { ThemePreference, UiLanguage } from '#/models/Settings';
 
 interface GeneralSettingsTabProps {
-  areDictationSoundsEnabled: boolean;
   isDebugLoggingEnabled: boolean;
   isLaunchAtLoginEnabled: boolean;
   isMuteWhileRecordingEnabled: boolean;
   onDebugLogsFolderOpen: () => void;
   onDebugLoggingEnabledChange: (value: boolean) => void;
-  onDictationSoundsEnabledChange: (value: boolean) => void;
   onLaunchAtLoginEnabledChange: (value: boolean) => void;
   onMuteWhileRecordingEnabledChange: (value: boolean) => void;
   onThemePreferenceChange: (value: ThemePreference) => void;
@@ -26,13 +24,11 @@ interface GeneralSettingsTabProps {
 }
 
 const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
-  areDictationSoundsEnabled,
   isDebugLoggingEnabled,
   isLaunchAtLoginEnabled,
   isMuteWhileRecordingEnabled,
   onDebugLogsFolderOpen,
   onDebugLoggingEnabledChange,
-  onDictationSoundsEnabledChange,
   onLaunchAtLoginEnabledChange,
   onMuteWhileRecordingEnabledChange,
   onThemePreferenceChange,
@@ -71,13 +67,6 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
           value={themePreference}
           onChange={onThemePreferenceChange}
         />
-      </SettingRow>
-
-      <SettingRow
-        description={t('settings.general.dictationSounds.description')}
-        title={t('settings.general.dictationSounds.title')}
-      >
-        <Switch checked={areDictationSoundsEnabled} onChange={onDictationSoundsEnabledChange} />
       </SettingRow>
 
       <SettingRow

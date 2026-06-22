@@ -71,8 +71,6 @@ pub struct AppSettings {
     ui_language: UiLanguage,
     #[serde(default, skip_deserializing)]
     effective_ui_language: EffectiveUiLanguage,
-    #[serde(default = "default_dictation_sounds_enabled")]
-    are_dictation_sounds_enabled: bool,
     #[serde(default = "default_mute_while_recording_enabled")]
     is_mute_while_recording_enabled: bool,
     #[serde(default)]
@@ -91,7 +89,6 @@ impl Default for AppSettings {
             theme_preference: ThemePreference::default(),
             ui_language: UiLanguage::default(),
             effective_ui_language: resolve_effective_ui_language(&UiLanguage::default()),
-            are_dictation_sounds_enabled: default_dictation_sounds_enabled(),
             is_mute_while_recording_enabled: default_mute_while_recording_enabled(),
             is_debug_logging_enabled: false,
             is_launch_at_login_enabled: default_launch_at_login_enabled(),
@@ -120,16 +117,11 @@ impl AppSettings {
 pub struct AppSettingsInput {
     theme_preference: Option<ThemePreference>,
     ui_language: Option<UiLanguage>,
-    are_dictation_sounds_enabled: Option<bool>,
     is_mute_while_recording_enabled: Option<bool>,
     is_debug_logging_enabled: Option<bool>,
     is_launch_at_login_enabled: Option<bool>,
     hotkey: Option<String>,
     trigger_mode: Option<TriggerMode>,
-}
-
-fn default_dictation_sounds_enabled() -> bool {
-    true
 }
 
 fn default_mute_while_recording_enabled() -> bool {
@@ -170,10 +162,6 @@ fn update_app_settings_inner(
 
     if let Some(ui_language) = input.ui_language {
         settings.ui_language = ui_language;
-    }
-
-    if let Some(are_dictation_sounds_enabled) = input.are_dictation_sounds_enabled {
-        settings.are_dictation_sounds_enabled = are_dictation_sounds_enabled;
     }
 
     if let Some(is_mute_while_recording_enabled) = input.is_mute_while_recording_enabled {

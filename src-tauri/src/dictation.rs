@@ -12,7 +12,7 @@ use crate::{
     error::{AppError, AppResult},
     history, keyboard, overlay,
     processing::load_processing_config,
-    recording::{self, AudioRecording},
+    recording::{self, AudioRecording, RecordedAudio},
     runner,
     settings::{self, TriggerMode},
     shortcut_hook::{self, ShortcutState},
@@ -139,7 +139,7 @@ fn start_dictation_inner(app: &tauri::AppHandle) -> AppResult<()> {
 }
 
 fn stop_dictation(app: tauri::AppHandle) {
-    let recording = match take_recording(&app) {
+    let (id, recording) = match take_recording(&app) {
         Ok(Some((id, recording))) => (id, recording),
         Ok(None) => return,
         Err(error) => {
@@ -148,7 +148,18 @@ fn stop_dictation(app: tauri::AppHandle) {
         }
     };
 
-    tauri::async_runtime::spawn(process_recording(app, recording.0, recording.1));
+    // Stop the audio stream synchronously so the OS microphone indicator turns
+    // off and system audio un-mutes before STT/post-processing begins.
+    let audio = match recording.stop() {
+        Ok(audio) => audio,
+        Err(error) => {
+            finish_session(&app, id);
+            emit_dictation_error(&app, error.into_message());
+            return;
+        }
+    };
+
+    tauri::async_runtime::spawn(process_recording(app, id, audio));
 }
 
 fn take_recording(app: &tauri::AppHandle) -> AppResult<Option<(u64, AudioRecording)>> {
@@ -169,8 +180,8 @@ fn take_recording(app: &tauri::AppHandle) -> AppResult<Option<(u64, AudioRecordi
     Ok(Some((id, recording)))
 }
 
-async fn process_recording(app: tauri::AppHandle, id: u64, recording: AudioRecording) {
-    if let Err(error) = process_recording_inner(&app, id, recording).await {
+async fn process_recording(app: tauri::AppHandle, id: u64, audio: RecordedAudio) {
+    if let Err(error) = process_recording_inner(&app, id, audio).await {
         emit_dictation_error(&app, error.into_message());
     }
 
@@ -180,7 +191,7 @@ async fn process_recording(app: tauri::AppHandle, id: u64, recording: AudioRecor
 async fn process_recording_inner(
     app: &tauri::AppHandle,
     id: u64,
-    recording: AudioRecording,
+    audio: RecordedAudio,
 ) -> AppResult<()> {
     overlay::show_transcribing_overlay(app)?;
 
@@ -193,7 +204,6 @@ async fn process_recording_inner(
         ));
     }
 
-    let audio = recording.stop()?;
     let history_record_id = Uuid::new_v4().to_string();
 
     if !is_current_session(app, id) {
@@ -305,7 +315,7 @@ async fn process_recording_inner(
                 transcription: Ok(transcription),
             },
         );
-        keyboard::paste_text(&final_text)?;
+        keyboard::paste_text(&final_text).await?;
     }
 
     Ok(())

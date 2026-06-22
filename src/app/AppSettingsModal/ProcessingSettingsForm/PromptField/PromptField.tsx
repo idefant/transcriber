@@ -36,7 +36,7 @@ const PromptField: FC<PromptFieldProps> = ({
   // value is read through a ref (not a dependency) so our own debounced saves never
   // reset the caret while the user is typing.
   useEffect(() => {
-    setValue(enabled ? storedRef.current || defaultValue : defaultValue);
+    setValue(enabled ? storedRef.current : defaultValue);
   }, [enabled, defaultValue]);
 
   useEffect(
