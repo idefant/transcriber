@@ -103,11 +103,9 @@ const ModelResult: FC<ModelResultProps> = ({
               </div>
             )}
           </dl>
-          {displayText.length > 0 ? (
-            <Paragraph className={details.status === 'error' ? styles.errorText : styles.text}>
-              {displayText}
-            </Paragraph>
-          ) : undefined}
+          <Paragraph className={details.status === 'error' ? styles.errorText : styles.text}>
+            {displayText}
+          </Paragraph>
         </>
       ) : undefined}
     </section>

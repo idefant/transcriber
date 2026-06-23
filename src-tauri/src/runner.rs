@@ -509,7 +509,7 @@ pub async fn run_post_process_with_snapshot(
         .into_iter()
         .next()
         .and_then(|c| c.message.content)
-        .ok_or("Provider returned an empty response")?;
+        .unwrap_or_default();
     let cost = post_process_cost(
         app,
         snapshot,
