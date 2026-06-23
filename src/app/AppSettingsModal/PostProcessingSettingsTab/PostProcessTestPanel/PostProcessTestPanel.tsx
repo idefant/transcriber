@@ -3,10 +3,11 @@ import { Alert, Button, Input, Typography } from 'antd';
 import { WandSparklesIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { useProcessing } from '#/app/processingContext';
 import * as processingApi from '#/shared/processingApi';
 
 import styles from './PostProcessTestPanel.module.scss';
+
+import { useProcessing } from '#/stores';
 
 const PostProcessTestPanel: FC = () => {
   const { config } = useProcessing();

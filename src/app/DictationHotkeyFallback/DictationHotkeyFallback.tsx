@@ -1,8 +1,9 @@
 import { type FC, useEffect, useRef } from 'react';
 
-import { useAppSettings } from '#/app/settingsContext';
 import * as dictationApi from '#/shared/dictationApi';
 import { isHotkeyCaptureActive } from '#/shared/hotkeyCaptureLock';
+
+import { useSettingsStore } from '#/stores';
 
 interface ParsedHotkey {
   alt: boolean;
@@ -85,7 +86,7 @@ const eventMatchesHotkey = (event: KeyboardEvent, hotkey: ParsedHotkey) =>
   event.key.toLowerCase() === hotkey.key;
 
 const DictationHotkeyFallback: FC = () => {
-  const { settings } = useAppSettings();
+  const settings = useSettingsStore((s) => s.settings);
   const isShortcutActiveRef = useRef(false);
 
   useEffect(() => {

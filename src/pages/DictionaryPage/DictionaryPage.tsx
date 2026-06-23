@@ -1,13 +1,4 @@
-import {
-  type FC,
-  type KeyboardEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { flushSync } from 'react-dom';
+import { type FC, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Card,
@@ -23,9 +14,9 @@ import {
 import { PlusIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import * as dictionaryApi from '#/shared/dictionaryApi';
-
 import styles from './DictionaryPage.module.scss';
+
+import { useDictionaryStore } from '#/stores';
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -34,35 +25,31 @@ const DictionaryPage: FC = () => {
   const { t } = useTranslation();
   const [messageApi, messageContextHolder] = message.useMessage();
   const [wordInput, setWordInput] = useState('');
-  const [words, setWords] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<InputRef>(null);
 
-  const sortedWords = useMemo(
-    () => words.toSorted((firstWord, secondWord) => firstWord.localeCompare(secondWord, 'ru')),
-    [words],
-  );
-
-  const loadWords = useCallback(async () => {
-    setIsLoading(true);
-
-    try {
-      const nextWords = await dictionaryApi.getDictionaryWords();
-
-      setWords(nextWords);
-    } catch (error) {
-      void messageApi.error(getErrorMessage(error));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [messageApi]);
+  const words = useDictionaryStore((s) => s.words);
+  const isLoading = useDictionaryStore((s) => s.isLoading);
+  const load = useDictionaryStore((s) => s.load);
+  const storeAddWord = useDictionaryStore((s) => s.addWord);
+  const storeRemoveWord = useDictionaryStore((s) => s.removeWord);
 
   useEffect(() => {
     queueMicrotask(() => {
-      void loadWords();
+      void load().catch((error: unknown) => {
+        void messageApi.error(getErrorMessage(error));
+      });
     });
-  }, [loadWords]);
+  }, [load, messageApi]);
+
+  // Refocus input after a save finishes so the user can type the next word immediately.
+  const prevIsSavingRef = useRef(false);
+  useEffect(() => {
+    if (prevIsSavingRef.current && !isSaving) {
+      inputRef.current?.focus();
+    }
+    prevIsSavingRef.current = isSaving;
+  }, [isSaving]);
 
   const addWord = async () => {
     const normalizedWord = wordInput.trim();
@@ -74,17 +61,12 @@ const DictionaryPage: FC = () => {
     setIsSaving(true);
 
     try {
-      const nextWords = await dictionaryApi.addDictionaryWord(normalizedWord);
-
-      setWords(nextWords);
+      await storeAddWord(normalizedWord);
       setWordInput('');
     } catch (error) {
       void messageApi.error(getErrorMessage(error));
     } finally {
-      flushSync(() => {
-        setIsSaving(false);
-      });
-      inputRef.current?.focus();
+      setIsSaving(false);
     }
   };
 
@@ -95,12 +77,11 @@ const DictionaryPage: FC = () => {
   };
 
   const removeWord = async (wordToRemove: string) => {
+    if (isSaving) return;
     setIsSaving(true);
 
     try {
-      const nextWords = await dictionaryApi.deleteDictionaryWord(wordToRemove);
-
-      setWords(nextWords);
+      await storeRemoveWord(wordToRemove);
     } catch (error) {
       void messageApi.error(getErrorMessage(error));
     } finally {
@@ -141,12 +122,17 @@ const DictionaryPage: FC = () => {
               </Tooltip>
             </Space.Compact>
 
-            {sortedWords.length > 0 ? (
-              <div className={styles.words}>
-                {sortedWords.map((word) => (
+            {words.length > 0 ? (
+              // pointer-events: none during save prevents close-button clicks without
+              // toggling closable on every tag (which would cause a full list re-render).
+              <div
+                className={styles.words}
+                style={{ pointerEvents: isSaving ? 'none' : undefined }}
+              >
+                {words.map((word) => (
                   <Tag
                     className={styles.word}
-                    closable={!isSaving}
+                    closable
                     color="blue"
                     variant="outlined"
                     key={word}

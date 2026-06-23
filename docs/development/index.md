@@ -123,6 +123,10 @@ Local model-call debug logging is documented in [debug-logging.md](debug-logging
 
 The arm/disarm pattern used for the cancel hotkey is documented in [cancel-hotkey.md](cancel-hotkey.md).
 
+## State Management
+
+The Zustand store architecture, canonical sort order rule, history event subscription, and component-local vs. store state decisions are documented in [state-management.md](state-management.md).
+
 ## Git Hooks
 
 Husky runs lint-staged before commits:

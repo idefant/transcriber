@@ -3,13 +3,12 @@ import { Button, Card, Space, Tooltip, Typography } from 'antd';
 import { ClipboardCopyIcon, FolderOpenIcon, XIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { useProcessing } from '#/app/processingContext';
-
 import ModelResult from './ModelResult';
 
 import styles from './HistoryDetailsPanel.module.scss';
 
 import type { HistoryRecord } from '#/models/History';
+import { useProcessing } from '#/stores';
 
 const { Text, Title } = Typography;
 

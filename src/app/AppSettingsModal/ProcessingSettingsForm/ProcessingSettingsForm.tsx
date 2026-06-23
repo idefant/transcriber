@@ -1,19 +1,13 @@
-import { type FC, useEffect, useMemo, useState } from 'react';
+import { type FC, useEffect, useMemo } from 'react';
 import { Empty, Form, Select, Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
-
-import { useCatalog } from '#/app/catalogContext';
-import { useProcessing } from '#/app/processingContext';
-import { useProviders } from '#/app/providersContext';
-import { useAppSettings } from '#/app/settingsContext';
-import * as processingApi from '#/shared/processingApi';
 
 import PromptField from './PromptField';
 
 import styles from './ProcessingSettingsForm.module.scss';
 
 import type { ModelTask } from '#/models/Catalog';
-import type { DefaultPrompts } from '#/models/Processing';
+import { useAppSettings, useCatalog, useProcessing, useProviders } from '#/stores';
 
 interface ProcessingSettingsFormProps {
   disabled?: boolean;
@@ -37,10 +31,10 @@ interface ModelOptionGroup {
 const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = false, task }) => {
   const { providers } = useProviders();
   const { settings } = useAppSettings();
-  const { config, updateSttConfig, updatePostProcessConfig } = useProcessing();
+  const { config, defaultPrompts, loadDefaultPrompts, updateSttConfig, updatePostProcessConfig } =
+    useProcessing();
   const { catalog, isLoading: isCatalogLoading } = useCatalog();
   const { t } = useTranslation();
-  const [defaultPrompts, setDefaultPrompts] = useState<DefaultPrompts>();
   const languageOptions = [
     { label: t('settings.processing.languages.auto'), value: 'auto' },
     { label: t('settings.processing.languages.ru'), value: 'ru' },
@@ -48,11 +42,8 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
   ];
 
   useEffect(() => {
-    processingApi
-      .getDefaultPrompts()
-      .then(setDefaultPrompts)
-      .catch(() => {});
-  }, [config.stt.language, settings.effectiveUiLanguage]);
+    void loadDefaultPrompts().catch(() => {});
+  }, [config.stt.language, loadDefaultPrompts, settings.effectiveUiLanguage]);
 
   const isStt = task === 'stt';
   const currentConfig = isStt ? config.stt : config.postProcess;

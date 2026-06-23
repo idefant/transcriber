@@ -183,7 +183,7 @@ pub fn save_new_history_record(
     store.records.push(record.clone());
     sort_records(&mut store.records);
     save_history_store(app, &store)?;
-    emit_history_updated(app);
+    emit_history_updated(app, Some(&record));
     debug_log::log_event(
         app,
         "history.recordSaved",
@@ -283,7 +283,7 @@ fn delete_history_record_inner(app: &tauri::AppHandle, record_id: &str) -> AppRe
         fs::remove_file(path)?;
     }
 
-    emit_history_updated(app);
+    emit_history_updated(app, None);
 
     Ok(())
 }
@@ -336,7 +336,7 @@ async fn repeat_history_transcription_inner(
     );
     store.records[index].status = HistoryRecordStatus::Processing;
     save_history_store(app, &store)?;
-    emit_history_updated(app);
+    emit_history_updated(app, Some(&store.records[index]));
 
     let audio_bytes = fs::read(&audio_path)?;
     let log_context = ModelRunLogContext {
@@ -380,7 +380,7 @@ async fn repeat_history_transcription_inner(
                 &store.records[index].postprocessing,
             );
             save_history_store(app, &store)?;
-            emit_history_updated(app);
+            emit_history_updated(app, Some(&store.records[index]));
 
             Ok(store.records[index].clone())
         }
@@ -398,7 +398,7 @@ async fn repeat_history_record_inner(
     store.records[index].postprocessing = skipped_result(None);
     store.records[index].final_text = String::new();
     save_history_store(app, &store)?;
-    emit_history_updated(app);
+    emit_history_updated(app, Some(&store.records[index]));
 
     let record = repeat_history_transcription_inner(app, record_id).await?;
     let config = load_processing_config(app)?;
@@ -447,7 +447,7 @@ async fn repeat_history_post_processing_inner(
                 &store.records[index].postprocessing,
             );
             save_history_store(app, &store)?;
-            emit_history_updated(app);
+            emit_history_updated(app, Some(&store.records[index]));
 
             return Ok(store.records[index].clone());
         }
@@ -460,7 +460,7 @@ async fn repeat_history_post_processing_inner(
     store.records[index].postprocessing.provider = snapshot.provider.provider_name.clone();
     store.records[index].status = HistoryRecordStatus::Processing;
     save_history_store(app, &store)?;
-    emit_history_updated(app);
+    emit_history_updated(app, Some(&store.records[index]));
 
     let log_context = ModelRunLogContext {
         source: ModelRunSource::HistoryRepeat,
@@ -491,7 +491,7 @@ async fn repeat_history_post_processing_inner(
                 &store.records[index].postprocessing,
             );
             save_history_store(app, &store)?;
-            emit_history_updated(app);
+            emit_history_updated(app, Some(&store.records[index]));
             Ok(store.records[index].clone())
         }
         Err(error) => {
@@ -506,7 +506,7 @@ async fn repeat_history_post_processing_inner(
                 &store.records[index].postprocessing,
             );
             save_history_store(app, &store)?;
-            emit_history_updated(app);
+            emit_history_updated(app, Some(&store.records[index]));
             Ok(store.records[index].clone())
         }
     }
@@ -661,7 +661,7 @@ fn save_repeated_stt_error(
         &store.records[index].postprocessing,
     );
     save_history_store(app, &store)?;
-    emit_history_updated(app);
+    emit_history_updated(app, Some(&store.records[index]));
 
     Ok(store.records[index].clone())
 }
@@ -782,7 +782,7 @@ fn format_cost(cost: Option<f64>) -> Option<String> {
     cost.map(|value| format!("${value:.6}"))
 }
 
-fn emit_history_updated(app: &tauri::AppHandle) {
-    let _ = app.emit(HISTORY_UPDATED_EVENT, ());
+fn emit_history_updated(app: &tauri::AppHandle, record: Option<&HistoryRecord>) {
+    let _ = app.emit(HISTORY_UPDATED_EVENT, record);
     crate::background::refresh_tray_history_state(app);
 }

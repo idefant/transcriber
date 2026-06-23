@@ -1,5 +1,4 @@
-import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { type FC, useEffect, useMemo, useState } from 'react';
 import { Button, Card, DatePicker, Empty, message, Space, Spin, Tooltip } from 'antd';
 import dayjs from 'dayjs';
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
@@ -12,11 +11,10 @@ import HistoryRecordsList from './HistoryRecordsList';
 
 import styles from './HistoryPage.module.scss';
 
-import type { HistoryGroup, HistoryRecord } from '#/models/History';
+import type { HistoryRecord } from '#/models/History';
+import { useHistoryStore } from '#/stores';
 
 const monthFormat = 'YYYY-MM';
-
-const getCurrentMonth = () => dayjs().format(monthFormat);
 
 const shiftMonth = (month: string, monthOffset: number) =>
   dayjs(`${month}-01`).add(monthOffset, 'month').format(monthFormat);
@@ -36,87 +34,62 @@ const getRecordTextForCopy = (record: HistoryRecord) => {
   return null;
 };
 
+const getCurrentMonth = () => {
+  const now = new Date();
+  return `${now.getFullYear().toString()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
 const HistoryPage: FC = () => {
   const { t } = useTranslation();
   const [messageApi, messageContextHolder] = message.useMessage();
-  const [historyGroups, setHistoryGroups] = useState<HistoryGroup[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+
+  const groups = useHistoryStore((s) => s.groups);
+  const selectedMonth = useHistoryStore((s) => s.selectedMonth);
+  const isLoading = useHistoryStore((s) => s.isLoading);
+  const storeLoad = useHistoryStore((s) => s.load);
+  const storeSetSelectedMonth = useHistoryStore((s) => s.setSelectedMonth);
+  const storeRemoveRecord = useHistoryStore((s) => s.removeRecord);
+
   const [processingRecordId, setProcessingRecordId] = useState<string>();
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth);
-  const [activeDate, setActiveDate] = useState<string>();
-  const [selectedRecord, setSelectedRecord] = useState<HistoryRecord>();
+  // preferredDate is the user-selected date. Effective activeDate falls back to groups[0] when
+  // the preferred date is no longer present in groups (e.g. after a month change).
+  const [preferredDate, setPreferredDate] = useState<string>();
+  // selectedRecordId tracks the id; the full record is resolved from the store's groups so it
+  // automatically reflects event-driven updates without a separate sync effect.
+  const [selectedRecordId, setSelectedRecordId] = useState<string>();
 
   const monthPickerValue = useMemo(() => dayjs(`${selectedMonth}-01`), [selectedMonth]);
 
-  const filteredGroups = historyGroups;
-
-  const loadHistory = useCallback(
-    async (silent = false) => {
-      if (!silent) {
-        setIsLoading(true);
-      }
-
-      try {
-        const groups = await historyApi.getHistoryGroups(selectedMonth);
-
-        setHistoryGroups(groups);
-        setActiveDate((currentDate) =>
-          groups.some((group) => group.date === currentDate) ? currentDate : groups[0]?.date,
-        );
-        setSelectedRecord((currentRecord) => {
-          if (currentRecord === undefined) {
-            return currentRecord;
-          }
-
-          return groups
-            .flatMap((group) => group.records)
-            .find((record) => record.id === currentRecord.id);
-        });
-      } catch (error) {
-        void messageApi.error(getErrorMessage(error));
-      } finally {
-        if (!silent) {
-          setIsLoading(false);
-        }
-      }
-    },
-    [messageApi, selectedMonth],
+  const activeDate = useMemo(
+    () => (groups.some((g) => g.date === preferredDate) ? preferredDate : groups[0]?.date),
+    [groups, preferredDate],
   );
 
+  const selectedRecord = useMemo(
+    () =>
+      selectedRecordId === undefined
+        ? undefined
+        : groups.flatMap((g) => g.records).find((r) => r.id === selectedRecordId),
+    [groups, selectedRecordId],
+  );
+
+  // Initial load on mount only. Month changes are handled explicitly in setMonth().
   useEffect(() => {
     queueMicrotask(() => {
-      void loadHistory();
+      void storeLoad(selectedMonth).catch((error: unknown) => {
+        void messageApi.error(getErrorMessage(error));
+      });
     });
-  }, [loadHistory]);
-
-  useEffect(() => {
-    let isMounted = true;
-    let removeListener: (() => void) | undefined;
-
-    void listen('history-updated', () => {
-      if (isMounted) {
-        void loadHistory(true);
-      }
-    }).then((unlisten) => {
-      removeListener = unlisten;
-
-      if (!isMounted) {
-        unlisten();
-      }
-
-      return null;
-    });
-
-    return () => {
-      isMounted = false;
-      removeListener?.();
-    };
-  }, [loadHistory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setMonth = (month: string) => {
-    setSelectedMonth(month);
-    setActiveDate(undefined);
-    setSelectedRecord(undefined);
+    storeSetSelectedMonth(month);
+    setPreferredDate(undefined);
+    setSelectedRecordId(undefined);
+    void storeLoad(month).catch((error: unknown) => {
+      void messageApi.error(getErrorMessage(error));
+    });
   };
 
   const handleMonthChange = (_: unknown, dateString: string | null) => {
@@ -139,20 +112,6 @@ const HistoryPage: FC = () => {
     setMonth(getCurrentMonth());
   };
 
-  const updateRecord = (record: HistoryRecord) => {
-    setHistoryGroups((currentGroups) =>
-      currentGroups.map((group) => ({
-        ...group,
-        records: group.records.map((currentRecord) =>
-          currentRecord.id === record.id ? record : currentRecord,
-        ),
-      })),
-    );
-    setSelectedRecord((currentRecord) =>
-      currentRecord?.id === record.id ? record : currentRecord,
-    );
-  };
-
   const copyText = async (text: string | null) => {
     if (text === null) {
       return;
@@ -168,17 +127,8 @@ const HistoryPage: FC = () => {
   const handleDeleteRecord = async (record: HistoryRecord) => {
     try {
       await historyApi.deleteHistoryRecord(record.id);
-      setHistoryGroups((currentGroups) =>
-        currentGroups
-          .map((group) => ({
-            ...group,
-            records: group.records.filter((currentRecord) => currentRecord.id !== record.id),
-          }))
-          .filter((group) => group.records.length > 0),
-      );
-      setSelectedRecord((currentRecord) =>
-        currentRecord?.id === record.id ? undefined : currentRecord,
-      );
+      storeRemoveRecord(record.id);
+      setSelectedRecordId((current) => (current === record.id ? undefined : current));
     } catch (error) {
       void messageApi.error(getErrorMessage(error));
     }
@@ -192,11 +142,15 @@ const HistoryPage: FC = () => {
     }
   };
 
+  // For repeat actions, we only await the command (to know when it's done).
+  // Record updates arrive via the history-updated event → historyStore.mergeRecord → groups update
+  // → selectedRecord is automatically recomputed from the store via useMemo.
+
   const handleRepeatRecord = async (record: HistoryRecord) => {
     setProcessingRecordId(record.id);
 
     try {
-      updateRecord(await historyApi.repeatHistoryRecord(record.id));
+      await historyApi.repeatHistoryRecord(record.id);
     } catch (error) {
       void messageApi.error(getErrorMessage(error));
     } finally {
@@ -208,7 +162,7 @@ const HistoryPage: FC = () => {
     setProcessingRecordId(record.id);
 
     try {
-      updateRecord(await historyApi.repeatHistoryTranscription(record.id));
+      await historyApi.repeatHistoryTranscription(record.id);
     } catch (error) {
       void messageApi.error(getErrorMessage(error));
     } finally {
@@ -220,7 +174,7 @@ const HistoryPage: FC = () => {
     setProcessingRecordId(record.id);
 
     try {
-      updateRecord(await historyApi.repeatHistoryPostProcessing(record.id));
+      await historyApi.repeatHistoryPostProcessing(record.id);
     } catch (error) {
       void messageApi.error(getErrorMessage(error));
     } finally {
@@ -267,20 +221,22 @@ const HistoryPage: FC = () => {
           </div>
 
           <Spin spinning={isLoading}>
-            {filteredGroups.length > 0 ? (
+            {groups.length > 0 ? (
               <HistoryRecordsList
                 activeDate={activeDate}
-                groups={filteredGroups}
+                groups={groups}
                 processingRecordId={processingRecordId}
                 selectedRecordId={selectedRecord?.id}
-                onActiveDateChange={setActiveDate}
+                onActiveDateChange={setPreferredDate}
                 onCopyRecordText={(record) => {
                   void copyText(getRecordTextForCopy(record));
                 }}
                 onDeleteRecord={(record) => {
                   void handleDeleteRecord(record);
                 }}
-                onRecordSelect={setSelectedRecord}
+                onRecordSelect={(record) => {
+                  setSelectedRecordId(record.id);
+                }}
                 onRepeatTranscription={(record) => {
                   void handleRepeatRecord(record);
                 }}
@@ -305,7 +261,7 @@ const HistoryPage: FC = () => {
                 void copyText(record.transcription.text);
               }}
               onClose={() => {
-                setSelectedRecord(undefined);
+                setSelectedRecordId(undefined);
               }}
               onOpenAudio={(record) => {
                 void handleOpenAudio(record);

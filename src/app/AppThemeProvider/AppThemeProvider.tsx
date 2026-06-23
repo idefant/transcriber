@@ -4,10 +4,11 @@ import enUS from 'antd/locale/en_US';
 import ruRU from 'antd/locale/ru_RU';
 import dayjs from 'dayjs';
 
-import { useAppSettings } from '#/app/settingsContext';
 import { AppThemeContext, type ThemeMode, type ThemePreference } from '#/app/themeContext';
 
 import 'dayjs/locale/ru';
+
+import { useSettingsStore } from '#/stores';
 
 interface AppThemeProviderProps {
   children: ReactNode;
@@ -37,7 +38,8 @@ const getSystemThemeMode = (): ThemeMode => {
 };
 
 const AppThemeProvider: FC<AppThemeProviderProps> = ({ children }) => {
-  const { settings, updateSettings } = useAppSettings();
+  const settings = useSettingsStore((s) => s.settings);
+  const updateSettings = useSettingsStore((s) => s.updateSettings);
   const [systemThemeMode, setSystemThemeMode] = useState<ThemeMode>(() => getSystemThemeMode());
   const themePreference = settings.themePreference;
   const antdLocale = settings.effectiveUiLanguage === 'ru' ? ruRU : enUS;

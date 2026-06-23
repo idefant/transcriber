@@ -2,14 +2,14 @@ import { type FC } from 'react';
 import { Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
 
-import { useProcessing } from '#/app/processingContext';
-
 import ProcessingSettingsForm from '../ProcessingSettingsForm';
 import SettingRow from '../SettingRow';
 
 import PostProcessTestPanel from './PostProcessTestPanel';
 
 import styles from './PostProcessingSettingsTab.module.scss';
+
+import { useProcessing } from '#/stores';
 
 const PostProcessingSettingsTab: FC = () => {
   const { config, updatePostProcessConfig } = useProcessing();

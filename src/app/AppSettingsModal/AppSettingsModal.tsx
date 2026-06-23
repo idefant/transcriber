@@ -9,9 +9,6 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { useCatalog } from '#/app/catalogContext';
-import { useProviders } from '#/app/providersContext';
-import { useAppSettings } from '#/app/settingsContext';
 import * as settingsApi from '#/shared/settingsApi';
 
 import GeneralSettingsTab from './GeneralSettingsTab';
@@ -30,6 +27,7 @@ import type {
   ProviderInput,
 } from '#/models/Provider';
 import type { AppSettingsInput, SettingsSectionKey } from '#/models/Settings';
+import { useAppSettings, useCatalog, useProviders } from '#/stores';
 
 interface AppSettingsModalProps {
   open: boolean;

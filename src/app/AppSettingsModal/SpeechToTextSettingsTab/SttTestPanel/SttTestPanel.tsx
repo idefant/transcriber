@@ -3,10 +3,11 @@ import { Alert, Button, Space, Typography, Upload, type UploadFile } from 'antd'
 import { MicIcon, RotateCcwIcon, SquareIcon, UploadIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { useProcessing } from '#/app/processingContext';
 import * as processingApi from '#/shared/processingApi';
 
 import styles from './SttTestPanel.module.scss';
+
+import { useProcessing } from '#/stores';
 
 interface LastAudio {
   audio: Uint8Array;

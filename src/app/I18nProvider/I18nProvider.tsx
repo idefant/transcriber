@@ -2,11 +2,10 @@ import { type FC, type ReactNode, useEffect } from 'react';
 import i18next from 'i18next';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
 
-import { useAppSettings } from '#/app/settingsContext';
-
 import { defaultLanguage, resources } from './resources';
 
 import type { EffectiveUiLanguage } from '#/models/Settings';
+import { useSettingsStore } from '#/stores';
 
 interface I18nProviderProps {
   children: ReactNode;
@@ -30,7 +29,7 @@ const changeLanguage = (language: EffectiveUiLanguage) => {
 };
 
 const I18nProvider: FC<I18nProviderProps> = ({ children }) => {
-  const { settings } = useAppSettings();
+  const settings = useSettingsStore((s) => s.settings);
 
   useEffect(() => {
     changeLanguage(settings.effectiveUiLanguage);
