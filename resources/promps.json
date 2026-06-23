@@ -1,7 +1,7 @@
 {
   "sttSystem": {
-    "en": "Custom Dictionary (use these exact spellings when they appear in the text): {{STT_DICTIONARY}}",
-    "ru": "Пользовательский словарь (используй эти точные написания, когда они встречаются в тексте): {{STT_DICTIONARY}}"
+    "en": "Custom Dictionary (use these exact spellings when they appear in the text): {{STT_DICTIONARY}}.",
+    "ru": "Пользовательский словарь (используй эти точные написания, когда они встречаются в тексте): {{STT_DICTIONARY}}."
   },
   "postProcess": {
     "system": {
