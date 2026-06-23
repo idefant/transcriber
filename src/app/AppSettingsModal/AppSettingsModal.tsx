@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from 'react';
+import { type FC, useState } from 'react';
 import { ConfigProvider, Menu, type MenuProps, message, Modal } from 'antd';
 import {
   BookOpenIcon,
@@ -9,9 +9,9 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { useCatalog } from '#/app/catalogContext';
 import { useProviders } from '#/app/providersContext';
 import { useAppSettings } from '#/app/settingsContext';
-import * as catalogApi from '#/shared/catalogApi';
 import * as settingsApi from '#/shared/settingsApi';
 
 import GeneralSettingsTab from './GeneralSettingsTab';
@@ -23,7 +23,6 @@ import SpeechToTextSettingsTab from './SpeechToTextSettingsTab';
 
 import styles from './AppSettingsModal.module.scss';
 
-import type { CuratedModelInfo } from '#/models/Catalog';
 import type {
   ModelInfo,
   ProviderConfig,
@@ -52,6 +51,7 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
     validateProviderConfig,
   } = useProviders();
   const { settings, updateSettings } = useAppSettings();
+  const { catalog } = useCatalog();
   const [activeSection, setActiveSection] = useState<SettingsSectionKey>('general');
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<ProviderConfig>();
@@ -60,7 +60,6 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
   const [isSavingProvider, setIsSavingProvider] = useState(false);
   const [isValidatingProvider, setIsValidatingProvider] = useState(false);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
-  const [catalog, setCatalog] = useState<CuratedModelInfo[]>([]);
   const isEditingProvider = editingProvider !== undefined;
   const settingsMenuItems: MenuProps['items'] = [
     {
@@ -89,15 +88,6 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
       label: t('settings.sections.postProcessing'),
     },
   ];
-
-  useEffect(() => {
-    catalogApi
-      .getModelCatalog()
-      .then(setCatalog)
-      .catch(() => {
-        // Catalog is static; ignore errors.
-      });
-  }, []);
 
   const handleOpenProviderModal = (provider?: ProviderConfig) => {
     setEditingProvider(provider);

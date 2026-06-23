@@ -2,17 +2,17 @@ import { type FC, useEffect, useMemo, useState } from 'react';
 import { Empty, Form, Select, Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
 
+import { useCatalog } from '#/app/catalogContext';
 import { useProcessing } from '#/app/processingContext';
 import { useProviders } from '#/app/providersContext';
 import { useAppSettings } from '#/app/settingsContext';
-import * as catalogApi from '#/shared/catalogApi';
 import * as processingApi from '#/shared/processingApi';
 
 import PromptField from './PromptField';
 
 import styles from './ProcessingSettingsForm.module.scss';
 
-import type { CuratedModelInfo, ModelTask } from '#/models/Catalog';
+import type { ModelTask } from '#/models/Catalog';
 import type { DefaultPrompts } from '#/models/Processing';
 
 interface ProcessingSettingsFormProps {
@@ -38,21 +38,14 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
   const { providers } = useProviders();
   const { settings } = useAppSettings();
   const { config, updateSttConfig, updatePostProcessConfig } = useProcessing();
+  const { catalog, isLoading: isCatalogLoading } = useCatalog();
   const { t } = useTranslation();
-  const [catalog, setCatalog] = useState<CuratedModelInfo[]>([]);
   const [defaultPrompts, setDefaultPrompts] = useState<DefaultPrompts>();
   const languageOptions = [
     { label: t('settings.processing.languages.auto'), value: 'auto' },
     { label: t('settings.processing.languages.ru'), value: 'ru' },
     { label: t('settings.processing.languages.en'), value: 'en' },
   ];
-
-  useEffect(() => {
-    catalogApi
-      .getModelCatalog()
-      .then(setCatalog)
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     processingApi
@@ -202,6 +195,10 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
 
   const defaultSystemPrompt =
     (isStt ? defaultPrompts?.sttSystem : defaultPrompts?.postProcessSystem) ?? '';
+
+  if (isCatalogLoading) {
+    return null;
+  }
 
   if (compatibleProviders.length === 0) {
     return (

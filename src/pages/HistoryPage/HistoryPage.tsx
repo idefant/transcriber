@@ -260,7 +260,7 @@ const HistoryPage: FC = () => {
           </div>
 
           <Spin spinning={isLoading}>
-            {filteredGroups.length > 0 ? (
+            {isLoading ? null : filteredGroups.length > 0 ? (
               <HistoryRecordsList
                 activeDate={activeDate}
                 groups={filteredGroups}

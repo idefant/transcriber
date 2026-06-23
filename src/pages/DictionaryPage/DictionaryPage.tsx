@@ -116,7 +116,7 @@ const DictionaryPage: FC = () => {
               </Tooltip>
             </Space.Compact>
 
-            {sortedWords.length === 0 ? (
+            {!isLoading && sortedWords.length === 0 ? (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ) : (
               <div className={styles.words}>

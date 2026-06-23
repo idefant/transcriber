@@ -3,6 +3,7 @@ import type { FC } from 'react';
 
 import AppSettingsProvider from '#/app/AppSettingsProvider';
 import AppThemeProvider from '#/app/AppThemeProvider';
+import CatalogProvider from '#/app/CatalogProvider';
 import DictationHotkeyFallback from '#/app/DictationHotkeyFallback';
 import I18nProvider from '#/app/I18nProvider';
 import ProcessingProvider from '#/app/ProcessingProvider';
@@ -15,11 +16,13 @@ const App: FC = () => {
       <DictationHotkeyFallback />
       <I18nProvider>
         <AppThemeProvider>
-          <ProvidersProvider>
-            <ProcessingProvider>
-              <RouterProvider router={router} />
-            </ProcessingProvider>
-          </ProvidersProvider>
+          <CatalogProvider>
+            <ProvidersProvider>
+              <ProcessingProvider>
+                <RouterProvider router={router} />
+              </ProcessingProvider>
+            </ProvidersProvider>
+          </CatalogProvider>
         </AppThemeProvider>
       </I18nProvider>
     </AppSettingsProvider>
