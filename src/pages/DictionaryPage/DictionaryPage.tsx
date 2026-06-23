@@ -1,5 +1,25 @@
-import { type FC, type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Card, Empty, Input, message, Space, Spin, Tag, Tooltip } from 'antd';
+import {
+  type FC,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { flushSync } from 'react-dom';
+import {
+  Button,
+  Card,
+  Empty,
+  Input,
+  type InputRef,
+  message,
+  Space,
+  Spin,
+  Tag,
+  Tooltip,
+} from 'antd';
 import { PlusIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -17,6 +37,7 @@ const DictionaryPage: FC = () => {
   const [words, setWords] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const inputRef = useRef<InputRef>(null);
 
   const sortedWords = useMemo(
     () => words.toSorted((firstWord, secondWord) => firstWord.localeCompare(secondWord, 'ru')),
@@ -60,7 +81,10 @@ const DictionaryPage: FC = () => {
     } catch (error) {
       void messageApi.error(getErrorMessage(error));
     } finally {
-      setIsSaving(false);
+      flushSync(() => {
+        setIsSaving(false);
+      });
+      inputRef.current?.focus();
     }
   };
 
@@ -92,6 +116,7 @@ const DictionaryPage: FC = () => {
           <div className={styles.dictionary}>
             <Space.Compact className={styles.addWord}>
               <Input
+                ref={inputRef}
                 aria-label={t('dictionary.newWord')}
                 className={styles.wordInput}
                 disabled={isLoading || isSaving}
@@ -116,9 +141,7 @@ const DictionaryPage: FC = () => {
               </Tooltip>
             </Space.Compact>
 
-            {!isLoading && sortedWords.length === 0 ? (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            ) : (
+            {sortedWords.length > 0 ? (
               <div className={styles.words}>
                 {sortedWords.map((word) => (
                   <Tag
@@ -136,6 +159,8 @@ const DictionaryPage: FC = () => {
                   </Tag>
                 ))}
               </div>
+            ) : isLoading ? null : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
             )}
           </div>
         </Spin>

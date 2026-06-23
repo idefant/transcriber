@@ -50,31 +50,38 @@ const HistoryPage: FC = () => {
 
   const filteredGroups = historyGroups;
 
-  const loadHistory = useCallback(async () => {
-    setIsLoading(true);
+  const loadHistory = useCallback(
+    async (silent = false) => {
+      if (!silent) {
+        setIsLoading(true);
+      }
 
-    try {
-      const groups = await historyApi.getHistoryGroups(selectedMonth);
+      try {
+        const groups = await historyApi.getHistoryGroups(selectedMonth);
 
-      setHistoryGroups(groups);
-      setActiveDate((currentDate) =>
-        groups.some((group) => group.date === currentDate) ? currentDate : groups[0]?.date,
-      );
-      setSelectedRecord((currentRecord) => {
-        if (currentRecord === undefined) {
-          return currentRecord;
+        setHistoryGroups(groups);
+        setActiveDate((currentDate) =>
+          groups.some((group) => group.date === currentDate) ? currentDate : groups[0]?.date,
+        );
+        setSelectedRecord((currentRecord) => {
+          if (currentRecord === undefined) {
+            return currentRecord;
+          }
+
+          return groups
+            .flatMap((group) => group.records)
+            .find((record) => record.id === currentRecord.id);
+        });
+      } catch (error) {
+        void messageApi.error(getErrorMessage(error));
+      } finally {
+        if (!silent) {
+          setIsLoading(false);
         }
-
-        return groups
-          .flatMap((group) => group.records)
-          .find((record) => record.id === currentRecord.id);
-      });
-    } catch (error) {
-      void messageApi.error(getErrorMessage(error));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [messageApi, selectedMonth]);
+      }
+    },
+    [messageApi, selectedMonth],
+  );
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -88,7 +95,7 @@ const HistoryPage: FC = () => {
 
     void listen('history-updated', () => {
       if (isMounted) {
-        void loadHistory();
+        void loadHistory(true);
       }
     }).then((unlisten) => {
       removeListener = unlisten;
@@ -260,7 +267,7 @@ const HistoryPage: FC = () => {
           </div>
 
           <Spin spinning={isLoading}>
-            {isLoading ? null : filteredGroups.length > 0 ? (
+            {filteredGroups.length > 0 ? (
               <HistoryRecordsList
                 activeDate={activeDate}
                 groups={filteredGroups}
@@ -278,7 +285,7 @@ const HistoryPage: FC = () => {
                   void handleRepeatRecord(record);
                 }}
               />
-            ) : (
+            ) : isLoading ? null : (
               <Empty description={t('history.emptyMonth')} />
             )}
           </Spin>

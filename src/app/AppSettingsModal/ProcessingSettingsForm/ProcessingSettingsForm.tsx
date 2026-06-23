@@ -245,25 +245,29 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
         </div>
       </Form.Item>
 
-      <PromptField
-        defaultValue={defaultSystemPrompt}
-        disabled={disabled}
-        enabled={useCustomPrompts}
-        label={t('settings.processing.systemPrompt')}
-        storedValue={currentConfig.systemPrompt}
-        onPersist={persistSystemPrompt}
-      />
+      {defaultPrompts !== undefined && (
+        <>
+          <PromptField
+            defaultValue={defaultSystemPrompt}
+            disabled={disabled}
+            enabled={useCustomPrompts}
+            label={t('settings.processing.systemPrompt')}
+            storedValue={currentConfig.systemPrompt}
+            onPersist={persistSystemPrompt}
+          />
 
-      {!isStt && (
-        <PromptField
-          defaultValue={defaultPrompts?.postProcessUserTemplate ?? ''}
-          disabled={disabled}
-          enabled={useCustomPrompts}
-          hint={t('settings.processing.userPromptTemplateHint')}
-          label={t('settings.processing.userPromptTemplate')}
-          storedValue={config.postProcess.userPromptTemplate}
-          onPersist={persistUserPromptTemplate}
-        />
+          {!isStt && (
+            <PromptField
+              defaultValue={defaultPrompts.postProcessUserTemplate}
+              disabled={disabled}
+              enabled={useCustomPrompts}
+              hint={t('settings.processing.userPromptTemplateHint')}
+              label={t('settings.processing.userPromptTemplate')}
+              storedValue={config.postProcess.userPromptTemplate}
+              onPersist={persistUserPromptTemplate}
+            />
+          )}
+        </>
       )}
     </Form>
   );
