@@ -41,3 +41,10 @@ textarea,
 select {
   font: inherit;
 }
+
+/* stylelint-disable selector-class-pattern */
+.ant-menu-item,
+.ant-menu-submenu-title {
+  padding-inline: 16px 12px !important;
+}
+/* stylelint-enable selector-class-pattern */

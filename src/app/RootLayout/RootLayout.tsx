@@ -60,7 +60,7 @@ const RootLayout: FC = () => {
 
   return (
     <Layout className={styles.root}>
-      <Sider className={styles.sider} theme="light" width={180}>
+      <Sider className={styles.sider} theme="light" width={168}>
         <div className={styles.brand}>{t('common.productName')}</div>
         <Menu
           className={styles.menu}
