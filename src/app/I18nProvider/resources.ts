@@ -63,8 +63,7 @@ const en = {
       },
       cancelRecording: {
         title: 'Cancel recording',
-        description: 'Keyboard shortcut that cancels the current dictation; clear to disable',
-        placeholder: 'Disabled',
+        description: 'Keyboard shortcut that cancels the current dictation',
       },
       triggerMode: {
         title: 'Trigger mode',
@@ -72,6 +71,8 @@ const en = {
         press: 'On press',
         hold: 'While held',
       },
+      record: 'Record shortcut',
+      recording: 'Press keys…',
     },
     providers: {
       add: 'Add provider',
@@ -239,9 +240,7 @@ const ru: typeof en = {
       },
       cancelRecording: {
         title: 'Отмена записи',
-        description:
-          'Комбинация клавиш, отменяющая текущую диктовку; очистите поле, чтобы отключить',
-        placeholder: 'Отключено',
+        description: 'Комбинация клавиш, отменяющая текущую диктовку',
       },
       triggerMode: {
         title: 'Режим запуска',
@@ -249,6 +248,8 @@ const ru: typeof en = {
         press: 'По нажатию',
         hold: 'По зажатию',
       },
+      record: 'Записать комбинацию',
+      recording: 'Нажмите клавиши…',
     },
     providers: {
       add: 'Добавить провайдера',

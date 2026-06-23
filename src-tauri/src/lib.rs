@@ -54,6 +54,7 @@ pub fn run() {
             dictation::cancel_dictation,
             dictation::dictation_shortcut_pressed,
             dictation::dictation_shortcut_released,
+            shortcut_hook::set_hotkey_capture_active,
             history::get_history_groups,
             history::delete_history_record,
             history::open_history_audio,

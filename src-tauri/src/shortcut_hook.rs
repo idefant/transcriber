@@ -1,4 +1,13 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use crate::error::{AppError, AppResult};
+
+static IS_HOTKEY_CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command]
+pub fn set_hotkey_capture_active(active: bool) {
+    IS_HOTKEY_CAPTURE_ACTIVE.store(active, Ordering::Relaxed);
+}
 
 #[derive(Clone, Copy)]
 pub enum ShortcutState {
@@ -299,6 +308,7 @@ mod windows_hook {
     use std::{
         mem, ptr,
         sync::{
+            atomic::Ordering,
             mpsc::{self, Sender},
             Mutex, OnceLock,
         },
@@ -456,6 +466,10 @@ mod windows_hook {
     }
 
     fn try_consume_dictation_event(vk_code: u32, is_key_down: bool, is_key_up: bool) -> bool {
+        if super::IS_HOTKEY_CAPTURE_ACTIVE.load(Ordering::Relaxed) {
+            return false;
+        }
+
         let Some(config_mutex) = HOTKEY.get() else {
             return false;
         };

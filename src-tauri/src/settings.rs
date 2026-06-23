@@ -145,7 +145,7 @@ fn default_hotkey() -> String {
 }
 
 fn default_cancel_hotkey() -> String {
-    "Escape".to_string()
+    "Ctrl+Z".to_string()
 }
 
 #[tauri::command]

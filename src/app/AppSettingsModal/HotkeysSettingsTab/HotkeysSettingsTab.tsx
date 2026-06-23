@@ -1,8 +1,10 @@
 import { type FC } from 'react';
-import { Input, Segmented } from 'antd';
+import { Segmented } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import SettingRow from '../SettingRow';
+
+import HotkeyInput from './HotkeyInput';
 
 import styles from './HotkeysSettingsTab.module.scss';
 
@@ -33,28 +35,14 @@ const HotkeysSettingsTab: FC<HotkeysSettingsTabProps> = ({
         description={t('settings.hotkeys.startRecording.description')}
         title={t('settings.hotkeys.startRecording.title')}
       >
-        <Input
-          className={styles.hotkeyInput}
-          value={hotkey}
-          onChange={(event) => {
-            onHotkeyChange(event.target.value);
-          }}
-        />
+        <HotkeyInput value={hotkey} onChange={onHotkeyChange} />
       </SettingRow>
 
       <SettingRow
         description={t('settings.hotkeys.cancelRecording.description')}
         title={t('settings.hotkeys.cancelRecording.title')}
       >
-        <Input
-          allowClear
-          className={styles.hotkeyInput}
-          placeholder={t('settings.hotkeys.cancelRecording.placeholder')}
-          value={cancelHotkey}
-          onChange={(event) => {
-            onCancelHotkeyChange(event.target.value);
-          }}
-        />
+        <HotkeyInput value={cancelHotkey} onChange={onCancelHotkeyChange} />
       </SettingRow>
 
       <SettingRow

@@ -2,6 +2,7 @@ import { type FC, useEffect, useRef } from 'react';
 
 import { useAppSettings } from '#/app/settingsContext';
 import * as dictationApi from '#/shared/dictationApi';
+import { isHotkeyCaptureActive } from '#/shared/hotkeyCaptureLock';
 
 interface ParsedHotkey {
   alt: boolean;
@@ -95,7 +96,7 @@ const DictationHotkeyFallback: FC = () => {
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!eventMatchesHotkey(event, hotkey)) {
+      if (isHotkeyCaptureActive() || !eventMatchesHotkey(event, hotkey)) {
         return;
       }
 
