@@ -2,6 +2,7 @@ import { type FC, useState } from 'react';
 import { ConfigProvider, Menu, type MenuProps, message, Modal } from 'antd';
 import {
   BookOpenIcon,
+  InfoIcon,
   KeyboardIcon,
   SettingsIcon,
   SlidersHorizontalIcon,
@@ -11,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 
 import * as settingsApi from '#/shared/settingsApi';
 
+import AboutSettingsTab from './AboutSettingsTab';
 import GeneralSettingsTab from './GeneralSettingsTab';
 import HotkeysSettingsTab from './HotkeysSettingsTab';
 import PostProcessingSettingsTab from './PostProcessingSettingsTab';
@@ -84,6 +86,11 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
       icon: <WandSparklesIcon size={18} strokeWidth={2} />,
       key: 'postProcessing',
       label: t('settings.sections.postProcessing'),
+    },
+    {
+      icon: <InfoIcon size={18} strokeWidth={2} />,
+      key: 'about',
+      label: t('settings.sections.about'),
     },
   ];
 
@@ -247,6 +254,10 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
 
       case 'postProcessing': {
         return <PostProcessingSettingsTab />;
+      }
+
+      case 'about': {
+        return <AboutSettingsTab />;
       }
     }
   };

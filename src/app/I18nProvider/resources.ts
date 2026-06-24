@@ -26,6 +26,7 @@ const en = {
       providers: 'Providers',
       speechToText: 'Speech-to-Text',
       postProcessing: 'Post-processing',
+      about: 'About',
     },
     general: {
       theme: {
@@ -127,6 +128,12 @@ const en = {
         description: 'Process the transcription result after speech-to-text',
       },
     },
+    about: {
+      version: {
+        title: 'Version',
+        description: 'Current version of Transcriber',
+      },
+    },
     tests: {
       title: 'Configuration test',
       inputPlaceholder: 'Enter text to process',
@@ -203,6 +210,7 @@ const ru: typeof en = {
       providers: 'Провайдеры',
       speechToText: 'Speech-to-Text',
       postProcessing: 'Постобработка',
+      about: 'О программе',
     },
     general: {
       theme: {
@@ -304,6 +312,12 @@ const ru: typeof en = {
       enabled: {
         title: 'Включить постобработку',
         description: 'Запускать обработку результата после транскрибации',
+      },
+    },
+    about: {
+      version: {
+        title: 'Версия',
+        description: 'Текущая версия Transcriber',
       },
     },
     tests: {

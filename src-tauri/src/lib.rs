@@ -8,6 +8,7 @@ mod dictionary;
 mod error;
 mod history;
 mod keyboard;
+mod migrations;
 mod overlay;
 mod processing;
 mod providers;
@@ -25,6 +26,7 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
 
+            migrations::run(&app_handle)?;
             overlay::create_recording_overlay(&app_handle)?;
             dictation::register_dictation_shortcut(&app_handle)?;
             background::setup_background_mode(&app_handle)?;

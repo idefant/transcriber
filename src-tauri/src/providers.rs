@@ -481,7 +481,7 @@ pub fn resolve_provider_api_key(app: &tauri::AppHandle, provider_id: &str) -> Ap
 }
 
 fn load_providers(app: &tauri::AppHandle) -> AppResult<Vec<StoredProvider>> {
-    storage::load_json_or_default(app, PROVIDERS_FILE_NAME)
+    storage::load_json_strict(app, PROVIDERS_FILE_NAME)
 }
 
 fn save_providers(app: &tauri::AppHandle, providers: &[StoredProvider]) -> AppResult<()> {

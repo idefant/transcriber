@@ -709,7 +709,7 @@ fn find_record_index(records: &[HistoryRecord], record_id: &str) -> AppResult<us
 }
 
 fn load_history_store(app: &tauri::AppHandle) -> AppResult<HistoryStore> {
-    storage::load_json_or_default(app, HISTORY_FILE_NAME)
+    storage::load_json_strict(app, HISTORY_FILE_NAME)
 }
 
 fn save_history_store(app: &tauri::AppHandle, store: &HistoryStore) -> AppResult<()> {

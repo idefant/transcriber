@@ -3,7 +3,8 @@ export type SettingsSectionKey =
   | 'hotkeys'
   | 'providers'
   | 'speechToText'
-  | 'postProcessing';
+  | 'postProcessing'
+  | 'about';
 
 export type ThemeMode = 'dark' | 'light';
 export type ThemePreference = 'auto' | ThemeMode;
