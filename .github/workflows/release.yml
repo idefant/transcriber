@@ -102,6 +102,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # The version-sync and build steps leave the working tree dirty
+          # (package.json, Cargo.toml, Cargo.lock, tauri.conf.json). Discard those
+          # changes so switching to the gh-pages branch does not abort.
+          git reset --hard HEAD
+
           # Fetch or create gh-pages branch
           git fetch origin gh-pages 2>/dev/null || true
           if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
