@@ -111,6 +111,14 @@ npm run encoding:check
 npm run check
 ```
 
+## Release Pipeline
+
+The tag-driven CI/CD workflow, update channels (stable/unstable), minisign key setup, and how the Tauri updater delivers updates are documented in [release-pipeline.md](release-pipeline.md).
+
+## Storage Migrations
+
+The `_meta.json` versioning scheme, `migrations::run` call order, first-run detection, `load_json_or_default` vs `load_json_strict`, atomic `save_json`, and how to add a migration step are documented in [storage-migrations.md](storage-migrations.md).
+
 ## Model Testing
 
 Post-processing model evals are documented in [model-testing.md](model-testing.md).

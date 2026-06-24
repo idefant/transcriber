@@ -1,10 +1,13 @@
-import { type FC, useEffect } from 'react';
+import { type FC, useEffect, useRef } from 'react';
 import { RouterProvider } from 'react-router';
+import { notification } from 'antd';
+import { useTranslation } from 'react-i18next';
 
 import AppThemeProvider from '#/app/AppThemeProvider';
 import DictationHotkeyFallback from '#/app/DictationHotkeyFallback';
 import I18nProvider from '#/app/I18nProvider';
 import { router } from '#/app/router';
+import * as updaterApi from '#/shared/updaterApi';
 
 import {
   initHistoryEventSubscription,
@@ -47,6 +50,43 @@ const HistorySubscription: FC = () => {
   return null;
 };
 
+// Performs a single silent update check after settings have loaded.
+// If an update is available, shows a non-intrusive notification.
+const UpdateChecker: FC = () => {
+  const { t } = useTranslation();
+  const [notificationApi, notificationContextHolder] = notification.useNotification();
+  const hasChecked = useRef(false);
+  const isSettingsLoaded = useSettingsStore((s) => !s.isLoading && !s.error);
+  const isOfferUnstableVersionsEnabled = useSettingsStore(
+    (s) => s.settings.isOfferUnstableVersionsEnabled,
+  );
+
+  useEffect(() => {
+    if (!isSettingsLoaded || hasChecked.current) {
+      return;
+    }
+
+    hasChecked.current = true;
+
+    void (async () => {
+      const info = await updaterApi.checkForUpdate(isOfferUnstableVersionsEnabled);
+      if (!info) {
+        return;
+      }
+
+      notificationApi.info({
+        message: t('settings.about.updateAvailable', { version: info.version }),
+        description: info.notes ?? undefined,
+        placement: 'bottomRight',
+        duration: 0,
+        key: 'update-available',
+      });
+    })();
+  }, [isSettingsLoaded, isOfferUnstableVersionsEnabled, notificationApi, t]);
+
+  return <>{notificationContextHolder}</>;
+};
+
 const App: FC = () => {
   return (
     <I18nProvider>
@@ -54,6 +94,7 @@ const App: FC = () => {
         <StoreLoader />
         <HistorySubscription />
         <DictationHotkeyFallback />
+        <UpdateChecker />
         <RouterProvider router={router} />
       </AppThemeProvider>
     </I18nProvider>

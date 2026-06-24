@@ -27,6 +27,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -42,6 +43,15 @@
         "installMode": "currentUser",
         "languages": ["Russian", "English"],
         "displayLanguageSelector": true
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERBMzNDNTQ3MDk1NzU1RDMKUldUVFZWY0pSOFV6Mm80N0NCMi9hU2U0azJ5UmRUclRicE9kcDhsOHFucm5ONk1DdlA1RUROS3YK",
+      "endpoints": ["https://idefant.github.io/transcriber/stable.json"],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

@@ -314,6 +314,11 @@ export default tseslint.config(
         ...globals.node,
       },
     },
+    rules: {
+      'unicorn/no-process-exit': 'off',
+      'unicorn/no-null': 'off',
+      'unicorn/prevent-abbreviations': 'off',
+    },
   },
   {
     files: ['*.cjs'],

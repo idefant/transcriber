@@ -19,6 +19,7 @@ export interface AppSettings {
   isDebugLoggingEnabled: boolean;
   isLaunchAtLoginEnabled: boolean;
   isMuteWhileRecordingEnabled: boolean;
+  isOfferUnstableVersionsEnabled: boolean;
   themePreference: ThemePreference;
   triggerMode: TriggerMode;
   uiLanguage: UiLanguage;

@@ -11,6 +11,7 @@ const defaultAppSettings: AppSettings = {
   isDebugLoggingEnabled: false,
   isLaunchAtLoginEnabled: true,
   isMuteWhileRecordingEnabled: true,
+  isOfferUnstableVersionsEnabled: false,
   themePreference: 'light',
   triggerMode: 'press',
   uiLanguage: 'system',

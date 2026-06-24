@@ -83,6 +83,8 @@ pub struct AppSettings {
     cancel_hotkey: String,
     #[serde(default)]
     trigger_mode: TriggerMode,
+    #[serde(default)]
+    is_offer_unstable_versions_enabled: bool,
 }
 
 impl Default for AppSettings {
@@ -97,6 +99,7 @@ impl Default for AppSettings {
             hotkey: default_hotkey(),
             cancel_hotkey: default_cancel_hotkey(),
             trigger_mode: TriggerMode::default(),
+            is_offer_unstable_versions_enabled: false,
         }
     }
 }
@@ -130,6 +133,7 @@ pub struct AppSettingsInput {
     hotkey: Option<String>,
     cancel_hotkey: Option<String>,
     trigger_mode: Option<TriggerMode>,
+    is_offer_unstable_versions_enabled: Option<bool>,
 }
 
 fn default_mute_while_recording_enabled() -> bool {
@@ -202,6 +206,10 @@ fn update_app_settings_inner(
 
     if let Some(trigger_mode) = input.trigger_mode {
         settings.trigger_mode = trigger_mode;
+    }
+
+    if let Some(is_offer_unstable_versions_enabled) = input.is_offer_unstable_versions_enabled {
+        settings.is_offer_unstable_versions_enabled = is_offer_unstable_versions_enabled;
     }
 
     settings.effective_ui_language = resolve_effective_ui_language(&settings.ui_language);

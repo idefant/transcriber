@@ -133,6 +133,16 @@ const en = {
         title: 'Version',
         description: 'Current version of Transcriber',
       },
+      checkForUpdates: 'Check for updates',
+      updateAvailable: 'Update {{version}} is available',
+      installUpdate: 'Install {{version}}',
+      noUpdate: 'You are on the latest version',
+      installing: 'Installing update…',
+      installError: 'Update failed',
+      offerUnstable: {
+        title: 'Offer pre-release versions',
+        description: 'Include alpha and beta releases when checking for updates',
+      },
     },
     tests: {
       title: 'Configuration test',
@@ -318,6 +328,16 @@ const ru: typeof en = {
       version: {
         title: 'Версия',
         description: 'Текущая версия Transcriber',
+      },
+      checkForUpdates: 'Проверить обновления',
+      updateAvailable: 'Доступно обновление {{version}}',
+      installUpdate: 'Установить {{version}}',
+      noUpdate: 'У вас установлена последняя версия',
+      installing: 'Устанавливаем обновление…',
+      installError: 'Ошибка обновления',
+      offerUnstable: {
+        title: 'Предлагать нестабильные версии',
+        description: 'Учитывать альфа- и бета-релизы при проверке обновлений',
       },
     },
     tests: {

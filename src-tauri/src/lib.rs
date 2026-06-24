@@ -17,12 +17,15 @@ mod runner;
 mod settings;
 mod shortcut_hook;
 mod storage;
+mod updater;
 
 pub fn run() {
     tauri::Builder::default()
         .manage(background::BackgroundRuntime::default())
         .manage(debug_log::DebugLogRuntime::default())
         .manage(dictation::DictationRuntime::default())
+        .manage(updater::PendingUpdate::default())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -63,6 +66,8 @@ pub fn run() {
             history::repeat_history_record,
             history::repeat_history_transcription,
             history::repeat_history_post_processing,
+            updater::check_for_update,
+            updater::download_and_install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Transcriber");

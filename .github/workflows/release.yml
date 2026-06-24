@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.2.3)'
+        required: true
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Determine version and prerelease flag
+        id: version
+        shell: bash
+        run: |
+          REF="${{ github.ref_name }}"
+          # Support workflow_dispatch with manual tag input
+          if [ -z "$REF" ] || [ "$REF" = "main" ]; then
+            REF="${{ github.event.inputs.tag }}"
+          fi
+          VERSION="${REF#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if echo "$VERSION" | grep -qE '[-]'; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: Sync version into manifests
+        shell: bash
+        run: node scripts/set-version.mjs "${{ steps.version.outputs.version }}"
+
+      - name: Extract release notes from CHANGELOG
+        id: changelog
+        shell: bash
+        run: |
+          NOTES=$(node scripts/extract-changelog.mjs "${{ steps.version.outputs.version }}")
+          # GitHub Actions multiline output
+          echo "notes<<CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+          echo "$NOTES" >> "$GITHUB_OUTPUT"
+          echo "CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build and publish Tauri release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ steps.version.outputs.tag }}
+          releaseName: 'Transcriber v__VERSION__'
+          releaseBody: ${{ steps.changelog.outputs.notes }}
+          releaseDraft: false
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          includeUpdaterJson: true
+
+      - name: Download update manifest
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "${{ steps.version.outputs.tag }}" \
+            --pattern "latest.json" \
+            --dir /tmp/updater-manifest
+
+      - name: Publish channel manifests to GitHub Pages
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fetch or create gh-pages branch
+          git fetch origin gh-pages 2>/dev/null || true
+          if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+            git checkout gh-pages
+          else
+            git checkout --orphan gh-pages
+            git rm -rf .
+          fi
+
+          # unstable channel always gets the latest build
+          cp /tmp/updater-manifest/latest.json unstable.json
+
+          # stable channel only gets non-prerelease builds
+          if [ "${{ steps.version.outputs.prerelease }}" = "false" ]; then
+            cp /tmp/updater-manifest/latest.json stable.json
+          fi
+
+          git add unstable.json
+          git add stable.json 2>/dev/null || true  # stable.json may not exist yet for first prerelease
+          git diff --cached --quiet || git commit -m "Update channel manifests for ${{ steps.version.outputs.tag }}"
+          git push origin gh-pages
