@@ -127,9 +127,13 @@ Post-processing model evals are documented in [model-testing.md](model-testing.m
 
 Local model-call debug logging is documented in [debug-logging.md](debug-logging.md).
 
+## Hotkey Architecture
+
+The two-path hotkey system (native hook + in-app DOM handler), left/right modifier format, and dev/prod settings divergence are documented in [hotkeys.md](hotkeys.md).
+
 ## Cancel Hotkey
 
-The arm/disarm pattern used for the cancel hotkey is documented in [cancel-hotkey.md](cancel-hotkey.md).
+The arm/disarm pattern, in-app DOM cancel path, and session gating are documented in [cancel-hotkey.md](cancel-hotkey.md).
 
 ## State Management
 

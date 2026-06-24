@@ -60,11 +60,19 @@ pub fn disarm_cancel_hotkey() {
 pub fn disarm_cancel_hotkey() {}
 
 #[derive(Clone, Copy)]
+enum ModifierSide {
+    None,
+    Either,
+    Left,
+    Right,
+}
+
+#[derive(Clone, Copy)]
 struct Hotkey {
-    ctrl: bool,
-    alt: bool,
-    shift: bool,
-    win: bool,
+    ctrl: ModifierSide,
+    alt: ModifierSide,
+    shift: ModifierSide,
+    win: ModifierSide,
     main_key: MainKey,
 }
 
@@ -76,10 +84,10 @@ struct MainKey {
 
 impl Hotkey {
     fn parse(value: &str) -> AppResult<Self> {
-        let mut ctrl = false;
-        let mut alt = false;
-        let mut shift = false;
-        let mut win = false;
+        let mut ctrl = ModifierSide::None;
+        let mut alt = ModifierSide::None;
+        let mut shift = ModifierSide::None;
+        let mut win = ModifierSide::None;
         let mut main_key = None;
 
         for part in value
@@ -88,10 +96,20 @@ impl Hotkey {
             .filter(|part| !part.is_empty())
         {
             match part.to_ascii_lowercase().as_str() {
-                "ctrl" | "control" => ctrl = true,
-                "alt" | "option" => alt = true,
-                "shift" => shift = true,
-                "win" | "windows" | "meta" | "super" | "cmd" | "command" => win = true,
+                "ctrl" | "control" => ctrl = ModifierSide::Either,
+                "lctrl" | "lcontrol" => ctrl = ModifierSide::Left,
+                "rctrl" | "rcontrol" => ctrl = ModifierSide::Right,
+                "alt" | "option" => alt = ModifierSide::Either,
+                "lalt" | "loption" => alt = ModifierSide::Left,
+                "ralt" | "roption" => alt = ModifierSide::Right,
+                "shift" => shift = ModifierSide::Either,
+                "lshift" => shift = ModifierSide::Left,
+                "rshift" => shift = ModifierSide::Right,
+                "win" | "windows" | "meta" | "super" | "cmd" | "command" => {
+                    win = ModifierSide::Either
+                }
+                "lwin" => win = ModifierSide::Left,
+                "rwin" => win = ModifierSide::Right,
                 _ => {
                     if main_key.is_some() {
                         return Err(AppError::from("Shortcut can contain only one main key"));
@@ -118,20 +136,32 @@ impl Hotkey {
     fn to_normalized_string(self) -> String {
         let mut parts = Vec::new();
 
-        if self.ctrl {
-            parts.push("Ctrl");
+        match self.ctrl {
+            ModifierSide::Either => parts.push("Ctrl"),
+            ModifierSide::Left => parts.push("LCtrl"),
+            ModifierSide::Right => parts.push("RCtrl"),
+            ModifierSide::None => {}
         }
 
-        if self.alt {
-            parts.push("Alt");
+        match self.alt {
+            ModifierSide::Either => parts.push("Alt"),
+            ModifierSide::Left => parts.push("LAlt"),
+            ModifierSide::Right => parts.push("RAlt"),
+            ModifierSide::None => {}
         }
 
-        if self.shift {
-            parts.push("Shift");
+        match self.shift {
+            ModifierSide::Either => parts.push("Shift"),
+            ModifierSide::Left => parts.push("LShift"),
+            ModifierSide::Right => parts.push("RShift"),
+            ModifierSide::None => {}
         }
 
-        if self.win {
-            parts.push("Win");
+        match self.win {
+            ModifierSide::Either => parts.push("Win"),
+            ModifierSide::Left => parts.push("LWin"),
+            ModifierSide::Right => parts.push("RWin"),
+            ModifierSide::None => {}
         }
 
         parts.push(self.main_key.name);
@@ -325,15 +355,18 @@ mod windows_hook {
         },
     };
 
-    use super::{Hotkey, ShortcutState};
+    use super::{Hotkey, ModifierSide, ShortcutState};
     use crate::{
         dictation,
         error::{AppError, AppResult},
     };
 
-    const VK_CONTROL: u32 = 0x11;
-    const VK_MENU: u32 = 0x12;
-    const VK_SHIFT: u32 = 0x10;
+    const VK_LCONTROL: u32 = 0xA2;
+    const VK_RCONTROL: u32 = 0xA3;
+    const VK_LSHIFT: u32 = 0xA0;
+    const VK_RSHIFT: u32 = 0xA1;
+    const VK_LMENU: u32 = 0xA4;
+    const VK_RMENU: u32 = 0xA5;
     const VK_LWIN: u32 = 0x5B;
     const VK_RWIN: u32 = 0x5C;
 
@@ -545,11 +578,20 @@ mod windows_hook {
         false
     }
 
+    fn modifier_side_matches(side: ModifierSide, l_vk: u32, r_vk: u32) -> bool {
+        match side {
+            ModifierSide::None => !is_key_down(l_vk) && !is_key_down(r_vk),
+            ModifierSide::Either => is_key_down(l_vk) || is_key_down(r_vk),
+            ModifierSide::Left => is_key_down(l_vk) && !is_key_down(r_vk),
+            ModifierSide::Right => !is_key_down(l_vk) && is_key_down(r_vk),
+        }
+    }
+
     fn modifiers_match(hotkey: Hotkey) -> bool {
-        is_key_down(VK_CONTROL) == hotkey.ctrl
-            && is_key_down(VK_MENU) == hotkey.alt
-            && is_key_down(VK_SHIFT) == hotkey.shift
-            && (is_key_down(VK_LWIN) || is_key_down(VK_RWIN)) == hotkey.win
+        modifier_side_matches(hotkey.ctrl, VK_LCONTROL, VK_RCONTROL)
+            && modifier_side_matches(hotkey.alt, VK_LMENU, VK_RMENU)
+            && modifier_side_matches(hotkey.shift, VK_LSHIFT, VK_RSHIFT)
+            && modifier_side_matches(hotkey.win, VK_LWIN, VK_RWIN)
     }
 
     fn is_key_down(vk: u32) -> bool {

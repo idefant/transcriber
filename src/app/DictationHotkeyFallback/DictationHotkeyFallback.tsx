@@ -1,119 +1,97 @@
 import { type FC, useEffect, useRef } from 'react';
+import { listen } from '@tauri-apps/api/event';
 
 import * as dictationApi from '#/shared/dictationApi';
+import { CODE_TO_KEY, matchesHotkey, MODIFIER_CODES, parseHotkey } from '#/shared/hotkey';
 import { isHotkeyCaptureActive } from '#/shared/hotkeyCaptureLock';
 
 import { useSettingsStore } from '#/stores';
 
-interface ParsedHotkey {
-  alt: boolean;
-  ctrl: boolean;
-  key: string;
-  meta: boolean;
-  shift: boolean;
-}
-
-const keyAliases: Record<string, string> = {
-  arrowdown: 'arrowdown',
-  arrowleft: 'arrowleft',
-  arrowright: 'arrowright',
-  arrowup: 'arrowup',
-  backspace: 'backspace',
-  delete: 'delete',
-  end: 'end',
-  enter: 'enter',
-  escape: 'escape',
-  home: 'home',
-  insert: 'insert',
-  pagedown: 'pagedown',
-  pageup: 'pageup',
-  space: ' ',
-  tab: 'tab',
-};
-
-const metaAliases = new Set(['win', 'windows', 'meta', 'super', 'cmd', 'command']);
-
-const parseHotkey = (value: string): ParsedHotkey | undefined => {
-  const parts = value
-    .split('+')
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-
-  const hotkey: ParsedHotkey = {
-    alt: false,
-    ctrl: false,
-    key: '',
-    meta: false,
-    shift: false,
-  };
-
-  for (const part of parts) {
-    const normalized = part.toLowerCase();
-
-    switch (normalized) {
-      case 'ctrl':
-      case 'control': {
-        hotkey.ctrl = true;
-        break;
-      }
-      case 'alt':
-      case 'option': {
-        hotkey.alt = true;
-        break;
-      }
-      case 'shift': {
-        hotkey.shift = true;
-        break;
-      }
-      default: {
-        if (metaAliases.has(normalized)) {
-          hotkey.meta = true;
-        } else {
-          hotkey.key = keyAliases[normalized] ?? normalized;
-        }
-      }
-    }
-  }
-
-  return hotkey.key.length > 0 ? hotkey : undefined;
-};
-
-const eventMatchesHotkey = (event: KeyboardEvent, hotkey: ParsedHotkey) =>
-  event.ctrlKey === hotkey.ctrl &&
-  event.altKey === hotkey.alt &&
-  event.shiftKey === hotkey.shift &&
-  event.metaKey === hotkey.meta &&
-  event.key.toLowerCase() === hotkey.key;
-
 const DictationHotkeyFallback: FC = () => {
   const settings = useSettingsStore((s) => s.settings);
   const isShortcutActiveRef = useRef(false);
+  const isSessionActiveRef = useRef(false);
+  const pressedModifierCodesRef = useRef(new Set<string>());
+
+  // Track dictation session state to gate the cancel hotkey.
+  // Cancel is only intercepted while a session is active; outside a session
+  // Ctrl+Z (or any other cancel hotkey) passes through to the webview unchanged.
+  useEffect(() => {
+    const unlistenPromise = listen<{ active: boolean }>('dictation-session', (event) => {
+      isSessionActiveRef.current = event.payload.active;
+    });
+
+    return () => {
+      void unlistenPromise.then((unlisten) => {
+        unlisten();
+        return null;
+      });
+    };
+  }, []);
 
   useEffect(() => {
-    const hotkey = parseHotkey(settings.hotkey);
+    const dictationHotkey = parseHotkey(settings.hotkey);
+    const cancelHotkey =
+      settings.cancelHotkey.trim().length > 0 ? parseHotkey(settings.cancelHotkey) : undefined;
 
-    if (hotkey === undefined) {
+    if (dictationHotkey === undefined) {
       return;
     }
 
+    const pressedModifierCodes = pressedModifierCodesRef.current;
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isHotkeyCaptureActive() || !eventMatchesHotkey(event, hotkey)) {
+      // Keep modifier-side tracking up to date before checking hotkey matches.
+      if (MODIFIER_CODES.has(event.code)) {
+        pressedModifierCodes.add(event.code);
         return;
       }
 
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (event.repeat) {
+      if (isHotkeyCaptureActive()) {
         return;
       }
 
-      isShortcutActiveRef.current = true;
-      void dictationApi.notifyDictationShortcutPressed();
+      // Cancel hotkey — only consumed when a dictation session is active.
+      if (
+        cancelHotkey !== undefined &&
+        isSessionActiveRef.current &&
+        matchesHotkey(event, pressedModifierCodes, cancelHotkey)
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        void dictationApi.cancelDictation();
+        return;
+      }
+
+      // Dictation hotkey.
+      if (matchesHotkey(event, pressedModifierCodes, dictationHotkey)) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (event.repeat) {
+          return;
+        }
+
+        isShortcutActiveRef.current = true;
+        void dictationApi.notifyDictationShortcutPressed();
+      }
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
-      if (!isShortcutActiveRef.current || event.key.toLowerCase() !== hotkey.key) {
+      // Keep modifier-side tracking up to date.
+      if (MODIFIER_CODES.has(event.code)) {
+        pressedModifierCodes.delete(event.code);
+        return;
+      }
+
+      if (!isShortcutActiveRef.current) {
+        return;
+      }
+
+      // Release only when the main key of the active dictation hotkey comes up.
+      const eventKey = CODE_TO_KEY[event.code];
+
+      if (eventKey?.toLowerCase() !== dictationHotkey.key.toLowerCase()) {
         return;
       }
 
@@ -123,14 +101,22 @@ const DictationHotkeyFallback: FC = () => {
       void dictationApi.notifyDictationShortcutReleased();
     };
 
+    // Clear tracked modifier state when the window loses focus so stale entries
+    // don't cause false matches after the user switches back.
+    const handleBlur = () => {
+      pressedModifierCodes.clear();
+    };
+
     globalThis.addEventListener('keydown', handleKeyDown, { capture: true });
     globalThis.addEventListener('keyup', handleKeyUp, { capture: true });
+    globalThis.addEventListener('blur', handleBlur);
 
     return () => {
       globalThis.removeEventListener('keydown', handleKeyDown, { capture: true });
       globalThis.removeEventListener('keyup', handleKeyUp, { capture: true });
+      globalThis.removeEventListener('blur', handleBlur);
     };
-  }, [settings.hotkey]);
+  }, [settings.hotkey, settings.cancelHotkey]);
 
   return null;
 };

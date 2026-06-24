@@ -44,6 +44,12 @@ struct DictationErrorPayload {
     message: String,
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DictationSessionPayload {
+    active: bool,
+}
+
 pub fn register_dictation_shortcut(app: &tauri::AppHandle) -> AppResult<()> {
     let settings = settings::load_app_settings(app)?;
 
@@ -148,6 +154,9 @@ fn start_dictation_inner(app: &tauri::AppHandle) -> AppResult<()> {
             emit_dictation_error(app, error.into_message());
         }
     }
+
+    // Notify the frontend that a session is now active (used to gate in-app cancel hotkey).
+    emit_dictation_session(app, true);
 
     Ok(())
 }
@@ -375,6 +384,7 @@ fn finish_session(app: &tauri::AppHandle, id: u64) {
         ) {
             *session = DictationSession::Idle;
             shortcut_hook::disarm_cancel_hotkey();
+            emit_dictation_session(app, false);
             let _ = overlay::hide_recording_overlay(app);
         }
     }
@@ -391,11 +401,13 @@ fn cancel_dictation_inner(app: tauri::AppHandle) -> AppResult<()> {
         DictationSession::Idle | DictationSession::Cancelled { .. } => {}
         DictationSession::Recording { .. } => {
             shortcut_hook::disarm_cancel_hotkey();
+            emit_dictation_session(&app, false);
             let _ = overlay::hide_recording_overlay(&app);
         }
         DictationSession::Transcribing { id } | DictationSession::Processing { id } => {
             *session = DictationSession::Cancelled { id };
             shortcut_hook::disarm_cancel_hotkey();
+            emit_dictation_session(&app, false);
             let _ = overlay::hide_recording_overlay(&app);
         }
     }
@@ -405,4 +417,8 @@ fn cancel_dictation_inner(app: tauri::AppHandle) -> AppResult<()> {
 
 fn emit_dictation_error(app: &tauri::AppHandle, message: String) {
     let _ = app.emit("dictation-error", DictationErrorPayload { message });
+}
+
+fn emit_dictation_session(app: &tauri::AppHandle, active: bool) {
+    let _ = app.emit("dictation-session", DictationSessionPayload { active });
 }

@@ -4,9 +4,8 @@ import { KeyboardIcon, LoaderIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import * as dictationApi from '#/shared/dictationApi';
+import { formatHotkeyFromEvent, MODIFIER_CODES } from '#/shared/hotkey';
 import { lockHotkeyCapture, unlockHotkeyCapture } from '#/shared/hotkeyCaptureLock';
-
-import formatHotkeyFromEvent from './helpers/formatHotkeyFromEvent';
 
 import styles from './HotkeyInput.module.scss';
 
@@ -42,11 +41,18 @@ const HotkeyInput: FC<HotkeyInputProps> = ({ onChange, value }) => {
       return;
     }
 
+    const pressedModifierCodes = new Set<string>();
+
     const handleKeyDown = (event: KeyboardEvent) => {
       event.preventDefault();
       event.stopPropagation();
 
-      const hotkey = formatHotkeyFromEvent(event);
+      if (MODIFIER_CODES.has(event.code)) {
+        pressedModifierCodes.add(event.code);
+        return;
+      }
+
+      const hotkey = formatHotkeyFromEvent(event, pressedModifierCodes);
 
       if (hotkey === undefined) {
         return;
@@ -56,18 +62,28 @@ const HotkeyInput: FC<HotkeyInputProps> = ({ onChange, value }) => {
       stopRecording();
     };
 
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (MODIFIER_CODES.has(event.code)) {
+        pressedModifierCodes.delete(event.code);
+      }
+    };
+
     const handleBlur = () => {
+      pressedModifierCodes.clear();
       stopRecording();
     };
 
     globalThis.addEventListener('keydown', handleKeyDown, { capture: true });
+    globalThis.addEventListener('keyup', handleKeyUp, { capture: true });
     globalThis.addEventListener('blur', handleBlur);
 
     return () => {
       globalThis.removeEventListener('keydown', handleKeyDown, { capture: true });
+      globalThis.removeEventListener('keyup', handleKeyUp, { capture: true });
       globalThis.removeEventListener('blur', handleBlur);
       unlockHotkeyCapture();
       void dictationApi.setHotkeyCaptureActive(false);
+      pressedModifierCodes.clear();
     };
   }, [isRecording, onChange, stopRecording]);
 

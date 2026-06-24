@@ -11,3 +11,7 @@ export const notifyDictationShortcutReleased = async (): Promise<void> => {
 export const setHotkeyCaptureActive = async (active: boolean): Promise<void> => {
   await invoke('set_hotkey_capture_active', { active });
 };
+
+export const cancelDictation = async (): Promise<void> => {
+  await invoke('cancel_dictation');
+};
