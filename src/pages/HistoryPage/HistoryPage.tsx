@@ -51,19 +51,26 @@ const HistoryPage: FC = () => {
   const storeRemoveRecord = useHistoryStore((s) => s.removeRecord);
 
   const [processingRecordId, setProcessingRecordId] = useState<string>();
-  // preferredDate is the user-selected date. Effective activeDate falls back to groups[0] when
-  // the preferred date is no longer present in groups (e.g. after a month change).
-  const [preferredDate, setPreferredDate] = useState<string>();
+  // preferredDate is the user-selected date.
+  // undefined = auto (open today's date if it has records)
+  // null      = explicitly closed by the user
+  // string    = explicitly opened by the user
+  const [preferredDate, setPreferredDate] = useState<string | null | undefined>();
   // selectedRecordId tracks the id; the full record is resolved from the store's groups so it
   // automatically reflects event-driven updates without a separate sync effect.
   const [selectedRecordId, setSelectedRecordId] = useState<string>();
 
   const monthPickerValue = useMemo(() => dayjs(`${selectedMonth}-01`), [selectedMonth]);
 
-  const activeDate = useMemo(
-    () => (groups.some((g) => g.date === preferredDate) ? preferredDate : groups[0]?.date),
-    [groups, preferredDate],
-  );
+  const activeDate = useMemo(() => {
+    if (preferredDate === null) return;
+    if (preferredDate !== undefined && groups.some((g) => g.date === preferredDate)) {
+      return preferredDate;
+    }
+    // Auto mode: open today's date if it has records, otherwise nothing.
+    const today = dayjs().format('YYYY-MM-DD');
+    return groups.some((g) => g.date === today) ? today : undefined;
+  }, [groups, preferredDate]);
 
   const selectedRecord = useMemo(
     () =>
@@ -119,6 +126,7 @@ const HistoryPage: FC = () => {
 
     try {
       await navigator.clipboard.writeText(text);
+      void messageApi.success(t('history.copySuccess'));
     } catch (error) {
       void messageApi.error(getErrorMessage(error));
     }
@@ -227,7 +235,9 @@ const HistoryPage: FC = () => {
                 groups={groups}
                 processingRecordId={processingRecordId}
                 selectedRecordId={selectedRecord?.id}
-                onActiveDateChange={setPreferredDate}
+                onActiveDateChange={(date) => {
+                  setPreferredDate(date);
+                }}
                 onCopyRecordText={(record) => {
                   void copyText(getRecordTextForCopy(record));
                 }}

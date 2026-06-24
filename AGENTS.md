@@ -1,5 +1,9 @@
 # Project Notes
 
+## Language
+
+Общайся с пользователем и строй планы исключительно на русском языке.
+
 ## Icons
 
 Use `lucide-react` icon exports with the `Icon` suffix, for example `CameraIcon`, not `Camera`.

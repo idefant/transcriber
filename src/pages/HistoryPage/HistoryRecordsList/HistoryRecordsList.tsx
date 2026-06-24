@@ -10,7 +10,7 @@ import type { HistoryGroup, HistoryRecord } from '#/models/History';
 interface HistoryRecordsListProps {
   activeDate?: string;
   groups: HistoryGroup[];
-  onActiveDateChange: (date?: string) => void;
+  onActiveDateChange: (date: string | null) => void;
   onCopyRecordText: (record: HistoryRecord) => void;
   onDeleteRecord: (record: HistoryRecord) => void;
   onRecordSelect: (record: HistoryRecord) => void;
@@ -149,7 +149,8 @@ const HistoryRecordsList: FC<HistoryRecordsListProps> = ({
       activeKey={activeDate}
       items={collapseItems}
       onChange={(key) => {
-        onActiveDateChange(Array.isArray(key) ? key[0] : key);
+        const date = Array.isArray(key) ? key.at(0) : key;
+        onActiveDateChange(date === '' ? null : (date ?? null));
       }}
     />
   );

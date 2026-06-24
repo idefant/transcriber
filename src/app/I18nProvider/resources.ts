@@ -150,6 +150,7 @@ const en = {
     nextMonth: 'Next month',
     month: 'Month',
     today: 'Today',
+    copySuccess: 'Copied',
     emptyMonth: 'No records for the selected month',
     details: {
       title: 'Record details',
@@ -328,6 +329,7 @@ const ru: typeof en = {
     nextMonth: 'Следующий месяц',
     month: 'Месяц',
     today: 'Сегодня',
+    copySuccess: 'Скопировано',
     emptyMonth: 'За выбранный месяц записей нет',
     details: {
       title: 'Детали записи',
