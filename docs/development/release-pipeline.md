@@ -84,6 +84,44 @@ On startup, `UpdateChecker` in `App.tsx` runs a silent check after settings load
 
 `CHANGELOG.md` uses [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. Each release section starts with `## [X.Y.Z] - YYYY-MM-DD`. The `scripts/extract-changelog.mjs` script extracts text between the matching `## [X.Y.Z]` heading and the next `## ` heading; the result is used as the GitHub Release body.
 
+## Canary Branding for Pre-releases
+
+Pre-release builds (tags containing `-`, e.g. `v0.1.0-alpha.1`) are built with a separate canary
+variant that differs visually from stable builds while remaining the same application (same
+`productName` and `identifier` so the installer path and user data are shared).
+
+Canary-specific changes applied during build:
+
+| Aspect           | Value                              |
+| ---------------- | ---------------------------------- |
+| Bundle icons     | `src-tauri/icons-canary/`          |
+| Window title     | `Transcriber Canary`               |
+| Frontend channel | `VITE_APP_CHANNEL=canary`          |
+| About tab badge  | «Canary» tag shown next to version |
+
+### Config override
+
+`src-tauri/tauri.canary.conf.json` is a partial Tauri config that overrides only the window title
+and `bundle.icon`. It is applied via `--config src-tauri/tauri.canary.conf.json`.
+
+### CI automation
+
+In `.github/workflows/release.yml`, the `Build and publish Tauri release` step sets:
+
+- `env.VITE_APP_CHANNEL` — `canary` for pre-release tags, `stable` otherwise.
+- `with.args` — `--config src-tauri/tauri.canary.conf.json` for pre-release tags, empty otherwise.
+
+Pre-releases continue to flow into the `unstable` update channel as before.
+
+### Local canary build
+
+```bash
+npm run build:tauri:canary
+```
+
+This runs `node scripts/build-canary.mjs`, which sets `VITE_APP_CHANNEL=canary` and passes the
+canary config override to `tauri build`.
+
 ## SmartScreen Note
 
 The minisign signature verifies update integrity within the Tauri updater. It is **not** an Authenticode code-signing certificate. Without an Authenticode certificate, Windows SmartScreen may show a warning when users first install (but not on silent updates). Code-signing is a separate, paid step not covered by this pipeline.

@@ -3,6 +3,12 @@
   gap: 24px;
 }
 
+.versionRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .version {
   font-weight: 500;
 }

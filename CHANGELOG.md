@@ -7,6 +7,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0-alpha.3] - 2026-06-24
+
+### Added
+
+- Canary release channel: pre-release (unstable) builds ship with a distinct application icon and are
+  marked as «Canary» in the About settings tab. Canary and stable builds share the same product name
+  and identifier, so they install to the same location and share settings and history.
+
 ## [0.1.0] - 2026-06-24
 
 ### Added

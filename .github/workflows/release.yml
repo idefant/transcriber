@@ -77,6 +77,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_APP_CHANNEL: ${{ steps.version.outputs.prerelease == 'true' && 'canary' || 'stable' }}
         with:
           tagName: ${{ steps.version.outputs.tag }}
           releaseName: 'Transcriber v__VERSION__'
@@ -84,6 +85,7 @@ jobs:
           releaseDraft: false
           prerelease: ${{ steps.version.outputs.prerelease }}
           includeUpdaterJson: true
+          args: ${{ steps.version.outputs.prerelease == 'true' && '--config src-tauri/tauri.canary.conf.json' || '' }}
 
       - name: Download update manifest
         shell: bash

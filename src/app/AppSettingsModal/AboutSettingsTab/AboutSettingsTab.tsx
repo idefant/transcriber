@@ -1,7 +1,7 @@
 import { type FC, useEffect, useState } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
 import { listen } from '@tauri-apps/api/event';
-import { Button, Progress, Switch } from 'antd';
+import { Button, Progress, Switch, Tag } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import type { UpdateProgress } from '#/shared/updaterApi';
@@ -12,6 +12,8 @@ import SettingRow from '../SettingRow';
 import styles from './AboutSettingsTab.module.scss';
 
 import { useAppSettings } from '#/stores';
+
+const isCanary = import.meta.env.VITE_APP_CHANNEL === 'canary';
 
 const AboutSettingsTab: FC = () => {
   const { t } = useTranslation();
@@ -69,7 +71,10 @@ const AboutSettingsTab: FC = () => {
         description={t('settings.about.version.description')}
         title={t('settings.about.version.title')}
       >
-        <span className={styles.version}>{version || '…'}</span>
+        <div className={styles.versionRow}>
+          <span className={styles.version}>{version || '…'}</span>
+          {isCanary && <Tag color="gold">{t('settings.about.channel.canary')}</Tag>}
+        </div>
       </SettingRow>
 
       <SettingRow

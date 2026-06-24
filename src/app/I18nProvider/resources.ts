@@ -143,6 +143,9 @@ const en = {
         title: 'Offer pre-release versions',
         description: 'Include alpha and beta releases when checking for updates',
       },
+      channel: {
+        canary: 'Canary',
+      },
     },
     tests: {
       title: 'Configuration test',
@@ -338,6 +341,9 @@ const ru: typeof en = {
       offerUnstable: {
         title: 'Предлагать нестабильные версии',
         description: 'Учитывать альфа- и бета-релизы при проверке обновлений',
+      },
+      channel: {
+        canary: 'Canary',
       },
     },
     tests: {

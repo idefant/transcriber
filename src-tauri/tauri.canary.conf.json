@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "title": "Transcriber Canary",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 1200,
+        "minHeight": 700,
+        "visible": false
+      }
+    ]
+  },
+  "bundle": {
+    "icon": [
+      "icons-canary/32x32.png",
+      "icons-canary/128x128.png",
+      "icons-canary/128x128@2x.png",
+      "icons-canary/icon.icns",
+      "icons-canary/icon.ico"
+    ]
+  }
+}
