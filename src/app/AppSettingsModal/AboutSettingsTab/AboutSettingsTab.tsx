@@ -2,6 +2,7 @@ import { type FC, useEffect, useState } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
 import { listen } from '@tauri-apps/api/event';
 import { Button, Progress, Switch, Tag } from 'antd';
+import { DownloadIcon, RefreshCwIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { UpdateProgress } from '#/shared/updaterApi';
@@ -73,7 +74,11 @@ const AboutSettingsTab: FC = () => {
       >
         <div className={styles.versionRow}>
           <span className={styles.version}>{version || '…'}</span>
-          {isCanary && <Tag color="gold">{t('settings.about.channel.canary')}</Tag>}
+          {isCanary && (
+            <Tag color="gold" variant="outlined">
+              {t('settings.about.channel.canary')}
+            </Tag>
+          )}
         </div>
       </SettingRow>
 
@@ -89,20 +94,24 @@ const AboutSettingsTab: FC = () => {
 
       <div className={styles.updateRow}>
         {!isInstalling && (
-          <Button loading={isChecking} type="primary" onClick={() => void handleCheckForUpdates()}>
+          <Button
+            loading={isChecking}
+            icon={<RefreshCwIcon size={14} />}
+            onClick={() => void handleCheckForUpdates()}
+          >
             {t('settings.about.checkForUpdates')}
           </Button>
         )}
 
         {!isChecking && hasChecked && pendingVersion !== null && !isInstalling && (
-          <div className={styles.updateActions}>
-            <span className={styles.updateAvailable}>
-              {t('settings.about.updateAvailable', { version: pendingVersion })}
-            </span>
-            <Button type="default" onClick={() => void handleInstall()}>
-              {t('settings.about.installUpdate', { version: pendingVersion })}
-            </Button>
-          </div>
+          <Button
+            color="green"
+            variant="solid"
+            icon={<DownloadIcon size={14} />}
+            onClick={() => void handleInstall()}
+          >
+            {t('settings.about.installUpdate', { version: pendingVersion })}
+          </Button>
         )}
 
         {!isChecking && hasChecked && pendingVersion === null && !isInstalling && (
