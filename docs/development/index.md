@@ -68,7 +68,7 @@ npm run build:tauri
 # Start the Vite development server.
 npm run dev
 
-# Start the Tauri desktop app in development mode.
+# Start the Tauri desktop app in development mode (uses tauri.dev.conf.json override).
 npm run dev:tauri
 
 # Run typecheck and build the production bundle.

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Transcriber DEV",
+  "identifier": "com.transcriber.desktop.dev",
+  "app": {
+    "windows": [
+      {
+        "title": "Transcriber DEV",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 1200,
+        "minHeight": 700,
+        "visible": false
+      }
+    ]
+  },
+  "bundle": {
+    "icon": [
+      "icons-dev/32x32.png",
+      "icons-dev/128x128.png",
+      "icons-dev/128x128@2x.png",
+      "icons-dev/icon.icns",
+      "icons-dev/icon.ico"
+    ]
+  }
+}

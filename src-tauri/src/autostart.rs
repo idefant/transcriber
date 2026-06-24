@@ -5,7 +5,11 @@ pub const HIDDEN_START_ARG: &str = "--hidden";
 #[cfg(target_os = "windows")]
 const RUN_KEY_PATH: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 #[cfg(target_os = "windows")]
-const RUN_VALUE_NAME: &str = "Transcriber";
+const RUN_VALUE_NAME: &str = if cfg!(debug_assertions) {
+    "Transcriber DEV"
+} else {
+    "Transcriber"
+};
 
 pub fn sync_launch_at_login(is_enabled: bool) -> AppResult<()> {
     if is_enabled {
