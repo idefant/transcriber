@@ -157,7 +157,7 @@ fn apply_startup_window_visibility(app: &tauri::AppHandle) -> AppResult<()> {
     show_main_window(app)
 }
 
-fn show_main_window(app: &tauri::AppHandle) -> AppResult<()> {
+pub(crate) fn show_main_window(app: &tauri::AppHandle) -> AppResult<()> {
     let window = main_window(app)?;
 
     window.show()?;

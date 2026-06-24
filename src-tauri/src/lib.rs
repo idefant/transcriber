@@ -21,6 +21,13 @@ mod updater;
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // Повторный запуск: фокусируем окно уже работающего экземпляра.
+            // Уважаем флаг автозапуска --hidden — окно не показываем.
+            if !args.iter().any(|arg| arg == autostart::HIDDEN_START_ARG) {
+                let _ = background::show_main_window(app);
+            }
+        }))
         .manage(background::BackgroundRuntime::default())
         .manage(debug_log::DebugLogRuntime::default())
         .manage(dictation::DictationRuntime::default())

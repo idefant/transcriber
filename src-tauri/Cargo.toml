@@ -43,5 +43,7 @@ windows-sys = { version = "0.61", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
+tauri-plugin-single-instance = "2"
+
 [target.'cfg(windows)'.dependencies]
 tauri-plugin-updater = "2"
