@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::sync::Mutex;
+use tauri::{Emitter, Manager};
 use tauri_plugin_updater::UpdaterExt;
 use url::Url;
 
