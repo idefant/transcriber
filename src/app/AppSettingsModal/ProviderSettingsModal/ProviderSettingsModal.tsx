@@ -14,7 +14,7 @@ import {
 import { CheckCircleIcon, SparklesIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { providerOptions } from '../constants';
+import { providerDefaultBaseUrls, providerOptions } from '../constants';
 
 import styles from './ProviderSettingsModal.module.scss';
 
@@ -272,7 +272,7 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
           {selectedProvider === 'custom' ? (
             <>
               <Form.Item label="URL" name="baseUrl" rules={[{ required: true }]}>
-                <Input placeholder="https://api.example.com/v1" />
+                <Input placeholder="https://api.your-provider.com/v1" />
               </Form.Item>
               <Form.Item
                 label={t('settings.providers.modal.token')}
@@ -308,7 +308,7 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
               {areAdvancedSettingsEnabled && (
                 <>
                   <Form.Item label={t('settings.providers.modal.customUrl')} name="baseUrl">
-                    <Input placeholder="https://api.example.com/v1" />
+                    <Input placeholder={providerDefaultBaseUrls[selectedProvider]} />
                   </Form.Item>
                   <Form.Item label={t('settings.providers.modal.extraHeaders')} name="headers">
                     <Input.TextArea

@@ -7,6 +7,10 @@ import '#/styles/global.scss';
 
 import App from '#/App';
 
+document.addEventListener('contextmenu', (event) => {
+  event.preventDefault();
+});
+
 const rootElement = document.querySelector('#root');
 
 if (!(rootElement instanceof HTMLElement)) {

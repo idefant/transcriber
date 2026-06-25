@@ -1,13 +1,35 @@
+/* stylelint-disable selector-class-pattern, selector-pseudo-class-no-unknown */
+.settingsModal {
+  :global {
+    .ant-modal-container {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 96px);
+      padding-right: 0;
+    }
+
+    .ant-modal-body {
+      flex: 1;
+      min-height: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+  }
+}
+/* stylelint-enable selector-class-pattern, selector-pseudo-class-no-unknown */
+
 .modalBody {
   display: grid;
+  grid-template-rows: 1fr;
   grid-template-columns: 200px minmax(0, 1fr);
   gap: 24px;
-  min-height: 560px;
+  height: 100%;
 }
 
 .settingsMenu {
   height: 100%;
   padding-inline-end: 12px;
+  overflow: hidden;
   background: transparent;
   border-inline-end: 1px solid var(--app-color-border-secondary);
 }
@@ -16,4 +38,7 @@
   display: grid;
   gap: 20px;
   align-content: start;
+  min-height: 0;
+  padding-right: 24px;
+  overflow-y: auto;
 }

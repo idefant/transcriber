@@ -63,7 +63,7 @@ const HistoryDetailsPanel: FC<HistoryDetailsPanelProps> = ({
           {t('history.details.audio')}
         </Title>
         <Text className={styles.audioDuration}>{record.audio.duration}</Text>
-        <Space className={styles.audioActions} size={4}>
+        <Space size={4}>
           <Tooltip title={t('history.details.copyPath')}>
             <Button
               aria-label={t('history.details.copyPath')}

@@ -265,7 +265,15 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
   return (
     <>
       {messageContextHolder}
-      <Modal footer={null} open={open} title={t('settings.title')} width={920} onCancel={onClose}>
+      <Modal
+        centered
+        className={styles.settingsModal}
+        footer={null}
+        open={open}
+        title={t('settings.title')}
+        width={920}
+        onCancel={onClose}
+      >
         <div className={styles.modalBody}>
           <ConfigProvider
             theme={{
