@@ -18,6 +18,16 @@ npm install
 
 The project includes `.npmrc` with `legacy-peer-deps=true`, so a plain install works with the current ESLint 10 plugin peer ranges.
 
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in the values:
+
+```bash
+cp .env.example .env
+```
+
+`.env` holds the API keys used by model testing (`scripts/model-testing`) and is gitignored — never commit real secrets. WebView2 remote debugging is intentionally not configured in `.env`; it is enabled by `npm run dev:tauri:debug` (see Development below), because `.env` does not reach the Tauri app process.
+
 ## Development
 
 Start the Vite development server:
@@ -39,6 +49,14 @@ Run the desktop application through Tauri:
 ```bash
 npm run dev:tauri
 ```
+
+Run the desktop app with WebView2 remote debugging enabled. This opens a Chrome DevTools Protocol endpoint on port 9222 so Playwright (or the Playwright MCP) can attach for UI debugging and screenshots. Dev-only; never use it for production builds.
+
+```bash
+npm run dev:tauri:debug
+```
+
+It works from any shell (PowerShell, CMD, Git Bash) because it uses `cross-env` to set the WebView2 debug argument rather than shell-specific syntax. The CDP attach workflow is described in [../agent/screenshot-testing.md](../agent/screenshot-testing.md).
 
 ## Build
 
@@ -70,6 +88,9 @@ npm run dev
 
 # Start the Tauri desktop app in development mode (uses tauri.dev.conf.json override).
 npm run dev:tauri
+
+# Start the Tauri desktop app with WebView2 remote debugging on port 9222 (for Playwright/MCP screenshots).
+npm run dev:tauri:debug
 
 # Run typecheck and build the production bundle.
 npm run build

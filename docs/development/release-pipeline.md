@@ -119,8 +119,7 @@ Pre-releases continue to flow into the `unstable` update channel as before.
 npm run build:tauri:canary
 ```
 
-This runs `node scripts/build-canary.mjs`, which sets `VITE_APP_CHANNEL=canary` and passes the
-canary config override to `tauri build`.
+This uses `cross-env` to set `VITE_APP_CHANNEL=canary` and passes the canary config override to `tauri build`.
 
 ## SmartScreen Note
 
