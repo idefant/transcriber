@@ -58,6 +58,18 @@ npm run dev:tauri:debug
 
 It works from any shell (PowerShell, CMD, Git Bash) because it uses `cross-env` to set the WebView2 debug argument rather than shell-specific syntax. The CDP attach workflow is described in [../agent/screenshot-testing.md](../agent/screenshot-testing.md).
 
+### React DevTools
+
+Inspect React components (Components / Profiler panels) directly inside the app's DevTools. React DevTools is loaded into WebView2 as an unpacked browser extension. This is Windows-only (only WebView2 supports browser extensions) and dev-only: it is gated behind a debug build and `browserExtensionsEnabled` in `src-tauri/tauri.dev.conf.json`, so it never ships in production builds.
+
+Provide the extension once; the folder is gitignored. Copy an installed Chrome React Developer Tools build into `src-tauri/extensions/react-devtools/`, for example from `C:\Users\<user>\AppData\Local\Google\Chrome\User Data\Default\Extensions\fmkadmapgofadopljbjfkapdkoienihi\<version>`.
+
+1. Run `npm run dev:tauri`. No extra flag is needed: both dev commands pass `--unsafely-disable-devtools-self-xss-warnings` via `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, so the DevTools console also accepts pasted code without the "allow pasting" self-XSS prompt.
+2. Open the in-app DevTools with F12.
+3. Use the **Components** and **Profiler** tabs.
+
+The extension is registered through `extensions_path` on the recording overlay window (`src-tauri/src/overlay.rs`); because Chromium extensions live at the profile level, it is then available in the main window's DevTools as well. Both windows must use the same `browserExtensionsEnabled` value, otherwise WebView2 requires separate data directories for them. On a profile's very first run the overlay installs the extension after the main window has already mounted React, so the Components/Profiler tabs may be missing until you relaunch the app once; the extension then persists in the WebView2 profile and loads early enough on every later run.
+
 ## Build
 
 Build the frontend production bundle:
@@ -86,7 +98,7 @@ npm run build:tauri
 # Start the Vite development server.
 npm run dev
 
-# Start the Tauri desktop app in development mode (uses tauri.dev.conf.json override).
+# Start the Tauri desktop app in development mode (uses tauri.dev.conf.json override; loads React DevTools and disables the DevTools console self-XSS prompt).
 npm run dev:tauri
 
 # Start the Tauri desktop app with WebView2 remote debugging on port 9222 (for Playwright/MCP screenshots).

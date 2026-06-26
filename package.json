@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "tauri": "tauri",
-    "dev:tauri": "tauri dev --config src-tauri/tauri.dev.conf.json",
-    "dev:tauri:debug": "cross-env WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222 npm run dev:tauri",
+    "dev:tauri": "cross-env WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--unsafely-disable-devtools-self-xss-warnings tauri dev --config src-tauri/tauri.dev.conf.json",
+    "dev:tauri:debug": "cross-env WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=\"--unsafely-disable-devtools-self-xss-warnings --remote-debugging-port=9222\" tauri dev --config src-tauri/tauri.dev.conf.json",
     "build:tauri": "tauri build",
     "build:tauri:canary": "cross-env VITE_APP_CHANNEL=canary tauri build --config src-tauri/tauri.canary.conf.json",
     "build": "npm run typecheck && vite build",

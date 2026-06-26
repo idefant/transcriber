@@ -7,6 +7,7 @@ const ignoredDirectories = new Set([
   '.codex',
   'coverage',
   'dist',
+  'extensions',
   'node_modules',
   'target',
   'ui-audit-artifacts',

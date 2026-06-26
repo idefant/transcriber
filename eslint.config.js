@@ -196,6 +196,7 @@ export default tseslint.config(
       'dist',
       'src-tauri/gen',
       'src-tauri/target',
+      'src-tauri/extensions',
       'coverage',
       'node_modules',
       '.codex',

@@ -10,7 +10,8 @@
         "height": 700,
         "minWidth": 1080,
         "minHeight": 600,
-        "visible": false
+        "visible": false,
+        "browserExtensionsEnabled": true
       }
     ]
   },

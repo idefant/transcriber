@@ -19,3 +19,4 @@ pnpm-debug.log*
 .codex-openai-docs-cache
 .claude
 .playwright-mcp
+src-tauri/extensions/

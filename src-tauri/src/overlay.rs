@@ -17,7 +17,8 @@ pub fn create_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
         return Ok(());
     }
 
-    WebviewWindowBuilder::new(
+    #[cfg_attr(not(all(debug_assertions, target_os = "windows")), allow(unused_mut))]
+    let mut builder = WebviewWindowBuilder::new(
         app,
         OVERLAY_LABEL,
         WebviewUrl::App("src/overlay/index.html".into()),
@@ -31,8 +32,24 @@ pub fn create_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
     .resizable(false)
     .visible(false)
     .focused(false)
-    .accept_first_mouse(true)
-    .build()?;
+    .accept_first_mouse(true);
+
+    // React DevTools (только dev, только Windows): включаем расширения WebView2 и
+    // загружаем распакованное расширение в общий профиль. Расширения Chromium живут
+    // на уровне профиля, поэтому панель Components доступна и в DevTools главного
+    // окна. Значение browser_extensions_enabled должно совпадать с browserExtensionsEnabled
+    // главного окна (tauri.dev.conf.json), иначе WebView2 требует разные data-каталоги.
+    #[cfg(all(debug_assertions, target_os = "windows"))]
+    {
+        builder = builder.browser_extensions_enabled(true);
+
+        let extensions_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/extensions");
+        if std::path::Path::new(extensions_dir).exists() {
+            builder = builder.extensions_path(extensions_dir);
+        }
+    }
+
+    builder.build()?;
 
     update_overlay_position(app)?;
 
