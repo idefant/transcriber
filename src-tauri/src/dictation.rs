@@ -192,10 +192,18 @@ fn take_recording(app: &tauri::AppHandle) -> AppResult<Option<(u64, AudioRecordi
         .lock()
         .map_err(|_| AppError::from("Could not lock dictation state"))?;
 
+    // Guard before replace: std::mem::replace writes Idle unconditionally, so we
+    // must confirm the state is Recording before calling it, otherwise a spurious
+    // stop_dictation (e.g. hotkey release while transcribing) would corrupt the
+    // state and prevent finish_session from ever hiding the overlay.
+    if !matches!(*session, DictationSession::Recording { .. }) {
+        return Ok(None);
+    }
+
     let DictationSession::Recording { id, recording } =
         std::mem::replace(&mut *session, DictationSession::Idle)
     else {
-        return Ok(None);
+        unreachable!()
     };
 
     *session = DictationSession::Transcribing { id };
