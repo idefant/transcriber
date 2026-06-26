@@ -31,6 +31,7 @@ pub fn run() {
         .manage(background::BackgroundRuntime::default())
         .manage(debug_log::DebugLogRuntime::default())
         .manage(dictation::DictationRuntime::default())
+        .manage(overlay::OverlayNoticeRuntime::default())
         .manage(updater::PendingUpdate::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
@@ -68,6 +69,8 @@ pub fn run() {
             dictation::dictation_shortcut_released,
             overlay::get_overlay_state,
             overlay::dismiss_overlay,
+            overlay::overlay_notice_mouse_move,
+            overlay::overlay_notice_mouse_leave,
             shortcut_hook::set_hotkey_capture_active,
             history::get_history_groups,
             history::delete_history_record,

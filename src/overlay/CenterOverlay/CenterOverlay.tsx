@@ -19,6 +19,8 @@ interface CenterOverlayProps {
   levels: number[];
   onCancel: () => void;
   onClose: () => void;
+  onNoticeMouseLeave?: () => void;
+  onNoticeMouseMove?: () => void;
   onOpenRecord: () => void;
   recordId?: string | null;
   state: OverlayState;
@@ -29,10 +31,13 @@ const CenterOverlay: FC<CenterOverlayProps> = ({
   levels,
   onCancel,
   onClose,
+  onNoticeMouseLeave,
+  onNoticeMouseMove,
   onOpenRecord,
   recordId,
   state,
 }) => {
+  const isNotice = isNoticeState(state);
   const statusIcon = useMemo(() => {
     if (state === 'recording') return <MicIcon aria-hidden size={22} strokeWidth={2} />;
     if (state === 'transcribing') {
@@ -53,11 +58,15 @@ const CenterOverlay: FC<CenterOverlayProps> = ({
     .join(' ');
 
   return (
-    <div className={className}>
+    <div
+      className={className}
+      onMouseLeave={isNotice ? onNoticeMouseLeave : undefined}
+      onMouseMove={isNotice ? onNoticeMouseMove : undefined}
+    >
       <div className={styles.statusIcon}>{statusIcon}</div>
       <span className={styles.statusText}>{stateLabels[state]}</span>
 
-      {isNoticeState(state) ? (
+      {isNotice ? (
         <div className={styles.actions}>
           {recordId ? (
             <button

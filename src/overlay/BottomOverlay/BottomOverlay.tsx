@@ -19,6 +19,8 @@ interface BottomOverlayProps {
   levels: number[];
   onCancel: () => void;
   onClose: () => void;
+  onNoticeMouseLeave?: () => void;
+  onNoticeMouseMove?: () => void;
   onOpenRecord: () => void;
   recordId?: string | null;
   state: OverlayState;
@@ -29,10 +31,13 @@ const BottomOverlay: FC<BottomOverlayProps> = ({
   levels,
   onCancel,
   onClose,
+  onNoticeMouseLeave,
+  onNoticeMouseMove,
   onOpenRecord,
   recordId,
   state,
 }) => {
+  const isNotice = isNoticeState(state);
   const statusIcon = useMemo(() => {
     if (state === 'recording') return <MicIcon aria-hidden size={15} strokeWidth={2.2} />;
     if (state === 'transcribing') {
@@ -55,13 +60,17 @@ const BottomOverlay: FC<BottomOverlayProps> = ({
     .join(' ');
 
   return (
-    <div className={className}>
+    <div
+      className={className}
+      onMouseLeave={isNotice ? onNoticeMouseLeave : undefined}
+      onMouseMove={isNotice ? onNoticeMouseMove : undefined}
+    >
       <div className={styles.status}>
         <span className={styles.statusIcon}>{statusIcon}</span>
         <span className={styles.statusText}>{stateLabels[state]}</span>
       </div>
 
-      {isNoticeState(state) ? (
+      {isNotice ? (
         <div className={styles.actions}>
           {recordId ? (
             <button

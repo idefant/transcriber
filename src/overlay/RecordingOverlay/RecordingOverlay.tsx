@@ -1,17 +1,10 @@
-import { type FC, useCallback, useEffect, useState } from 'react';
+import { type FC, useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import BottomOverlay from '../BottomOverlay';
 import CenterOverlay from '../CenterOverlay';
-import {
-  isNoticeState,
-  type OverlayShowPayload,
-  type OverlayState,
-  type OverlayVariant,
-} from '../types';
-
-const NOTICE_AUTO_HIDE_MS = 5000;
+import type { OverlayShowPayload, OverlayState, OverlayVariant } from '../types';
 
 const RecordingOverlay: FC = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -19,12 +12,14 @@ const RecordingOverlay: FC = () => {
   const [variant, setVariant] = useState<OverlayVariant>('center');
   const [levels, setLevels] = useState<number[]>([0, 0, 0]);
   const [recordId, setRecordId] = useState<string | null>(null);
+  const isNoticeHoverTrackedRef = useRef(false);
 
   useEffect(() => {
     // A window created for a secondary monitor may mount after the `show-overlay`
     // event was broadcast, so it recovers the current state on mount.
     void invoke<OverlayShowPayload | null>('get_overlay_state').then((payload) => {
       if (payload) {
+        isNoticeHoverTrackedRef.current = false;
         setState(payload.state);
         setVariant(payload.variant);
         setRecordId(payload.recordId ?? null);
@@ -36,12 +31,14 @@ const RecordingOverlay: FC = () => {
 
     const unlisteners = [
       listen<OverlayShowPayload>('show-overlay', (event) => {
+        isNoticeHoverTrackedRef.current = false;
         setState(event.payload.state);
         setVariant(event.payload.variant);
         setRecordId(event.payload.recordId ?? null);
         setIsVisible(true);
       }),
       listen('hide-overlay', () => {
+        isNoticeHoverTrackedRef.current = false;
         setIsVisible(false);
       }),
       listen<number[]>('mic-level', (event) => {
@@ -60,21 +57,9 @@ const RecordingOverlay: FC = () => {
     };
   }, []);
 
-  // Auto-hide the error/warning notification after a few seconds. The timer is
-  // cleared when the state changes (e.g. a new dictation reuses the overlay).
   useEffect(() => {
-    if (!isVisible || !isNoticeState(state)) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      void invoke('dismiss_overlay');
-    }, NOTICE_AUTO_HIDE_MS);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [isVisible, state, recordId]);
+    isNoticeHoverTrackedRef.current = false;
+  }, [isVisible, recordId, state]);
 
   const handleCancel = useCallback(() => {
     void invoke('cancel_dictation');
@@ -90,6 +75,24 @@ const RecordingOverlay: FC = () => {
     }
   }, [recordId]);
 
+  const handleNoticeMouseMove = useCallback(() => {
+    if (isNoticeHoverTrackedRef.current) {
+      return;
+    }
+
+    isNoticeHoverTrackedRef.current = true;
+    void invoke('overlay_notice_mouse_move');
+  }, []);
+
+  const handleNoticeMouseLeave = useCallback(() => {
+    if (!isNoticeHoverTrackedRef.current) {
+      return;
+    }
+
+    isNoticeHoverTrackedRef.current = false;
+    void invoke('overlay_notice_mouse_leave');
+  }, []);
+
   const OverlayComponent = variant === 'center' ? CenterOverlay : BottomOverlay;
 
   return (
@@ -100,6 +103,8 @@ const RecordingOverlay: FC = () => {
       state={state}
       onCancel={handleCancel}
       onClose={handleClose}
+      onNoticeMouseLeave={handleNoticeMouseLeave}
+      onNoticeMouseMove={handleNoticeMouseMove}
       onOpenRecord={handleOpenRecord}
     />
   );

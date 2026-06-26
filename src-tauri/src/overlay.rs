@@ -1,7 +1,8 @@
 use std::{
+    collections::HashSet,
     sync::{Mutex, OnceLock},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use serde::Serialize;
@@ -35,6 +36,8 @@ const CENTER_SHADOW_MARGIN: f64 = 80.0;
 const OVERLAY_BOTTOM_OFFSET: f64 = 72.0;
 
 const HIDE_DELAY_MS: u64 = 250;
+const NOTICE_AUTO_HIDE_DELAY: Duration = Duration::from_secs(5);
+const NOTICE_LEAVE_HIDE_DELAY: Duration = Duration::from_secs(2);
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +47,109 @@ pub struct OverlayShowPayload {
     /// History record to reveal from the error/warning overlay actions. `None`
     /// for the regular recording/transcribing/processing states.
     record_id: Option<String>,
+}
+
+#[derive(Default)]
+pub struct OverlayNoticeRuntime(Mutex<NoticeAutoHideTracker>);
+
+#[derive(Default)]
+struct NoticeAutoHideTracker {
+    next_generation: u64,
+    session: Option<NoticeAutoHideSession>,
+}
+
+struct NoticeAutoHideSession {
+    generation: u64,
+    original_deadline: Instant,
+    current_deadline: Option<Instant>,
+    armed_windows: HashSet<String>,
+    hovered_windows: HashSet<String>,
+}
+
+#[derive(Clone, Copy)]
+struct ScheduledDismissal {
+    deadline: Instant,
+    generation: u64,
+}
+
+impl NoticeAutoHideTracker {
+    fn show_notice(&mut self, now: Instant) -> ScheduledDismissal {
+        self.next_generation += 1;
+
+        let deadline = now + NOTICE_AUTO_HIDE_DELAY;
+        let generation = self.next_generation;
+
+        self.session = Some(NoticeAutoHideSession {
+            generation,
+            original_deadline: deadline,
+            current_deadline: Some(deadline),
+            armed_windows: HashSet::new(),
+            hovered_windows: HashSet::new(),
+        });
+
+        ScheduledDismissal {
+            deadline,
+            generation,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.session = None;
+    }
+
+    fn mouse_move(&mut self, label: &str, now: Instant) {
+        let Some(session) = self.session.as_mut() else {
+            return;
+        };
+
+        if now >= session.original_deadline {
+            return;
+        }
+
+        session.armed_windows.insert(label.to_string());
+        session.hovered_windows.insert(label.to_string());
+        session.current_deadline = None;
+    }
+
+    fn mouse_leave(&mut self, label: &str, now: Instant) -> Option<ScheduledDismissal> {
+        let Some(session) = self.session.as_mut() else {
+            return None;
+        };
+
+        if !session.armed_windows.contains(label) {
+            return None;
+        }
+
+        session.hovered_windows.remove(label);
+
+        if !session.hovered_windows.is_empty() {
+            return None;
+        }
+
+        let deadline = if now >= session.original_deadline {
+            now
+        } else {
+            session.original_deadline.min(now + NOTICE_LEAVE_HIDE_DELAY)
+        };
+
+        session.current_deadline = Some(deadline);
+
+        Some(ScheduledDismissal {
+            deadline,
+            generation: session.generation,
+        })
+    }
+
+    fn should_dismiss(&self, generation: u64, deadline: Instant, now: Instant) -> bool {
+        let Some(session) = self.session.as_ref() else {
+            return false;
+        };
+
+        session.generation == generation
+            && session.current_deadline == Some(deadline)
+            && session.hovered_windows.is_empty()
+            && now >= deadline
+    }
 }
 
 /// Last requested overlay content. Newly created per-monitor windows read it on
@@ -87,6 +193,27 @@ pub fn dismiss_overlay(app: tauri::AppHandle) {
     let _ = hide_recording_overlay(&app);
 }
 
+#[tauri::command]
+pub fn overlay_notice_mouse_move(app: tauri::AppHandle, window: tauri::WebviewWindow) {
+    if let Ok(mut tracker) = app.state::<OverlayNoticeRuntime>().0.lock() {
+        tracker.mouse_move(window.label(), Instant::now());
+    }
+}
+
+#[tauri::command]
+pub fn overlay_notice_mouse_leave(app: tauri::AppHandle, window: tauri::WebviewWindow) {
+    let dismissal = app
+        .state::<OverlayNoticeRuntime>()
+        .0
+        .lock()
+        .ok()
+        .and_then(|mut tracker| tracker.mouse_leave(window.label(), Instant::now()));
+
+    if let Some(dismissal) = dismissal {
+        schedule_notice_dismissal(app, dismissal);
+    }
+}
+
 pub fn show_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
     show_overlay_state(app, "recording", None)
 }
@@ -115,6 +242,8 @@ pub fn hide_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
     if let Ok(mut current) = current_overlay().lock() {
         *current = None;
     }
+
+    clear_notice_auto_hide(app);
 
     let windows = overlay_windows(app);
 
@@ -166,6 +295,12 @@ fn show_overlay_state(
         *current = Some(payload.clone());
     }
 
+    if is_notice_overlay_state(state) {
+        arm_notice_auto_hide(app);
+    } else {
+        clear_notice_auto_hide(app);
+    }
+
     for (index, monitor) in monitors.iter().enumerate() {
         let window = build_overlay_window(app, &overlay_label(index))?;
 
@@ -182,6 +317,46 @@ fn show_overlay_state(
     app.emit("show-overlay", payload)?;
 
     Ok(())
+}
+
+fn is_notice_overlay_state(state: &str) -> bool {
+    state == "error" || state == "warning"
+}
+
+fn arm_notice_auto_hide(app: &tauri::AppHandle) {
+    let dismissal = app
+        .state::<OverlayNoticeRuntime>()
+        .0
+        .lock()
+        .ok()
+        .map(|mut tracker| tracker.show_notice(Instant::now()));
+
+    if let Some(dismissal) = dismissal {
+        schedule_notice_dismissal(app.clone(), dismissal);
+    }
+}
+
+fn clear_notice_auto_hide(app: &tauri::AppHandle) {
+    if let Ok(mut tracker) = app.state::<OverlayNoticeRuntime>().0.lock() {
+        tracker.clear();
+    }
+}
+
+fn schedule_notice_dismissal(app: tauri::AppHandle, dismissal: ScheduledDismissal) {
+    thread::spawn(move || {
+        thread::sleep(dismissal.deadline.saturating_duration_since(Instant::now()));
+
+        let should_dismiss = app
+            .state::<OverlayNoticeRuntime>()
+            .0
+            .lock()
+            .map(|tracker| tracker.should_dismiss(dismissal.generation, dismissal.deadline, Instant::now()))
+            .unwrap_or(false);
+
+        if should_dismiss {
+            let _ = hide_recording_overlay(&app);
+        }
+    });
 }
 
 fn build_overlay_window(app: &tauri::AppHandle, label: &str) -> AppResult<WebviewWindow> {
@@ -353,3 +528,130 @@ fn refresh_topmost(window: &WebviewWindow) {
 
 #[cfg(not(target_os = "windows"))]
 fn refresh_topmost(_window: &WebviewWindow) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const WINDOW_A: &str = "recording_overlay_0";
+    const WINDOW_B: &str = "recording_overlay_1";
+
+    #[test]
+    fn notice_without_hover_closes_after_five_seconds() {
+        let mut tracker = NoticeAutoHideTracker::default();
+        let now = Instant::now();
+        let dismissal = tracker.show_notice(now);
+
+        assert!(!tracker.should_dismiss(dismissal.generation, dismissal.deadline, now + Duration::from_secs(4)));
+        assert!(tracker.should_dismiss(dismissal.generation, dismissal.deadline, dismissal.deadline));
+    }
+
+    #[test]
+    fn mouse_move_blocks_deadline_until_leave() {
+        let mut tracker = NoticeAutoHideTracker::default();
+        let now = Instant::now();
+        let dismissal = tracker.show_notice(now);
+
+        tracker.mouse_move(WINDOW_A, now + Duration::from_secs(1));
+
+        assert!(!tracker.should_dismiss(
+            dismissal.generation,
+            dismissal.deadline,
+            dismissal.deadline + Duration::from_millis(1),
+        ));
+    }
+
+    #[test]
+    fn mouse_leave_uses_two_seconds_when_it_is_earlier_than_original_deadline() {
+        let mut tracker = NoticeAutoHideTracker::default();
+        let now = Instant::now();
+
+        tracker.show_notice(now);
+        tracker.mouse_move(WINDOW_A, now + Duration::from_secs(1));
+
+        let leave_time = now + Duration::from_secs(2);
+        let dismissal = tracker
+            .mouse_leave(WINDOW_A, leave_time)
+            .expect("leave should schedule dismissal");
+
+        assert_eq!(dismissal.deadline, leave_time + Duration::from_secs(2));
+    }
+
+    #[test]
+    fn mouse_leave_near_end_keeps_original_deadline() {
+        let mut tracker = NoticeAutoHideTracker::default();
+        let now = Instant::now();
+
+        let initial = tracker.show_notice(now);
+        tracker.mouse_move(WINDOW_A, now + Duration::from_secs(1));
+
+        let leave_time = now + Duration::from_millis(4_500);
+        let dismissal = tracker
+            .mouse_leave(WINDOW_A, leave_time)
+            .expect("leave should schedule dismissal");
+
+        assert_eq!(dismissal.deadline, initial.deadline);
+    }
+
+    #[test]
+    fn mouse_leave_after_original_deadline_closes_immediately() {
+        let mut tracker = NoticeAutoHideTracker::default();
+        let now = Instant::now();
+
+        tracker.show_notice(now);
+        tracker.mouse_move(WINDOW_A, now + Duration::from_secs(1));
+
+        let leave_time = now + Duration::from_secs(6);
+        let dismissal = tracker
+            .mouse_leave(WINDOW_A, leave_time)
+            .expect("leave should schedule dismissal");
+
+        assert_eq!(dismissal.deadline, leave_time);
+        assert!(tracker.should_dismiss(dismissal.generation, dismissal.deadline, leave_time));
+    }
+
+    #[test]
+    fn hover_on_one_window_holds_all_until_last_window_leaves() {
+        let mut tracker = NoticeAutoHideTracker::default();
+        let now = Instant::now();
+        let initial = tracker.show_notice(now);
+
+        tracker.mouse_move(WINDOW_A, now + Duration::from_secs(1));
+        tracker.mouse_move(WINDOW_B, now + Duration::from_secs(2));
+
+        assert!(tracker.mouse_leave(WINDOW_A, now + Duration::from_secs(3)).is_none());
+        assert!(!tracker.should_dismiss(
+            initial.generation,
+            initial.deadline,
+            initial.deadline + Duration::from_secs(1),
+        ));
+
+        let dismissal = tracker
+            .mouse_leave(WINDOW_B, now + Duration::from_secs(4))
+            .expect("last leave should schedule dismissal");
+
+        assert_eq!(dismissal.deadline, initial.deadline);
+    }
+
+    #[test]
+    fn mouse_move_after_return_cancels_pending_dismissal() {
+        let mut tracker = NoticeAutoHideTracker::default();
+        let now = Instant::now();
+
+        tracker.show_notice(now);
+        tracker.mouse_move(WINDOW_A, now + Duration::from_secs(1));
+
+        let leave_time = now + Duration::from_secs(2);
+        let dismissal = tracker
+            .mouse_leave(WINDOW_A, leave_time)
+            .expect("leave should schedule dismissal");
+
+        tracker.mouse_move(WINDOW_A, leave_time + Duration::from_millis(500));
+
+        assert!(!tracker.should_dismiss(
+            dismissal.generation,
+            dismissal.deadline,
+            dismissal.deadline + Duration::from_millis(1),
+        ));
+    }
+}
