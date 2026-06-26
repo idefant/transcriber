@@ -1,15 +1,15 @@
 {
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "notes": "",
-  "pub_date": "2026-06-25T15:39:34.768Z",
+  "pub_date": "2026-06-26T21:06:20.041Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6Mm9CN0dzZFN3U0VEd2xRbm9vMjI3clprN2haendQZlFzYTR5ZWtBVDBsVGQ1RExQcmZkR2cyY3NteHBHc0hlbE8zU3hWUDdOTGFkOW16OER2aHRteGdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDAxOTcyCWZpbGU6VHJhbnNjcmliZXJfMC4xLjAtYWxwaGEuNV94NjQtc2V0dXAuZXhlCklnMVZqZ3ZRRkR4VEppWWFYZ1hjSzFDMFNPYWV6SnRkQnllUzFnMXF1c2Nub1B1TzdGRmticlBvTUg4NEQ3NVR5UTZ5eVJGWFg1SlJCalJhS2tjTEJ3PT0K",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.1.0-alpha.5/Transcriber_0.1.0-alpha.5_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmlTVDYzOHF5NVc1TXUweGpoR2Z4RXRDT25hUFVGNVNtWG9ERXIxQ2tYWnB4dXlnUTN5M1VvUVhDR0lVKzhqTTRvVVlIdlZUbFBBRTVJQ2hOUDFCWGdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNTA3OTc3CWZpbGU6VHJhbnNjcmliZXJfMC4xLjAtYWxwaGEuNl94NjQtc2V0dXAuZXhlCmFIdktpdUNwa1ZmR2dXY0R0VTRXS3kvbVlSdTN4dVM2SlVLMlhZbUNSMjRMRXM1RWJJbEZiMFVTSWpSRTZHQjNnMmV0NlJmRTlEWnJUdGFPOHlYQ0JRPT0K",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.1.0-alpha.6/Transcriber_0.1.0-alpha.6_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6Mm9CN0dzZFN3U0VEd2xRbm9vMjI3clprN2haendQZlFzYTR5ZWtBVDBsVGQ1RExQcmZkR2cyY3NteHBHc0hlbE8zU3hWUDdOTGFkOW16OER2aHRteGdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDAxOTcyCWZpbGU6VHJhbnNjcmliZXJfMC4xLjAtYWxwaGEuNV94NjQtc2V0dXAuZXhlCklnMVZqZ3ZRRkR4VEppWWFYZ1hjSzFDMFNPYWV6SnRkQnllUzFnMXF1c2Nub1B1TzdGRmticlBvTUg4NEQ3NVR5UTZ5eVJGWFg1SlJCalJhS2tjTEJ3PT0K",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.1.0-alpha.5/Transcriber_0.1.0-alpha.5_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmlTVDYzOHF5NVc1TXUweGpoR2Z4RXRDT25hUFVGNVNtWG9ERXIxQ2tYWnB4dXlnUTN5M1VvUVhDR0lVKzhqTTRvVVlIdlZUbFBBRTVJQ2hOUDFCWGdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNTA3OTc3CWZpbGU6VHJhbnNjcmliZXJfMC4xLjAtYWxwaGEuNl94NjQtc2V0dXAuZXhlCmFIdktpdUNwa1ZmR2dXY0R0VTRXS3kvbVlSdTN4dVM2SlVLMlhZbUNSMjRMRXM1RWJJbEZiMFVTSWpSRTZHQjNnMmV0NlJmRTlEWnJUdGFPOHlYQ0JRPT0K",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.1.0-alpha.6/Transcriber_0.1.0-alpha.6_x64-setup.exe"
     }
   }
 }
