@@ -26,5 +26,5 @@
     "useDefineForClassFields": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src"]
+  "include": ["src", ".storybook/preview.tsx"]
 }

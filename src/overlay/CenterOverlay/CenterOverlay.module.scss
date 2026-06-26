@@ -1,23 +1,22 @@
 .overlay,
 .overlayVisible {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   align-items: center;
-  width: 180px;
-  height: 40px;
-  padding: 7px 8px 7px 10px;
+  width: 220px;
+  padding: 24px 24px 20px;
   color: rgb(255 255 255);
   pointer-events: auto;
   background: rgb(24 24 27 / 92%);
   border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: 8px;
-  box-shadow: 0 10px 26px rgb(0 0 0 / 24%);
+  border-radius: 16px;
+  box-shadow: 0 24px 56px rgb(0 0 0 / 36%);
   opacity: 0;
   transform: translateY(8px) scale(0.98);
   transition:
-    opacity 160ms ease,
-    transform 160ms ease;
+    opacity 200ms ease,
+    transform 200ms ease;
 }
 
 .overlayVisible {
@@ -25,41 +24,32 @@
   transform: translateY(0) scale(1);
 }
 
-.status {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  min-width: 0;
-}
-
 .statusIcon {
   display: grid;
-  flex: 0 0 auto;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: 48px;
+  height: 48px;
   color: rgb(125 211 252);
+  background: rgb(125 211 252 / 12%);
+  border-radius: 12px;
 }
 
 .statusText {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .levels {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   align-items: center;
-  height: 18px;
+  height: 24px;
 }
 
 .level {
-  width: 3px;
-  height: 16px;
+  width: 5px;
+  height: 20px;
   background: rgb(56 189 248);
   border-radius: 999px;
   transform-origin: center;
@@ -67,16 +57,16 @@
 }
 
 .cancelButton {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 14px;
+  font-size: 12px;
   color: rgb(244 244 245);
   cursor: pointer;
   background: rgb(255 255 255 / 8%);
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
 
   &:hover {
     background: rgb(255 255 255 / 14%);

@@ -11,6 +11,8 @@ export type ThemePreference = 'auto' | ThemeMode;
 export type TriggerMode = 'hold' | 'press';
 export type EffectiveUiLanguage = 'en' | 'ru';
 export type UiLanguage = 'en' | 'ru' | 'system';
+export type OverlayVariant = 'bottom' | 'center';
+export type OverlayScreenMode = 'all' | 'cursor';
 
 export interface AppSettings {
   cancelHotkey: string;
@@ -20,6 +22,8 @@ export interface AppSettings {
   isLaunchAtLoginEnabled: boolean;
   isMuteWhileRecordingEnabled: boolean;
   isOfferUnstableVersionsEnabled: boolean;
+  overlayScreenMode: OverlayScreenMode;
+  overlayVariant: OverlayVariant;
   themePreference: ThemePreference;
   triggerMode: TriggerMode;
   uiLanguage: UiLanguage;

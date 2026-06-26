@@ -7,7 +7,12 @@ import SettingRow from '../SettingRow';
 
 import styles from './GeneralSettingsTab.module.scss';
 
-import type { ThemePreference, UiLanguage } from '#/models/Settings';
+import type {
+  OverlayScreenMode,
+  OverlayVariant,
+  ThemePreference,
+  UiLanguage,
+} from '#/models/Settings';
 
 interface GeneralSettingsTabProps {
   isDebugLoggingEnabled: boolean;
@@ -17,8 +22,12 @@ interface GeneralSettingsTabProps {
   onDebugLoggingEnabledChange: (value: boolean) => void;
   onLaunchAtLoginEnabledChange: (value: boolean) => void;
   onMuteWhileRecordingEnabledChange: (value: boolean) => void;
+  onOverlayScreenModeChange: (value: OverlayScreenMode) => void;
+  onOverlayVariantChange: (value: OverlayVariant) => void;
   onThemePreferenceChange: (value: ThemePreference) => void;
   onUiLanguageChange: (value: UiLanguage) => void;
+  overlayScreenMode: OverlayScreenMode;
+  overlayVariant: OverlayVariant;
   themePreference: ThemePreference;
   uiLanguage: UiLanguage;
 }
@@ -31,8 +40,12 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
   onDebugLoggingEnabledChange,
   onLaunchAtLoginEnabledChange,
   onMuteWhileRecordingEnabledChange,
+  onOverlayScreenModeChange,
+  onOverlayVariantChange,
   onThemePreferenceChange,
   onUiLanguageChange,
+  overlayScreenMode,
+  overlayVariant,
   themePreference,
   uiLanguage,
 }) => {
@@ -108,6 +121,48 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
             },
           ]}
           onChange={onUiLanguageChange}
+        />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.general.overlayVariant.description')}
+        title={t('settings.general.overlayVariant.title')}
+      >
+        <Select
+          className={styles.overlaySelect}
+          value={overlayVariant}
+          options={[
+            {
+              label: t('settings.general.overlayVariant.center'),
+              value: 'center',
+            },
+            {
+              label: t('settings.general.overlayVariant.bottom'),
+              value: 'bottom',
+            },
+          ]}
+          onChange={onOverlayVariantChange}
+        />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.general.overlayScreenMode.description')}
+        title={t('settings.general.overlayScreenMode.title')}
+      >
+        <Select
+          className={styles.overlaySelect}
+          value={overlayScreenMode}
+          options={[
+            {
+              label: t('settings.general.overlayScreenMode.all'),
+              value: 'all',
+            },
+            {
+              label: t('settings.general.overlayScreenMode.cursor'),
+              value: 'cursor',
+            },
+          ]}
+          onChange={onOverlayScreenModeChange}
         />
       </SettingRow>
 

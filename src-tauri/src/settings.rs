@@ -62,6 +62,32 @@ impl Default for EffectiveUiLanguage {
     }
 }
 
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum OverlayVariant {
+    Bottom,
+    Center,
+}
+
+impl Default for OverlayVariant {
+    fn default() -> Self {
+        Self::Center
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum OverlayScreenMode {
+    All,
+    Cursor,
+}
+
+impl Default for OverlayScreenMode {
+    fn default() -> Self {
+        Self::All
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
@@ -84,6 +110,10 @@ pub struct AppSettings {
     #[serde(default)]
     trigger_mode: TriggerMode,
     #[serde(default)]
+    overlay_variant: OverlayVariant,
+    #[serde(default)]
+    overlay_screen_mode: OverlayScreenMode,
+    #[serde(default)]
     is_offer_unstable_versions_enabled: bool,
 }
 
@@ -99,6 +129,8 @@ impl Default for AppSettings {
             hotkey: default_hotkey(),
             cancel_hotkey: default_cancel_hotkey(),
             trigger_mode: TriggerMode::default(),
+            overlay_variant: OverlayVariant::default(),
+            overlay_screen_mode: OverlayScreenMode::default(),
             is_offer_unstable_versions_enabled: false,
         }
     }
@@ -120,6 +152,14 @@ impl AppSettings {
     pub fn trigger_mode(&self) -> &TriggerMode {
         &self.trigger_mode
     }
+
+    pub fn overlay_variant(&self) -> &OverlayVariant {
+        &self.overlay_variant
+    }
+
+    pub fn overlay_screen_mode(&self) -> &OverlayScreenMode {
+        &self.overlay_screen_mode
+    }
 }
 
 #[derive(Deserialize)]
@@ -133,6 +173,8 @@ pub struct AppSettingsInput {
     hotkey: Option<String>,
     cancel_hotkey: Option<String>,
     trigger_mode: Option<TriggerMode>,
+    overlay_variant: Option<OverlayVariant>,
+    overlay_screen_mode: Option<OverlayScreenMode>,
     is_offer_unstable_versions_enabled: Option<bool>,
 }
 
@@ -206,6 +248,14 @@ fn update_app_settings_inner(
 
     if let Some(trigger_mode) = input.trigger_mode {
         settings.trigger_mode = trigger_mode;
+    }
+
+    if let Some(overlay_variant) = input.overlay_variant {
+        settings.overlay_variant = overlay_variant;
+    }
+
+    if let Some(overlay_screen_mode) = input.overlay_screen_mode {
+        settings.overlay_screen_mode = overlay_screen_mode;
     }
 
     if let Some(is_offer_unstable_versions_enabled) = input.is_offer_unstable_versions_enabled {

@@ -12,6 +12,8 @@ const defaultAppSettings: AppSettings = {
   isLaunchAtLoginEnabled: true,
   isMuteWhileRecordingEnabled: true,
   isOfferUnstableVersionsEnabled: false,
+  overlayScreenMode: 'all',
+  overlayVariant: 'center',
   themePreference: 'light',
   triggerMode: 'press',
   uiLanguage: 'system',

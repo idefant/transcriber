@@ -1,29 +1,34 @@
-import { type FC, useEffect, useMemo, useState } from 'react';
+import { type FC, useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { LoaderCircleIcon, MicIcon, SparklesIcon, XIcon } from 'lucide-react';
 
-import styles from './RecordingOverlay.module.scss';
-
-type OverlayState = 'processing' | 'recording' | 'transcribing';
-
-const stateLabels: Record<OverlayState, string> = {
-  processing: 'Processing',
-  recording: 'Recording',
-  transcribing: 'Transcribing',
-};
-
-const cancelLabel = 'Cancel dictation';
+import BottomOverlay from '../BottomOverlay';
+import CenterOverlay from '../CenterOverlay';
+import type { OverlayShowPayload, OverlayState, OverlayVariant } from '../types';
 
 const RecordingOverlay: FC = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [state, setState] = useState<OverlayState>('recording');
+  const [variant, setVariant] = useState<OverlayVariant>('center');
   const [levels, setLevels] = useState<number[]>([0, 0, 0]);
 
   useEffect(() => {
+    // A window created for a secondary monitor may mount after the `show-overlay`
+    // event was broadcast, so it recovers the current state on mount.
+    void invoke<OverlayShowPayload | null>('get_overlay_state').then((payload) => {
+      if (payload) {
+        setState(payload.state);
+        setVariant(payload.variant);
+        setIsVisible(true);
+      }
+
+      return null;
+    });
+
     const unlisteners = [
-      listen<OverlayState>('show-overlay', (event) => {
-        setState(event.payload);
+      listen<OverlayShowPayload>('show-overlay', (event) => {
+        setState(event.payload.state);
+        setVariant(event.payload.variant);
         setIsVisible(true);
       }),
       listen('hide-overlay', () => {
@@ -45,45 +50,14 @@ const RecordingOverlay: FC = () => {
     };
   }, []);
 
-  const statusIcon = useMemo(() => {
-    if (state === 'recording') return <MicIcon aria-hidden size={15} strokeWidth={2.2} />;
-    if (state === 'transcribing') {
-      return (
-        <LoaderCircleIcon aria-hidden className={styles.spinIcon} size={15} strokeWidth={2.2} />
-      );
-    }
+  const handleCancel = useCallback(() => {
+    void invoke('cancel_dictation');
+  }, []);
 
-    return <SparklesIcon aria-hidden size={15} strokeWidth={2.2} />;
-  }, [state]);
+  const OverlayComponent = variant === 'center' ? CenterOverlay : BottomOverlay;
 
   return (
-    <div className={isVisible ? styles.overlayVisible : styles.overlay}>
-      <div className={styles.status}>
-        <span className={styles.statusIcon}>{statusIcon}</span>
-        <span className={styles.statusText}>{stateLabels[state]}</span>
-      </div>
-
-      <div aria-hidden className={styles.levels}>
-        {levels.map((level, index) => (
-          <span
-            className={styles.level}
-            key={index}
-            style={{ transform: `scaleY(${Math.max(0.18, Math.min(1, level * 3.2))})` }}
-          />
-        ))}
-      </div>
-
-      <button
-        aria-label={cancelLabel}
-        className={styles.cancelButton}
-        type="button"
-        onClick={() => {
-          void invoke('cancel_dictation');
-        }}
-      >
-        <XIcon aria-hidden size={14} strokeWidth={2.4} />
-      </button>
-    </div>
+    <OverlayComponent isVisible={isVisible} levels={levels} state={state} onCancel={handleCancel} />
   );
 };
 

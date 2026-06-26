@@ -15,6 +15,13 @@ body,
   background: transparent;
 }
 
+// The overlay window can be larger than the card (the centered variant leaves
+// room around it), so center the card within the window.
+#root {
+  display: grid;
+  place-items: center;
+}
+
 button {
   font: inherit;
 }

@@ -20,3 +20,6 @@ pnpm-debug.log*
 .claude
 .playwright-mcp
 src-tauri/extensions/
+
+*storybook.log
+storybook-static

@@ -1,32 +1,181 @@
-use std::{thread, time::Duration};
-
-use tauri::{
-    Emitter, Manager, PhysicalPosition, Position, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+use std::{
+    sync::{Mutex, OnceLock},
+    thread,
+    time::Duration,
 };
 
-use crate::error::{AppError, AppResult};
+use serde::Serialize;
+use tauri::{
+    Emitter, Manager, Monitor, PhysicalPosition, PhysicalSize, Position, Size, WebviewUrl,
+    WebviewWindow, WebviewWindowBuilder,
+};
 
-const OVERLAY_LABEL: &str = "recording_overlay";
-const OVERLAY_WIDTH: f64 = 180.0;
-const OVERLAY_HEIGHT: f64 = 40.0;
-const OVERLAY_BOTTOM_OFFSET: i32 = 72;
+use crate::{
+    error::{AppError, AppResult},
+    settings::{self, OverlayScreenMode, OverlayVariant},
+};
+
+const OVERLAY_LABEL_PREFIX: &str = "recording_overlay_";
+
+/// Card sizes — must match the `.overlay` dimensions in the component SCSS.
+const BOTTOM_CARD_WIDTH: f64 = 180.0;
+const BOTTOM_CARD_HEIGHT: f64 = 40.0;
+const CENTER_CARD_WIDTH: f64 = 220.0;
+/// Upper bound on the center card height. The card is centered inside the
+/// window, so the exact value only needs to be ≥ the tallest state.
+const CENTER_CARD_HEIGHT: f64 = 220.0;
+
+/// Transparent margin around the card, large enough to fit the card's CSS drop
+/// shadow without the (rectangular) window clipping it. The native window
+/// shadow is disabled, so this margin stays fully transparent.
+const BOTTOM_SHADOW_MARGIN: f64 = 36.0;
+const CENTER_SHADOW_MARGIN: f64 = 80.0;
+
+/// Distance from the screen bottom to the bottom edge of the bottom-variant card.
+const OVERLAY_BOTTOM_OFFSET: f64 = 72.0;
+
 const HIDE_DELAY_MS: u64 = 250;
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverlayShowPayload {
+    state: &'static str,
+    variant: OverlayVariant,
+}
+
+/// Last requested overlay content. Newly created per-monitor windows read it on
+/// mount via `get_overlay_state`, so they render correctly even if they missed
+/// the `show-overlay` event that was broadcast before their webview was ready.
+fn current_overlay() -> &'static Mutex<Option<OverlayShowPayload>> {
+    static CURRENT: OnceLock<Mutex<Option<OverlayShowPayload>>> = OnceLock::new();
+    CURRENT.get_or_init(|| Mutex::new(None))
+}
+
+fn overlay_label(index: usize) -> String {
+    format!("{OVERLAY_LABEL_PREFIX}{index}")
+}
+
+fn overlay_index(label: &str) -> Option<usize> {
+    label
+        .strip_prefix(OVERLAY_LABEL_PREFIX)
+        .and_then(|rest| rest.parse::<usize>().ok())
+}
+
 pub fn create_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
-    if app.get_webview_window(OVERLAY_LABEL).is_some() {
+    // Warm up a single overlay webview at startup so the first dictation shows
+    // without webview-init lag. Extra per-monitor windows are created lazily.
+    build_overlay_window(app, &overlay_label(0))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_overlay_state() -> Option<OverlayShowPayload> {
+    current_overlay()
+        .lock()
+        .ok()
+        .and_then(|guard| guard.clone())
+}
+
+pub fn show_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
+    show_overlay_state(app, "recording")
+}
+
+pub fn show_transcribing_overlay(app: &tauri::AppHandle) -> AppResult<()> {
+    show_overlay_state(app, "transcribing")
+}
+
+pub fn show_processing_overlay(app: &tauri::AppHandle) -> AppResult<()> {
+    show_overlay_state(app, "processing")
+}
+
+pub fn hide_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
+    if let Ok(mut current) = current_overlay().lock() {
+        *current = None;
+    }
+
+    let windows = overlay_windows(app);
+
+    if windows.is_empty() {
         return Ok(());
+    }
+
+    let _ = app.emit("hide-overlay", ());
+
+    thread::spawn(move || {
+        thread::sleep(Duration::from_millis(HIDE_DELAY_MS));
+        for window in windows {
+            let _ = window.hide();
+        }
+    });
+
+    Ok(())
+}
+
+pub fn emit_mic_levels(app: &tauri::AppHandle, levels: Vec<f32>) {
+    let _ = app.emit("mic-level", levels);
+}
+
+fn show_overlay_state(app: &tauri::AppHandle, state: &'static str) -> AppResult<()> {
+    let app_settings = settings::load_app_settings(app)?;
+    let variant = app_settings.overlay_variant().clone();
+    let screen_mode = app_settings.overlay_screen_mode().clone();
+
+    let base = build_overlay_window(app, &overlay_label(0))?;
+    let monitors = target_monitors(app, &base, &screen_mode)?;
+
+    if monitors.is_empty() {
+        return Err(AppError::from("No monitor is available for recording overlay"));
+    }
+
+    let payload = OverlayShowPayload {
+        state,
+        variant: variant.clone(),
+    };
+
+    // Store the state before building windows so any window that mounts late can
+    // recover it through `get_overlay_state`.
+    if let Ok(mut current) = current_overlay().lock() {
+        *current = Some(payload.clone());
+    }
+
+    for (index, monitor) in monitors.iter().enumerate() {
+        let window = build_overlay_window(app, &overlay_label(index))?;
+
+        position_overlay(&window, monitor, &variant)?;
+        window.show()?;
+        window.set_always_on_top(true)?;
+        refresh_topmost(&window);
+    }
+
+    // Hide overlay windows for monitors that are no longer targeted (e.g. after
+    // switching from "every screen" to "cursor" or unplugging a monitor).
+    hide_surplus_overlays(app, monitors.len());
+
+    app.emit("show-overlay", payload)?;
+
+    Ok(())
+}
+
+fn build_overlay_window(app: &tauri::AppHandle, label: &str) -> AppResult<WebviewWindow> {
+    if let Some(window) = app.get_webview_window(label) {
+        return Ok(window);
     }
 
     #[cfg_attr(not(all(debug_assertions, target_os = "windows")), allow(unused_mut))]
     let mut builder = WebviewWindowBuilder::new(
         app,
-        OVERLAY_LABEL,
+        label,
         WebviewUrl::App("src/overlay/index.html".into()),
     )
     .title("Recording")
-    .inner_size(OVERLAY_WIDTH, OVERLAY_HEIGHT)
+    .inner_size(
+        BOTTOM_CARD_WIDTH + BOTTOM_SHADOW_MARGIN * 2.0,
+        BOTTOM_CARD_HEIGHT + BOTTOM_SHADOW_MARGIN * 2.0,
+    )
     .decorations(false)
     .transparent(true)
+    .shadow(false)
     .always_on_top(true)
     .skip_taskbar(true)
     .resizable(false)
@@ -49,88 +198,102 @@ pub fn create_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
         }
     }
 
-    builder.build()?;
-
-    update_overlay_position(app)?;
-
-    Ok(())
+    Ok(builder.build()?)
 }
 
-pub fn show_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
-    show_overlay_state(app, "recording")
+fn overlay_windows(app: &tauri::AppHandle) -> Vec<WebviewWindow> {
+    app.webview_windows()
+        .into_iter()
+        .filter_map(|(label, window)| overlay_index(&label).map(|_| window))
+        .collect()
 }
 
-pub fn show_transcribing_overlay(app: &tauri::AppHandle) -> AppResult<()> {
-    show_overlay_state(app, "transcribing")
-}
+fn target_monitors(
+    app: &tauri::AppHandle,
+    base: &WebviewWindow,
+    screen_mode: &OverlayScreenMode,
+) -> AppResult<Vec<Monitor>> {
+    match screen_mode {
+        OverlayScreenMode::All => {
+            let monitors = base.available_monitors()?;
 
-pub fn show_processing_overlay(app: &tauri::AppHandle) -> AppResult<()> {
-    show_overlay_state(app, "processing")
-}
+            if monitors.is_empty() {
+                Ok(base.primary_monitor()?.into_iter().collect())
+            } else {
+                Ok(monitors)
+            }
+        }
+        OverlayScreenMode::Cursor => {
+            let monitor = match app.cursor_position() {
+                Ok(position) => app
+                    .monitor_from_point(position.x, position.y)?
+                    .or(base.primary_monitor()?),
+                Err(_) => base.primary_monitor()?,
+            };
 
-pub fn hide_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
-    let Some(window) = overlay_window(app) else {
-        return Ok(());
-    };
-
-    let _ = window.emit("hide-overlay", ());
-    let window_to_hide = window.clone();
-
-    thread::spawn(move || {
-        thread::sleep(Duration::from_millis(HIDE_DELAY_MS));
-        let _ = window_to_hide.hide();
-    });
-
-    Ok(())
-}
-
-pub fn update_overlay_position(app: &tauri::AppHandle) -> AppResult<()> {
-    let Some(window) = overlay_window(app) else {
-        return Ok(());
-    };
-
-    let monitor = match app.cursor_position() {
-        Ok(position) => app
-            .monitor_from_point(position.x, position.y)?
-            .or(window.primary_monitor()?),
-        Err(_) => window.primary_monitor()?,
+            Ok(monitor.into_iter().collect())
+        }
     }
-    .ok_or("No monitor is available for recording overlay")?;
+}
+
+fn position_overlay(
+    window: &WebviewWindow,
+    monitor: &Monitor,
+    variant: &OverlayVariant,
+) -> AppResult<()> {
+    let scale = monitor.scale_factor();
+
+    // The window is the card plus a transparent margin that holds the card's CSS
+    // drop shadow (the card is centered inside the window via `place-items`).
+    let (card_height, margin) = match variant {
+        OverlayVariant::Bottom => (BOTTOM_CARD_HEIGHT, BOTTOM_SHADOW_MARGIN),
+        OverlayVariant::Center => (CENTER_CARD_HEIGHT, CENTER_SHADOW_MARGIN),
+    };
+    let card_width = match variant {
+        OverlayVariant::Bottom => BOTTOM_CARD_WIDTH,
+        OverlayVariant::Center => CENTER_CARD_WIDTH,
+    };
+
+    let physical_width = ((card_width + margin * 2.0) * scale).round();
+    let physical_height = ((card_height + margin * 2.0) * scale).round();
+
+    window.set_size(Size::Physical(PhysicalSize::new(
+        physical_width as u32,
+        physical_height as u32,
+    )))?;
 
     let monitor_position = monitor.position();
     let monitor_size = monitor.size();
-    let x = monitor_position.x + ((monitor_size.width as f64 - OVERLAY_WIDTH) / 2.0).round() as i32;
-    let y = monitor_position.y + monitor_size.height as i32
-        - OVERLAY_HEIGHT as i32
-        - OVERLAY_BOTTOM_OFFSET;
+
+    // Center the window (and therefore the card) horizontally.
+    let x = monitor_position.x + ((monitor_size.width as f64 - physical_width) / 2.0).round() as i32;
+    let y = match variant {
+        OverlayVariant::Center => {
+            monitor_position.y + ((monitor_size.height as f64 - physical_height) / 2.0).round() as i32
+        }
+        OverlayVariant::Bottom => {
+            // The card is centered in the window, so its center sits at the window
+            // center. Place the window so the card bottom ends OVERLAY_BOTTOM_OFFSET
+            // above the screen bottom.
+            let card_bottom = monitor_size.height as f64 - OVERLAY_BOTTOM_OFFSET * scale;
+            let window_top = card_bottom - (card_height * scale) / 2.0 - physical_height / 2.0;
+            monitor_position.y + window_top.round() as i32
+        }
+    };
 
     window.set_position(Position::Physical(PhysicalPosition::new(x, y)))?;
 
     Ok(())
 }
 
-pub fn emit_mic_levels(app: &tauri::AppHandle, levels: Vec<f32>) {
-    if let Some(window) = overlay_window(app) {
-        let _ = window.emit("mic-level", levels);
+fn hide_surplus_overlays(app: &tauri::AppHandle, active_count: usize) {
+    for (label, window) in app.webview_windows() {
+        if let Some(index) = overlay_index(&label) {
+            if index >= active_count {
+                let _ = window.hide();
+            }
+        }
     }
-}
-
-fn show_overlay_state(app: &tauri::AppHandle, state: &str) -> AppResult<()> {
-    let Some(window) = overlay_window(app) else {
-        return Err(AppError::from("Recording overlay window is not available"));
-    };
-
-    update_overlay_position(app)?;
-    window.show()?;
-    window.set_always_on_top(true)?;
-    refresh_topmost(&window);
-    window.emit("show-overlay", state)?;
-
-    Ok(())
-}
-
-fn overlay_window(app: &tauri::AppHandle) -> Option<WebviewWindow> {
-    app.get_webview_window(OVERLAY_LABEL)
 }
 
 #[cfg(target_os = "windows")]

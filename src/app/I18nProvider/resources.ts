@@ -51,6 +51,18 @@ const en = {
         ru: 'Russian',
         en: 'English',
       },
+      overlayVariant: {
+        title: 'Overlay style',
+        description: 'Choose how the recording overlay looks on screen',
+        bottom: 'Compact bar at the bottom',
+        center: 'Large panel in the center',
+      },
+      overlayScreenMode: {
+        title: 'Overlay screens',
+        description: 'Choose which monitors show the recording overlay',
+        cursor: 'Screen with the cursor',
+        all: 'Every screen',
+      },
       debugLogging: {
         title: 'Enable logging',
         description: 'Logs are not sent to a server and are only used for debugging.',
@@ -247,6 +259,18 @@ const ru: typeof en = {
         system: 'Системный',
         ru: 'Русский',
         en: 'English',
+      },
+      overlayVariant: {
+        title: 'Вид оверлея',
+        description: 'Выберите, как выглядит оверлей записи на экране',
+        bottom: 'Компактная панель снизу',
+        center: 'Большая панель по центру',
+      },
+      overlayScreenMode: {
+        title: 'Экраны оверлея',
+        description: 'Выберите, на каких мониторах показывать оверлей записи',
+        cursor: 'Экран с курсором',
+        all: 'Каждый экран',
       },
       debugLogging: {
         title: 'Включить логирование',

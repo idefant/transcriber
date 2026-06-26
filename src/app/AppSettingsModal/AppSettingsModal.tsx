@@ -190,6 +190,8 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
             isDebugLoggingEnabled={settings.isDebugLoggingEnabled}
             isLaunchAtLoginEnabled={settings.isLaunchAtLoginEnabled}
             isMuteWhileRecordingEnabled={settings.isMuteWhileRecordingEnabled}
+            overlayScreenMode={settings.overlayScreenMode}
+            overlayVariant={settings.overlayVariant}
             themePreference={settings.themePreference}
             uiLanguage={settings.uiLanguage}
             onDebugLogsFolderOpen={() => {
@@ -203,6 +205,12 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
             }}
             onMuteWhileRecordingEnabledChange={(isMuteWhileRecordingEnabled) => {
               void handleSettingsChange({ isMuteWhileRecordingEnabled });
+            }}
+            onOverlayScreenModeChange={(overlayScreenMode) => {
+              void handleSettingsChange({ overlayScreenMode });
+            }}
+            onOverlayVariantChange={(overlayVariant) => {
+              void handleSettingsChange({ overlayVariant });
             }}
             onThemePreferenceChange={(themePreference) => {
               void handleSettingsChange({ themePreference });
