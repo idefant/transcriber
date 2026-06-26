@@ -35,6 +35,8 @@ pub struct ProcessingDetails {
     duration: String,
     duration_ms: Option<u64>,
     error_message: Option<String>,
+    #[serde(default)]
+    error_details: Option<serde_json::Value>,
     is_processing: bool,
     model: String,
     provider: String,
@@ -144,6 +146,49 @@ pub async fn repeat_history_post_processing(
     repeat_history_post_processing_inner(&app, &record_id)
         .await
         .map_err(AppError::into_message)
+}
+
+/// Reveal a history record in the main window. Used by the overlay error/warning
+/// notifications: it hides the overlay, brings the main window forward and tells
+/// the history page which record to open (with the month/date needed to navigate).
+#[tauri::command]
+pub fn open_history_record(app: tauri::AppHandle, record_id: String) -> Result<(), String> {
+    open_history_record_inner(&app, &record_id).map_err(AppError::into_message)
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OpenHistoryRecordPayload {
+    record_id: String,
+    month: String,
+    date: String,
+}
+
+fn open_history_record_inner(app: &tauri::AppHandle, record_id: &str) -> AppResult<()> {
+    let _ = crate::overlay::hide_recording_overlay(app);
+
+    let record = find_history_record(app, record_id)?;
+    let local = parse_record_time(&record.created_at);
+    let month = format!("{:04}-{:02}", local.year(), local.month());
+    let date = format!(
+        "{:04}-{:02}-{:02}",
+        local.year(),
+        local.month(),
+        local.day()
+    );
+
+    crate::background::show_main_window(app)?;
+
+    app.emit(
+        "open-history-record",
+        OpenHistoryRecordPayload {
+            record_id: record_id.to_string(),
+            month,
+            date,
+        },
+    )?;
+
+    Ok(())
 }
 
 pub fn save_new_history_record(
@@ -518,6 +563,7 @@ fn result_from_stt_output(output: SttRunOutput) -> ProcessingDetails {
         duration: format_duration(output.duration_ms),
         duration_ms: Some(output.duration_ms),
         error_message: None,
+        error_details: None,
         is_processing: false,
         model: output.model,
         provider: output.provider,
@@ -529,11 +575,14 @@ fn result_from_stt_output(output: SttRunOutput) -> ProcessingDetails {
 }
 
 fn result_from_stt_error(snapshot: SttSettingsSnapshot, error: AppError) -> ProcessingDetails {
+    let (message, details) = error.into_message_and_details();
+
     ProcessingDetails {
         cost: format_cost(None),
         duration: format_duration(0),
         duration_ms: None,
-        error_message: Some(error.into_message()),
+        error_message: Some(message),
+        error_details: details,
         is_processing: false,
         model: snapshot.model_label.clone(),
         provider: snapshot.provider.provider_name.clone(),
@@ -545,11 +594,14 @@ fn result_from_stt_error(snapshot: SttSettingsSnapshot, error: AppError) -> Proc
 }
 
 fn result_from_generic_stt_error(error: AppError) -> ProcessingDetails {
+    let (message, details) = error.into_message_and_details();
+
     ProcessingDetails {
         cost: format_cost(None),
         duration: format_duration(0),
         duration_ms: None,
-        error_message: Some(error.into_message()),
+        error_message: Some(message),
+        error_details: details,
         is_processing: false,
         model: String::new(),
         provider: String::new(),
@@ -566,6 +618,7 @@ fn result_from_post_process_output(output: PostProcessRunOutput) -> ProcessingDe
         duration: format_duration(output.duration_ms),
         duration_ms: Some(output.duration_ms),
         error_message: None,
+        error_details: None,
         is_processing: false,
         model: output.model,
         provider: output.provider,
@@ -580,11 +633,14 @@ fn result_from_post_process_error(
     snapshot: Option<PostProcessSettingsSnapshot>,
     error: AppError,
 ) -> ProcessingDetails {
+    let (message, details) = error.into_message_and_details();
+
     ProcessingDetails {
         cost: format_cost(None),
         duration: format_duration(0),
         duration_ms: None,
-        error_message: Some(error.into_message()),
+        error_message: Some(message),
+        error_details: details,
         is_processing: false,
         model: snapshot
             .as_ref()
@@ -607,6 +663,7 @@ fn processing_result() -> ProcessingDetails {
         duration: format_duration(0),
         duration_ms: None,
         error_message: None,
+        error_details: None,
         is_processing: true,
         model: String::new(),
         provider: String::new(),
@@ -623,6 +680,7 @@ fn skipped_result(snapshot: Option<PostProcessSettingsSnapshot>) -> ProcessingDe
         duration: format_duration(0),
         duration_ms: None,
         error_message: None,
+        error_details: None,
         is_processing: false,
         model: snapshot
             .as_ref()

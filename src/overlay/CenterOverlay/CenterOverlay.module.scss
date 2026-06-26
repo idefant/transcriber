@@ -24,6 +24,48 @@
   transform: translateY(0) scale(1);
 }
 
+.error {
+  .statusIcon {
+    // color: rgb(254 226 226);
+    // background: rgb(254 226 226 / 16%);
+    color: #f41a1a;
+    background: rgb(239 86 86 / 18%);
+  }
+}
+
+.warning {
+  .statusIcon {
+    // color: rgb(255 237 213);
+    // background: rgb(255 237 213 / 16%);
+    color: #f4b31a;
+    background: rgb(230 177 51 / 21%);
+  }
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 36px;
+}
+
+.actionButton {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: rgb(244 244 245);
+  cursor: pointer;
+  background: rgb(255 255 255 / 8%);
+  border: 0;
+  border-radius: 8px;
+
+  &:hover {
+    background: rgb(255 255 255 / 14%);
+  }
+}
+
 .statusIcon {
   display: grid;
   place-items: center;
@@ -54,23 +96,6 @@
   border-radius: 999px;
   transform-origin: center;
   transition: transform 80ms ease;
-}
-
-.cancelButton {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  padding: 6px 14px;
-  font-size: 12px;
-  color: rgb(244 244 245);
-  cursor: pointer;
-  background: rgb(255 255 255 / 8%);
-  border: 0;
-  border-radius: 8px;
-
-  &:hover {
-    background: rgb(255 255 255 / 14%);
-  }
 }
 
 .spinIcon {

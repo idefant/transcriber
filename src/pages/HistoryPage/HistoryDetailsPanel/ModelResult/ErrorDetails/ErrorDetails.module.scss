@@ -1,0 +1,33 @@
+.errorDetails {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.toggle {
+  padding-left: 0;
+}
+
+.chevron,
+.chevronOpen {
+  transition: transform 150ms ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.json {
+  width: 100%;
+  max-height: 320px;
+  padding: 12px;
+  margin: 0;
+  overflow: auto;
+  font-family: var(--app-font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  user-select: text;
+  background: var(--app-color-fill-tertiary);
+  border-radius: 8px;
+}

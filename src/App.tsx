@@ -1,5 +1,6 @@
 import { type FC, useEffect, useRef } from 'react';
 import { RouterProvider } from 'react-router';
+import { listen } from '@tauri-apps/api/event';
 import { notification } from 'antd';
 import { useTranslation } from 'react-i18next';
 
@@ -7,15 +8,23 @@ import AppThemeProvider from '#/app/AppThemeProvider';
 import DictationHotkeyFallback from '#/app/DictationHotkeyFallback';
 import I18nProvider from '#/app/I18nProvider';
 import { router } from '#/app/router';
+import { routes } from '#/shared/routes';
 import * as updaterApi from '#/shared/updaterApi';
 
 import {
   initHistoryEventSubscription,
   useCatalogStore,
+  useHistoryStore,
   useProcessingStore,
   useProvidersStore,
   useSettingsStore,
 } from '#/stores';
+
+interface OpenHistoryRecordEvent {
+  recordId: string;
+  month: string;
+  date: string;
+}
 
 // Triggers initial data loads for all stores once on app mount.
 const StoreLoader: FC = () => {
@@ -38,6 +47,29 @@ const HistorySubscription: FC = () => {
     let unlisten: (() => void) | undefined;
 
     void initHistoryEventSubscription().then((fn) => {
+      unlisten = fn;
+      return null;
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  return null;
+};
+
+// Reveals a history record in the main window when the overlay error/warning
+// notification requests it. Navigates to the history page, then hands the record
+// off to the history store for the page to select.
+const OpenRecordSubscription: FC = () => {
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    void listen<OpenHistoryRecordEvent>('open-history-record', (event) => {
+      void router.navigate(routes.history);
+      useHistoryStore.getState().openRecord(event.payload);
+    }).then((fn) => {
       unlisten = fn;
       return null;
     });
@@ -93,6 +125,7 @@ const App: FC = () => {
       <AppThemeProvider>
         <StoreLoader />
         <HistorySubscription />
+        <OpenRecordSubscription />
         <DictationHotkeyFallback />
         <UpdateChecker />
         <RouterProvider router={router} />

@@ -50,6 +50,18 @@ struct DictationSessionPayload {
     active: bool,
 }
 
+/// Result of processing a recording, used to decide how the overlay ends.
+enum DictationOutcome {
+    /// Success (text inserted) or a cancelled/superseded session — hide overlay.
+    Completed,
+    /// Speech-to-text failed; no text was inserted. Show the red error overlay.
+    /// `record_id` is `Some` when a history record was saved.
+    SttError { record_id: Option<String> },
+    /// Post-processing failed but the speech-to-text text was inserted. Show the
+    /// amber warning overlay linked to the saved record.
+    PostProcessError { record_id: String },
+}
+
 pub fn register_dictation_shortcut(app: &tauri::AppHandle) -> AppResult<()> {
     let settings = settings::load_app_settings(app)?;
 
@@ -176,7 +188,7 @@ fn stop_dictation(app: tauri::AppHandle) {
     let audio = match recording.stop() {
         Ok(audio) => audio,
         Err(error) => {
-            finish_session(&app, id);
+            reset_session(&app, id, true);
             emit_dictation_error(&app, error.into_message());
             return;
         }
@@ -195,7 +207,7 @@ fn take_recording(app: &tauri::AppHandle) -> AppResult<Option<(u64, AudioRecordi
     // Guard before replace: std::mem::replace writes Idle unconditionally, so we
     // must confirm the state is Recording before calling it, otherwise a spurious
     // stop_dictation (e.g. hotkey release while transcribing) would corrupt the
-    // state and prevent finish_session from ever hiding the overlay.
+    // state and prevent reset_session from ever hiding the overlay.
     if !matches!(*session, DictationSession::Recording { .. }) {
         return Ok(None);
     }
@@ -212,24 +224,45 @@ fn take_recording(app: &tauri::AppHandle) -> AppResult<Option<(u64, AudioRecordi
 }
 
 async fn process_recording(app: tauri::AppHandle, id: u64, audio: RecordedAudio) {
-    if let Err(error) = process_recording_inner(&app, id, audio).await {
-        emit_dictation_error(&app, error.into_message());
+    let outcome = process_recording_inner(&app, id, audio).await;
+
+    // A cancelled or superseded session has already hidden its overlay via
+    // cancel_dictation_inner; just make sure the session state is reset.
+    if !is_current_session(&app, id) {
+        reset_session(&app, id, true);
+        return;
     }
 
-    finish_session(&app, id);
+    match outcome {
+        Ok(DictationOutcome::Completed) => {
+            reset_session(&app, id, true);
+        }
+        Ok(DictationOutcome::SttError { record_id }) => {
+            reset_session(&app, id, false);
+            let _ = overlay::show_error_overlay(&app, record_id);
+        }
+        Ok(DictationOutcome::PostProcessError { record_id }) => {
+            reset_session(&app, id, false);
+            let _ = overlay::show_warning_overlay(&app, Some(record_id));
+        }
+        Err(error) => {
+            emit_dictation_error(&app, error.into_message());
+            reset_session(&app, id, false);
+            let _ = overlay::show_error_overlay(&app, None);
+        }
+    }
 }
 
 async fn process_recording_inner(
     app: &tauri::AppHandle,
     id: u64,
     audio: RecordedAudio,
-) -> AppResult<()> {
+) -> AppResult<DictationOutcome> {
     overlay::show_transcribing_overlay(app)?;
 
     let config = load_processing_config(app)?;
 
     if config.stt.provider_id.is_none() || config.stt.model_key.is_none() {
-        overlay::show_processing_overlay(app)?;
         return Err(AppError::from(
             "Speech-to-text provider and model are not selected",
         ));
@@ -238,7 +271,7 @@ async fn process_recording_inner(
     let history_record_id = Uuid::new_v4().to_string();
 
     if !is_current_session(app, id) {
-        return Ok(());
+        return Ok(DictationOutcome::Completed);
     }
 
     let stt_snapshot = runner::build_stt_snapshot(app)?;
@@ -269,24 +302,26 @@ async fn process_recording_inner(
     {
         Ok(output) => output,
         Err(error) => {
-            let message = error.into_message();
+            let record_id = history_record_id.clone();
             let _ = history::save_new_history_record(
                 app,
                 history::NewHistoryRecord {
-                    id: Some(history_record_id.clone()),
+                    id: Some(history_record_id),
                     audio,
                     postprocessing: None,
                     postprocessing_snapshot,
-                    transcription: Err((stt_snapshot, AppError::from(message.clone()))),
+                    transcription: Err((stt_snapshot, error)),
                 },
             );
 
-            return Err(AppError::from(message));
+            return Ok(DictationOutcome::SttError {
+                record_id: Some(record_id),
+            });
         }
     };
 
     if !is_current_session(app, id) {
-        return Ok(());
+        return Ok(DictationOutcome::Completed);
     }
 
     let (final_text, postprocessing) = if config.post_process.enabled {
@@ -313,22 +348,26 @@ async fn process_recording_inner(
         {
             Ok(output) => (output.text.clone(), Some(Ok(output))),
             Err(error) => {
-                let message = error.into_message();
+                let record_id = history_record_id.clone();
+                let stt_text = transcription.text.clone();
                 let _ = history::save_new_history_record(
                     app,
                     history::NewHistoryRecord {
-                        id: Some(history_record_id.clone()),
+                        id: Some(history_record_id),
                         audio,
-                        postprocessing: Some(Err((
-                            postprocessing_snapshot,
-                            AppError::from(message.clone()),
-                        ))),
+                        postprocessing: Some(Err((postprocessing_snapshot, error))),
                         postprocessing_snapshot: None,
                         transcription: Ok(transcription),
                     },
                 );
 
-                return Err(AppError::from(message));
+                // Post-processing failed, but the speech-to-text text is valid —
+                // still insert it so the user does not lose their dictation.
+                if is_current_session(app, id) {
+                    keyboard::paste_text(&stt_text).await?;
+                }
+
+                return Ok(DictationOutcome::PostProcessError { record_id });
             }
         }
     } else {
@@ -349,7 +388,7 @@ async fn process_recording_inner(
         keyboard::paste_text(&final_text).await?;
     }
 
-    Ok(())
+    Ok(DictationOutcome::Completed)
 }
 
 fn set_processing(app: &tauri::AppHandle, id: u64) -> AppResult<()> {
@@ -381,7 +420,10 @@ fn is_current_session(app: &tauri::AppHandle, id: u64) -> bool {
         .unwrap_or(false)
 }
 
-fn finish_session(app: &tauri::AppHandle, id: u64) {
+/// Reset a finished session to idle. The overlay is hidden only when
+/// `hide_overlay` is set — the error/warning notifications keep it visible and
+/// manage their own dismissal instead.
+fn reset_session(app: &tauri::AppHandle, id: u64, hide_overlay: bool) {
     if let Ok(mut session) = app.state::<DictationRuntime>().session.lock() {
         if matches!(
             *session,
@@ -393,7 +435,9 @@ fn finish_session(app: &tauri::AppHandle, id: u64) {
             *session = DictationSession::Idle;
             shortcut_hook::disarm_cancel_hotkey();
             emit_dictation_session(app, false);
-            let _ = overlay::hide_recording_overlay(app);
+            if hide_overlay {
+                let _ = overlay::hide_recording_overlay(app);
+            }
         }
     }
 }

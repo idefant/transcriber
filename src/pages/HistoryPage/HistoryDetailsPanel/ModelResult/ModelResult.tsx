@@ -3,6 +3,8 @@ import { Button, Space, Tooltip, Typography } from 'antd';
 import { CopyIcon, LoaderCircleIcon, RotateCcwIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import ErrorDetails from './ErrorDetails';
+
 import styles from './ModelResult.module.scss';
 
 import type { ProcessingDetails } from '#/models/History';
@@ -106,6 +108,9 @@ const ModelResult: FC<ModelResultProps> = ({
           <Paragraph className={details.status === 'error' ? styles.errorText : styles.text}>
             {displayText}
           </Paragraph>
+          {details.status === 'error' && details.errorDetails != null ? (
+            <ErrorDetails details={details.errorDetails} />
+          ) : undefined}
         </>
       ) : undefined}
     </section>

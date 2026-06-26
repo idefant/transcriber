@@ -1,8 +1,16 @@
 import { type FC, useMemo } from 'react';
-import { LoaderCircleIcon, MicIcon, SparklesIcon, XIcon } from 'lucide-react';
+import {
+  CircleAlertIcon,
+  LoaderCircleIcon,
+  MicIcon,
+  SparklesIcon,
+  SquareArrowOutUpRightIcon,
+  TriangleAlertIcon,
+  XIcon,
+} from 'lucide-react';
 
 import type { OverlayState } from '../types';
-import { cancelLabel, stateLabels } from '../types';
+import { cancelLabel, closeLabel, isNoticeState, openRecordLabel, stateLabels } from '../types';
 
 import styles from './CenterOverlay.module.scss';
 
@@ -10,43 +18,92 @@ interface CenterOverlayProps {
   isVisible: boolean;
   levels: number[];
   onCancel: () => void;
+  onClose: () => void;
+  onOpenRecord: () => void;
+  recordId?: string | null;
   state: OverlayState;
 }
 
-const CenterOverlay: FC<CenterOverlayProps> = ({ isVisible, levels, onCancel, state }) => {
+const CenterOverlay: FC<CenterOverlayProps> = ({
+  isVisible,
+  levels,
+  onCancel,
+  onClose,
+  onOpenRecord,
+  recordId,
+  state,
+}) => {
   const statusIcon = useMemo(() => {
     if (state === 'recording') return <MicIcon aria-hidden size={22} strokeWidth={2} />;
     if (state === 'transcribing') {
       return <LoaderCircleIcon aria-hidden className={styles.spinIcon} size={22} strokeWidth={2} />;
     }
+    if (state === 'error') return <CircleAlertIcon aria-hidden size={22} strokeWidth={2} />;
+    if (state === 'warning') return <TriangleAlertIcon aria-hidden size={22} strokeWidth={2} />;
 
     return <SparklesIcon aria-hidden size={22} strokeWidth={2} />;
   }, [state]);
 
+  const className = [
+    isVisible ? styles.overlayVisible : styles.overlay,
+    state === 'error' ? styles.error : undefined,
+    state === 'warning' ? styles.warning : undefined,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <div className={isVisible ? styles.overlayVisible : styles.overlay}>
+    <div className={className}>
       <div className={styles.statusIcon}>{statusIcon}</div>
       <span className={styles.statusText}>{stateLabels[state]}</span>
 
-      <div aria-hidden className={styles.levels}>
-        {levels.map((level, index) => (
-          <span
-            className={styles.level}
-            key={index}
-            style={{ transform: `scaleY(${Math.max(0.18, Math.min(1, level * 3.2))})` }}
-          />
-        ))}
-      </div>
+      {isNoticeState(state) ? (
+        <div className={styles.actions}>
+          {recordId ? (
+            <button
+              aria-label={openRecordLabel}
+              className={styles.actionButton}
+              type="button"
+              onClick={onOpenRecord}
+            >
+              <SquareArrowOutUpRightIcon aria-hidden size={14} strokeWidth={2.4} />
+              <span aria-hidden>{openRecordLabel}</span>
+            </button>
+          ) : null}
 
-      <button
-        aria-label={cancelLabel}
-        className={styles.cancelButton}
-        type="button"
-        onClick={onCancel}
-      >
-        <XIcon aria-hidden size={14} strokeWidth={2.4} />
-        <span aria-hidden>{cancelLabel}</span>
-      </button>
+          <button
+            aria-label={closeLabel}
+            className={styles.actionButton}
+            type="button"
+            onClick={onClose}
+          >
+            <XIcon aria-hidden size={14} strokeWidth={2.4} />
+            <span aria-hidden>{closeLabel}</span>
+          </button>
+        </div>
+      ) : (
+        <>
+          <div aria-hidden className={styles.levels}>
+            {levels.map((level, index) => (
+              <span
+                className={styles.level}
+                key={index}
+                style={{ transform: `scaleY(${Math.max(0.18, Math.min(1, level * 3.2))})` }}
+              />
+            ))}
+          </div>
+
+          <button
+            aria-label={cancelLabel}
+            className={styles.actionButton}
+            type="button"
+            onClick={onCancel}
+          >
+            <XIcon aria-hidden size={14} strokeWidth={2.4} />
+            <span aria-hidden>{cancelLabel}</span>
+          </button>
+        </>
+      )}
     </div>
   );
 };

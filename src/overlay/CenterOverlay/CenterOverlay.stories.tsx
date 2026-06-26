@@ -9,6 +9,8 @@ const meta: Meta<typeof CenterOverlay> = {
     isVisible: true,
     levels: [0.6, 0.9, 0.4],
     onCancel: () => {},
+    onClose: () => {},
+    onOpenRecord: () => {},
   },
 };
 
@@ -26,4 +28,16 @@ export const Transcribing: Story = {
 
 export const Processing: Story = {
   args: { state: 'processing' },
+};
+
+export const Error: Story = {
+  args: { state: 'error', recordId: 'demo-record' },
+};
+
+export const Warning: Story = {
+  args: { state: 'warning', recordId: 'demo-record' },
+};
+
+export const ErrorWithoutRecord: Story = {
+  args: { state: 'error', recordId: null },
 };

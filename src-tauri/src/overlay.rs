@@ -41,6 +41,9 @@ const HIDE_DELAY_MS: u64 = 250;
 pub struct OverlayShowPayload {
     state: &'static str,
     variant: OverlayVariant,
+    /// History record to reveal from the error/warning overlay actions. `None`
+    /// for the regular recording/transcribing/processing states.
+    record_id: Option<String>,
 }
 
 /// Last requested overlay content. Newly created per-monitor windows read it on
@@ -77,16 +80,35 @@ pub fn get_overlay_state() -> Option<OverlayShowPayload> {
         .and_then(|guard| guard.clone())
 }
 
+/// Dismiss the overlay on demand. Used by the error/warning overlay close button
+/// and its auto-hide timer in the frontend.
+#[tauri::command]
+pub fn dismiss_overlay(app: tauri::AppHandle) {
+    let _ = hide_recording_overlay(&app);
+}
+
 pub fn show_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
-    show_overlay_state(app, "recording")
+    show_overlay_state(app, "recording", None)
 }
 
 pub fn show_transcribing_overlay(app: &tauri::AppHandle) -> AppResult<()> {
-    show_overlay_state(app, "transcribing")
+    show_overlay_state(app, "transcribing", None)
 }
 
 pub fn show_processing_overlay(app: &tauri::AppHandle) -> AppResult<()> {
-    show_overlay_state(app, "processing")
+    show_overlay_state(app, "processing", None)
+}
+
+/// Show the red error overlay (e.g. speech-to-text failed). `record_id` enables
+/// the "open record" action; pass `None` for failures without a saved record.
+pub fn show_error_overlay(app: &tauri::AppHandle, record_id: Option<String>) -> AppResult<()> {
+    show_overlay_state(app, "error", record_id)
+}
+
+/// Show the amber warning overlay (post-processing failed but the speech-to-text
+/// text was still inserted). `record_id` enables the "open record" action.
+pub fn show_warning_overlay(app: &tauri::AppHandle, record_id: Option<String>) -> AppResult<()> {
+    show_overlay_state(app, "warning", record_id)
 }
 
 pub fn hide_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
@@ -116,7 +138,11 @@ pub fn emit_mic_levels(app: &tauri::AppHandle, levels: Vec<f32>) {
     let _ = app.emit("mic-level", levels);
 }
 
-fn show_overlay_state(app: &tauri::AppHandle, state: &'static str) -> AppResult<()> {
+fn show_overlay_state(
+    app: &tauri::AppHandle,
+    state: &'static str,
+    record_id: Option<String>,
+) -> AppResult<()> {
     let app_settings = settings::load_app_settings(app)?;
     let variant = app_settings.overlay_variant().clone();
     let screen_mode = app_settings.overlay_screen_mode().clone();
@@ -131,6 +157,7 @@ fn show_overlay_state(app: &tauri::AppHandle, state: &'static str) -> AppResult<
     let payload = OverlayShowPayload {
         state,
         variant: variant.clone(),
+        record_id,
     };
 
     // Store the state before building windows so any window that mounts late can

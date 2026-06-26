@@ -90,6 +90,27 @@ const HistoryPage: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Reveal a record requested from the overlay error/warning notification. The
+  // store already switched the month and triggered a reload; here we drive the
+  // local selection and expand the matching day. A store subscription (rather
+  // than a render-derived effect) keeps the setState out of the effect body.
+  useEffect(
+    () =>
+      useHistoryStore.subscribe((state, prev) => {
+        const recordId = state.pendingOpenRecordId;
+        if (recordId === undefined || recordId === prev.pendingOpenRecordId) {
+          return;
+        }
+
+        setSelectedRecordId(recordId);
+        if (state.pendingOpenDate !== undefined) {
+          setPreferredDate(state.pendingOpenDate);
+        }
+        state.consumePendingOpenRecord();
+      }),
+    [],
+  );
+
   const setMonth = (month: string) => {
     storeSetSelectedMonth(month);
     setPreferredDate(undefined);

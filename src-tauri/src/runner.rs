@@ -309,7 +309,10 @@ pub async fn run_stt_with_snapshot(
                 },
             }),
         );
-        return Err(format!("STT request failed with status {status}: {body}").into());
+        return Err(AppError::api(
+            format!("STT request failed with status {status}"),
+            &body,
+        ));
     }
 
     let stt_response = match response.json::<SttResponse>().await {
@@ -481,7 +484,10 @@ pub async fn run_post_process_with_snapshot(
                 },
             }),
         );
-        return Err(format!("Post-process request failed with status {status}: {body}").into());
+        return Err(AppError::api(
+            format!("Post-process request failed with status {status}"),
+            &body,
+        ));
     }
 
     let chat_response = match response.json::<ChatResponse>().await {

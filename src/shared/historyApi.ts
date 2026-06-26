@@ -13,6 +13,10 @@ export const openHistoryAudio = async (recordId: string): Promise<void> => {
   await invoke('open_history_audio', { recordId });
 };
 
+export const openHistoryRecord = async (recordId: string): Promise<void> => {
+  await invoke('open_history_record', { recordId });
+};
+
 export const repeatHistoryTranscription = (recordId: string) =>
   invoke<HistoryRecord>('repeat_history_transcription', { recordId });
 

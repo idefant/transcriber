@@ -25,6 +25,43 @@
   transform: translateY(0) scale(1);
 }
 
+.error {
+  .statusIcon {
+    // color: rgb(254 226 226);
+    color: #f41a1a;
+  }
+}
+
+.warning {
+  .statusIcon {
+    // color: rgb(255 237 213);
+    color: #f4b31a;
+  }
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.actionButton {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: rgb(244 244 245);
+  cursor: pointer;
+  background: rgb(255 255 255 / 12%);
+  border: 0;
+  border-radius: 6px;
+
+  &:hover {
+    background: rgb(255 255 255 / 20%);
+  }
+}
+
 .status {
   display: flex;
   gap: 6px;

@@ -12,6 +12,7 @@ export interface ProcessingDetails {
   duration: string;
   durationMs?: number | null;
   errorMessage?: string | null;
+  errorDetails?: unknown;
   isProcessing: boolean;
   model: string;
   provider: string;

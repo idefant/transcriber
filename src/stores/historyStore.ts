@@ -10,14 +10,26 @@ const getCurrentMonth = (): string => {
   return `${now.getFullYear().toString()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
+interface OpenRecordRequest {
+  recordId: string;
+  month: string;
+  date: string;
+}
+
 interface HistoryState {
   groups: HistoryGroup[];
   selectedMonth: string;
   isLoading: boolean;
+  // Set when an external trigger (overlay "open record") asks the history page to
+  // reveal a specific record. The page consumes it to drive its local selection.
+  pendingOpenRecordId?: string;
+  pendingOpenDate?: string;
   load: (month?: string, options?: { silent?: boolean }) => Promise<void>;
   setSelectedMonth: (month: string) => void;
   mergeRecord: (record: HistoryRecord) => void;
   removeRecord: (recordId: string) => void;
+  openRecord: (request: OpenRecordRequest) => void;
+  consumePendingOpenRecord: () => void;
 }
 
 export const useHistoryStore = create<HistoryState>((set, get) => ({
@@ -73,6 +85,18 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         }))
         .filter((group) => group.records.length > 0),
     }));
+  },
+
+  openRecord: ({ recordId, month, date }) => {
+    if (month !== get().selectedMonth) {
+      get().setSelectedMonth(month);
+    }
+    void get().load(month);
+    set({ pendingOpenRecordId: recordId, pendingOpenDate: date });
+  },
+
+  consumePendingOpenRecord: () => {
+    set({ pendingOpenRecordId: undefined, pendingOpenDate: undefined });
   },
 }));
 

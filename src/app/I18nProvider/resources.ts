@@ -199,6 +199,8 @@ const en = {
       model: 'Model',
       time: 'Time',
       cost: 'Cost',
+      showErrorDetails: 'Show error details',
+      hideErrorDetails: 'Hide error details',
     },
     records: {
       copyText: 'Copy text',
@@ -409,6 +411,8 @@ const ru: typeof en = {
       model: 'Модель',
       time: 'Время',
       cost: 'Стоимость',
+      showErrorDetails: 'Показать детали ошибки',
+      hideErrorDetails: 'Скрыть детали ошибки',
     },
     records: {
       copyText: 'Скопировать текст',
