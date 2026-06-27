@@ -9,6 +9,26 @@ interface ErrorDetailsProps {
   details: unknown;
 }
 
+const hasDisplayableDetails = (details: unknown): boolean => {
+  if (details == null) {
+    return false;
+  }
+
+  if (typeof details === 'string') {
+    return details.trim().length > 0;
+  }
+
+  if (Array.isArray(details)) {
+    return details.length > 0;
+  }
+
+  if (typeof details === 'object') {
+    return Object.keys(details).length > 0;
+  }
+
+  return true;
+};
+
 const formatDetails = (details: unknown): string => {
   if (typeof details === 'string') {
     return details;
@@ -24,6 +44,11 @@ const formatDetails = (details: unknown): string => {
 const ErrorDetails: FC<ErrorDetailsProps> = ({ details }) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+  const formattedDetails = hasDisplayableDetails(details) ? formatDetails(details).trim() : '';
+
+  if (formattedDetails.length === 0) {
+    return null;
+  }
 
   return (
     <div className={styles.errorDetails}>
@@ -44,7 +69,7 @@ const ErrorDetails: FC<ErrorDetailsProps> = ({ details }) => {
       >
         {isOpen ? t('history.details.hideErrorDetails') : t('history.details.showErrorDetails')}
       </Button>
-      {isOpen ? <pre className={styles.json}>{formatDetails(details)}</pre> : undefined}
+      {isOpen ? <pre className={styles.json}>{formattedDetails}</pre> : undefined}
     </div>
   );
 };
