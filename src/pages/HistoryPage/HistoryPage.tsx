@@ -94,22 +94,32 @@ const HistoryPage: FC = () => {
   // store already switched the month and triggered a reload; here we drive the
   // local selection and expand the matching day. A store subscription (rather
   // than a render-derived effect) keeps the setState out of the effect body.
-  useEffect(
-    () =>
-      useHistoryStore.subscribe((state, prev) => {
-        const recordId = state.pendingOpenRecordId;
-        if (recordId === undefined || recordId === prev.pendingOpenRecordId) {
-          return;
-        }
+  useEffect(() => {
+    const applyPendingOpenRecord = (state: ReturnType<typeof useHistoryStore.getState>) => {
+      if (state.pendingOpenRecordId === undefined) {
+        return;
+      }
 
-        setSelectedRecordId(recordId);
-        if (state.pendingOpenDate !== undefined) {
-          setPreferredDate(state.pendingOpenDate);
-        }
-        state.consumePendingOpenRecord();
-      }),
-    [],
-  );
+      setSelectedRecordId(state.pendingOpenRecordId);
+      if (state.pendingOpenDate !== undefined) {
+        setPreferredDate(state.pendingOpenDate);
+      }
+      state.consumePendingOpenRecord();
+    };
+
+    applyPendingOpenRecord(useHistoryStore.getState());
+
+    return useHistoryStore.subscribe((state, prev) => {
+      if (
+        state.pendingOpenRecordId === undefined ||
+        state.pendingOpenRecordId === prev.pendingOpenRecordId
+      ) {
+        return;
+      }
+
+      applyPendingOpenRecord(state);
+    });
+  }, []);
 
   const setMonth = (month: string) => {
     storeSetSelectedMonth(month);
