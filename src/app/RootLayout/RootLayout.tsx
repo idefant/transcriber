@@ -1,4 +1,4 @@
-import { type FC, useMemo, useState } from 'react';
+import { type FC, useMemo } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { Layout, Menu, type MenuProps, theme, Typography } from 'antd';
 import { BookOpenIcon, HistoryIcon, SettingsIcon } from 'lucide-react';
@@ -9,14 +9,16 @@ import { routes } from '#/shared/routes';
 
 import styles from './RootLayout.module.scss';
 
+import { useUiStore } from '#/stores';
+
 const { Content, Header, Sider } = Layout;
 
 const RootLayout: FC = () => {
   const { t } = useTranslation();
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const { token } = theme.useToken();
   const location = useLocation();
   const navigate = useNavigate();
+  const openSettings = useUiStore((s) => s.openSettings);
 
   const currentPageKey = location.pathname.startsWith(routes.dictionary)
     ? routes.dictionary
@@ -47,15 +49,11 @@ const RootLayout: FC = () => {
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'settings') {
-      setIsSettingsModalOpen(true);
+      openSettings();
       return;
     }
 
     void navigate(key);
-  };
-
-  const closeSettingsModal = () => {
-    setIsSettingsModalOpen(false);
   };
 
   return (
@@ -89,7 +87,7 @@ const RootLayout: FC = () => {
         </Content>
       </Layout>
 
-      <AppSettingsModal open={isSettingsModalOpen} onClose={closeSettingsModal} />
+      <AppSettingsModal />
     </Layout>
   );
 };

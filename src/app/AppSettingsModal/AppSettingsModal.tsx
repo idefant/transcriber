@@ -29,17 +29,12 @@ import type {
   ProviderInput,
 } from '#/models/Provider';
 import type { AppSettingsInput, SettingsSectionKey } from '#/models/Settings';
-import { useAppSettings, useCatalog, useProviders } from '#/stores';
-
-interface AppSettingsModalProps {
-  open: boolean;
-  onClose: () => void;
-}
+import { useAppSettings, useCatalog, useProviders, useUiStore } from '#/stores';
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
-const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
+const AppSettingsModal: FC = () => {
   const { t } = useTranslation();
   const [messageApi, messageContextHolder] = message.useMessage();
   const {
@@ -52,7 +47,10 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
   } = useProviders();
   const { settings, updateSettings } = useAppSettings();
   const { catalog } = useCatalog();
-  const [activeSection, setActiveSection] = useState<SettingsSectionKey>('general');
+  const activeSection = useUiStore((s) => s.settingsSection);
+  const closeSettings = useUiStore((s) => s.closeSettings);
+  const isSettingsModalOpen = useUiStore((s) => s.isSettingsModalOpen);
+  const setSettingsSection = useUiStore((s) => s.setSettingsSection);
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<ProviderConfig>();
   const [isModelListVisible, setIsModelListVisible] = useState(false);
@@ -289,10 +287,10 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
         centered
         className={styles.settingsModal}
         footer={null}
-        open={open}
+        open={isSettingsModalOpen}
         title={t('settings.title')}
         width={920}
-        onCancel={onClose}
+        onCancel={closeSettings}
       >
         <div className={styles.modalBody}>
           <ConfigProvider
@@ -310,7 +308,7 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
               mode="inline"
               selectedKeys={[activeSection]}
               onClick={({ key }) => {
-                setActiveSection(key as SettingsSectionKey);
+                setSettingsSection(key as SettingsSectionKey);
               }}
             />
           </ConfigProvider>

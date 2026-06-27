@@ -8,6 +8,11 @@
 
 Use `lucide-react` icon exports with the `Icon` suffix, for example `CameraIcon`, not `Camera`.
 
+## Tests
+
+Do not write or add tests unless the user explicitly asks for tests.
+Do not proactively suggest tests unless they are explicitly required by the task or the risk/complexity is high enough that skipping tests would be unreasonable.
+
 ## Before starting any task
 
 - If the task involves **planning or proposing an approach**: Read [docs/agent/planning.md](docs/agent/planning.md) before writing a plan.

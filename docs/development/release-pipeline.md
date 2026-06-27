@@ -76,9 +76,13 @@ The Rust side lives in `src-tauri/src/updater.rs`. Two Tauri commands are expose
 - `check_for_update(offer_unstable: bool)` — queries the appropriate endpoint, stores the discovered `Update` in `PendingUpdate` managed state, returns `UpdateInfo { version, notes }` or `null`.
 - `download_and_install_update()` — takes the stored `Update`, downloads it, emits `updater://progress` events with `{ downloaded, total }` payload, then calls `app.restart()`.
 
-The frontend bridges these via `src/shared/updaterApi.ts`.
+The frontend bridges these via `src/shared/updaterApi.ts`. Shared frontend state for update discovery, cached pending version, and install progress lives in `src/stores/updaterStore.ts`, while the settings modal visibility/active section live in `src/stores/uiStore.ts`.
 
-On startup, `UpdateChecker` in `App.tsx` runs a silent check after settings load. If an update is found, a non-dismissing notification appears in the bottom-right corner. The full update UI (manual check button, install button, progress bar, unstable switch) lives in `src/app/AppSettingsModal/AboutSettingsTab`.
+On startup, `UpdateChecker` in `App.tsx` runs a silent check once after settings load only when `isUpdateNotificationsEnabled` is true. If an update is found, a bottom-right notification appears with a `Download` action, Ant Design's built-in 10-second progress bar (`showProgress: true`), and `pauseOnHover: true`. Clicking `Download` does not start the updater; it opens the existing `About` settings tab.
+
+The full update UI (manual check button, cached pending version, install button, download progress, update-notification switch, unstable-channel switch) lives in `src/app/AppSettingsModal/AboutSettingsTab`. Entering the `About` tab always triggers a fresh update check, but the cached result from `updaterStore` is shown immediately so the install action is already visible if startup detection found a version earlier.
+
+When `isOfferUnstableVersionsEnabled` is true, the app still checks `unstable.json` exactly as before. That manifest always points to the newest published release overall, so users on the unstable channel can be offered a stable release when it is the latest one available.
 
 ## CHANGELOG Format
 

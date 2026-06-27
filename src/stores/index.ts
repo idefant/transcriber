@@ -6,6 +6,8 @@ export { initHistoryEventSubscription, useHistoryStore } from './historyStore';
 export { useProcessingStore } from './processingStore';
 export { useProvidersStore } from './providersStore';
 export { useSettingsStore } from './settingsStore';
+export { useUiStore } from './uiStore';
+export { useUpdaterStore } from './updaterStore';
 
 // Compatibility hooks — same interface as the old React Context hooks.
 // Consumers that destructure multiple fields use these to avoid extra re-renders.

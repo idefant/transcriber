@@ -161,12 +161,17 @@ const en = {
         title: 'Version',
         description: 'Current version of Transcriber',
       },
+      download: 'Download',
       updateAvailable: 'Update {{version}} is available',
       checkForUpdates: 'Check for updates',
       installUpdate: 'Install {{version}}',
       noUpdate: 'You are on the latest version',
       installing: 'Installing update…',
       installError: 'Update failed',
+      updateNotifications: {
+        title: 'Notify about new versions',
+        description: 'Show an in-app notification when a new version of Transcriber is available',
+      },
       offerUnstable: {
         title: 'Offer pre-release versions',
         description: 'Include alpha and beta releases when checking for updates',
@@ -390,12 +395,18 @@ const ru: typeof en = {
         title: 'Версия',
         description: 'Текущая версия Transcriber',
       },
+      download: 'Скачать',
       updateAvailable: 'Доступно обновление {{version}}',
       checkForUpdates: 'Проверить обновления',
       installUpdate: 'Установить {{version}}',
       noUpdate: 'У вас установлена последняя версия',
       installing: 'Устанавливаем обновление…',
       installError: 'Ошибка обновления',
+      updateNotifications: {
+        title: 'Уведомлять о новых версиях',
+        description:
+          'Показывать уведомление внутри приложения, когда доступна новая версия Transcriber',
+      },
       offerUnstable: {
         title: 'Предлагать нестабильные версии',
         description: 'Учитывать альфа- и бета-релизы при проверке обновлений',

@@ -22,6 +22,7 @@ export interface AppSettings {
   isDebugLoggingEnabled: boolean;
   isLaunchAtLoginEnabled: boolean;
   isMuteWhileRecordingEnabled: boolean;
+  isUpdateNotificationsEnabled: boolean;
   isOfferUnstableVersionsEnabled: boolean;
   overlayScreenMode: OverlayScreenMode;
   overlayVariant: OverlayVariant;

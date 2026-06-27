@@ -103,6 +103,8 @@ pub struct AppSettings {
     is_debug_logging_enabled: bool,
     #[serde(default = "default_launch_at_login_enabled")]
     is_launch_at_login_enabled: bool,
+    #[serde(default = "default_update_notifications_enabled")]
+    is_update_notifications_enabled: bool,
     #[serde(default = "default_hotkey")]
     hotkey: String,
     #[serde(default = "default_cancel_hotkey")]
@@ -132,6 +134,7 @@ impl Default for AppSettings {
             is_mute_while_recording_enabled: default_mute_while_recording_enabled(),
             is_debug_logging_enabled: false,
             is_launch_at_login_enabled: default_launch_at_login_enabled(),
+            is_update_notifications_enabled: default_update_notifications_enabled(),
             hotkey: default_hotkey(),
             cancel_hotkey: default_cancel_hotkey(),
             copy_latest_hotkey: String::new(),
@@ -191,6 +194,7 @@ pub struct AppSettingsInput {
     is_mute_while_recording_enabled: Option<bool>,
     is_debug_logging_enabled: Option<bool>,
     is_launch_at_login_enabled: Option<bool>,
+    is_update_notifications_enabled: Option<bool>,
     hotkey: Option<String>,
     cancel_hotkey: Option<String>,
     copy_latest_hotkey: Option<String>,
@@ -207,6 +211,10 @@ fn default_mute_while_recording_enabled() -> bool {
 }
 
 fn default_launch_at_login_enabled() -> bool {
+    true
+}
+
+fn default_update_notifications_enabled() -> bool {
     true
 }
 
@@ -256,6 +264,10 @@ fn update_app_settings_inner(
 
     if let Some(is_launch_at_login_enabled) = input.is_launch_at_login_enabled {
         settings.is_launch_at_login_enabled = is_launch_at_login_enabled;
+    }
+
+    if let Some(is_update_notifications_enabled) = input.is_update_notifications_enabled {
+        settings.is_update_notifications_enabled = is_update_notifications_enabled;
     }
 
     if let Some(hotkey) = input.hotkey {

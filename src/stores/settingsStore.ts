@@ -12,6 +12,7 @@ const defaultAppSettings: AppSettings = {
   isDebugLoggingEnabled: false,
   isLaunchAtLoginEnabled: true,
   isMuteWhileRecordingEnabled: true,
+  isUpdateNotificationsEnabled: true,
   isOfferUnstableVersionsEnabled: false,
   overlayScreenMode: 'all',
   overlayVariant: 'center',
