@@ -79,6 +79,19 @@ const en = {
         title: 'Cancel recording',
         description: 'Keyboard shortcut that cancels the current dictation',
       },
+      copyLatest: {
+        title: 'Copy last transcription',
+        description: 'Keyboard shortcut that copies the final text from the latest history record',
+      },
+      pasteLatest: {
+        title: 'Paste last transcription',
+        description: 'Keyboard shortcut that pastes the final text from the latest history record',
+      },
+      repeatLatest: {
+        title: 'Repeat last transcription',
+        description:
+          'Keyboard shortcut that repeats processing for the latest history record and pastes the result',
+      },
       triggerMode: {
         title: 'Trigger mode',
         description: 'Start recording on press or only while the shortcut is held',
@@ -87,6 +100,8 @@ const en = {
       },
       record: 'Record shortcut',
       recording: 'Press keys…',
+      reset: 'Reset shortcut',
+      unused: 'Hotkey is not used',
     },
     providers: {
       add: 'Add provider',
@@ -291,6 +306,20 @@ const ru: typeof en = {
         title: 'Отмена записи',
         description: 'Комбинация клавиш, отменяющая текущую диктовку',
       },
+      copyLatest: {
+        title: 'Копирование последней расшифровки',
+        description:
+          'Комбинация клавиш, копирующая итоговый текст из последней записи истории в буфер обмена',
+      },
+      pasteLatest: {
+        title: 'Вставка последней расшифровки',
+        description: 'Комбинация клавиш, вставляющая итоговый текст из последней записи истории',
+      },
+      repeatLatest: {
+        title: 'Повторная обработка последней расшифровки',
+        description:
+          'Комбинация клавиш, повторяющая обработку последней записи истории и вставляющая результат',
+      },
       triggerMode: {
         title: 'Режим запуска',
         description: 'Запускать запись сразу по нажатию или только пока комбинация зажата',
@@ -299,6 +328,8 @@ const ru: typeof en = {
       },
       record: 'Записать комбинацию',
       recording: 'Нажмите клавиши…',
+      reset: 'Сбросить хоткей',
+      unused: 'Хоткей не используется',
     },
     providers: {
       add: 'Добавить провайдера',

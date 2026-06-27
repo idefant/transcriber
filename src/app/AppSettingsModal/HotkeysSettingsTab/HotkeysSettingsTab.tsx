@@ -12,22 +12,39 @@ import type { TriggerMode } from '#/models/Settings';
 
 interface HotkeysSettingsTabProps {
   cancelHotkey: string;
+  copyLatestHotkey: string;
   hotkey: string;
   onCancelHotkeyChange: (value: string) => void;
+  onCopyLatestHotkeyChange: (value: string) => void;
   onHotkeyChange: (value: string) => void;
+  onPasteLatestHotkeyChange: (value: string) => void;
+  onRepeatLatestHotkeyChange: (value: string) => void;
   onTriggerModeChange: (value: TriggerMode) => void;
+  pasteLatestHotkey: string;
+  repeatLatestHotkey: string;
   triggerMode: TriggerMode;
 }
 
+const RECORDING_HOTKEY_DEFAULT = 'Ctrl+Space';
+const CANCEL_HOTKEY_DEFAULT = 'Ctrl+Z';
+
 const HotkeysSettingsTab: FC<HotkeysSettingsTabProps> = ({
   cancelHotkey,
+  copyLatestHotkey,
   hotkey,
   onCancelHotkeyChange,
+  onCopyLatestHotkeyChange,
   onHotkeyChange,
+  onPasteLatestHotkeyChange,
+  onRepeatLatestHotkeyChange,
   onTriggerModeChange,
+  pasteLatestHotkey,
+  repeatLatestHotkey,
   triggerMode,
 }) => {
   const { t } = useTranslation();
+  const emptyPlaceholder = t('settings.hotkeys.unused');
+  const resetLabel = t('settings.hotkeys.reset');
 
   return (
     <div className={styles.settingsList}>
@@ -35,14 +52,14 @@ const HotkeysSettingsTab: FC<HotkeysSettingsTabProps> = ({
         description={t('settings.hotkeys.startRecording.description')}
         title={t('settings.hotkeys.startRecording.title')}
       >
-        <HotkeyInput value={hotkey} onChange={onHotkeyChange} />
-      </SettingRow>
-
-      <SettingRow
-        description={t('settings.hotkeys.cancelRecording.description')}
-        title={t('settings.hotkeys.cancelRecording.title')}
-      >
-        <HotkeyInput value={cancelHotkey} onChange={onCancelHotkeyChange} />
+        <HotkeyInput
+          allowEmpty={false}
+          defaultValue={RECORDING_HOTKEY_DEFAULT}
+          emptyPlaceholder={emptyPlaceholder}
+          resetLabel={resetLabel}
+          value={hotkey}
+          onChange={onHotkeyChange}
+        />
       </SettingRow>
 
       <SettingRow
@@ -63,6 +80,62 @@ const HotkeysSettingsTab: FC<HotkeysSettingsTabProps> = ({
           ]}
           value={triggerMode}
           onChange={onTriggerModeChange}
+        />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.hotkeys.cancelRecording.description')}
+        title={t('settings.hotkeys.cancelRecording.title')}
+      >
+        <HotkeyInput
+          allowEmpty
+          defaultValue={CANCEL_HOTKEY_DEFAULT}
+          emptyPlaceholder={emptyPlaceholder}
+          resetLabel={resetLabel}
+          value={cancelHotkey}
+          onChange={onCancelHotkeyChange}
+        />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.hotkeys.copyLatest.description')}
+        title={t('settings.hotkeys.copyLatest.title')}
+      >
+        <HotkeyInput
+          allowEmpty
+          defaultValue=""
+          emptyPlaceholder={emptyPlaceholder}
+          resetLabel={resetLabel}
+          value={copyLatestHotkey}
+          onChange={onCopyLatestHotkeyChange}
+        />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.hotkeys.pasteLatest.description')}
+        title={t('settings.hotkeys.pasteLatest.title')}
+      >
+        <HotkeyInput
+          allowEmpty
+          defaultValue=""
+          emptyPlaceholder={emptyPlaceholder}
+          resetLabel={resetLabel}
+          value={pasteLatestHotkey}
+          onChange={onPasteLatestHotkeyChange}
+        />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.hotkeys.repeatLatest.description')}
+        title={t('settings.hotkeys.repeatLatest.title')}
+      >
+        <HotkeyInput
+          allowEmpty
+          defaultValue=""
+          emptyPlaceholder={emptyPlaceholder}
+          resetLabel={resetLabel}
+          value={repeatLatestHotkey}
+          onChange={onRepeatLatestHotkeyChange}
         />
       </SettingRow>
     </div>

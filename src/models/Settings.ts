@@ -16,6 +16,7 @@ export type OverlayScreenMode = 'all' | 'cursor';
 
 export interface AppSettings {
   cancelHotkey: string;
+  copyLatestHotkey: string;
   effectiveUiLanguage: EffectiveUiLanguage;
   hotkey: string;
   isDebugLoggingEnabled: boolean;
@@ -24,6 +25,8 @@ export interface AppSettings {
   isOfferUnstableVersionsEnabled: boolean;
   overlayScreenMode: OverlayScreenMode;
   overlayVariant: OverlayVariant;
+  pasteLatestHotkey: string;
+  repeatLatestHotkey: string;
   themePreference: ThemePreference;
   triggerMode: TriggerMode;
   uiLanguage: UiLanguage;

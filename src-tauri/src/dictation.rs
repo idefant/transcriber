@@ -66,6 +66,9 @@ pub fn register_dictation_shortcut(app: &tauri::AppHandle) -> AppResult<()> {
     let settings = settings::load_app_settings(app)?;
 
     shortcut_hook::install_dictation_shortcut(app.clone(), settings.hotkey())?;
+    shortcut_hook::set_copy_latest_hotkey(settings.copy_latest_hotkey())?;
+    shortcut_hook::set_paste_latest_hotkey(settings.paste_latest_hotkey())?;
+    shortcut_hook::set_repeat_latest_hotkey(settings.repeat_latest_hotkey())?;
 
     Ok(())
 }
@@ -73,7 +76,10 @@ pub fn register_dictation_shortcut(app: &tauri::AppHandle) -> AppResult<()> {
 pub fn update_dictation_shortcut(app: &tauri::AppHandle) -> AppResult<()> {
     let settings = settings::load_app_settings(app)?;
 
-    shortcut_hook::set_dictation_hotkey(settings.hotkey())
+    shortcut_hook::set_dictation_hotkey(settings.hotkey())?;
+    shortcut_hook::set_copy_latest_hotkey(settings.copy_latest_hotkey())?;
+    shortcut_hook::set_paste_latest_hotkey(settings.paste_latest_hotkey())?;
+    shortcut_hook::set_repeat_latest_hotkey(settings.repeat_latest_hotkey())
 }
 
 pub fn handle_shortcut_event(app: &tauri::AppHandle, state: ShortcutState) {
@@ -101,6 +107,32 @@ pub fn handle_cancel_shortcut(app: &tauri::AppHandle) {
     }
 }
 
+pub fn handle_paste_latest_shortcut(app: &tauri::AppHandle) {
+    let app = app.clone();
+
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = paste_latest_history_text_inner(&app).await {
+            emit_dictation_error(&app, error.into_message());
+        }
+    });
+}
+
+pub fn handle_copy_latest_shortcut(app: &tauri::AppHandle) {
+    if let Err(error) = copy_latest_history_text_to_clipboard(app) {
+        emit_dictation_error(app, error.into_message());
+    }
+}
+
+pub fn handle_repeat_latest_shortcut(app: &tauri::AppHandle) {
+    let app = app.clone();
+
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = repeat_latest_history_record_inner(app.clone()).await {
+            emit_dictation_error(&app, error.into_message());
+        }
+    });
+}
+
 #[tauri::command]
 pub fn cancel_dictation(app: tauri::AppHandle) -> Result<(), String> {
     cancel_dictation_inner(app).map_err(AppError::into_message)
@@ -116,6 +148,25 @@ pub fn dictation_shortcut_released(app: tauri::AppHandle) {
     handle_shortcut_event(&app, ShortcutState::Released);
 }
 
+#[tauri::command]
+pub async fn paste_latest_history_text(app: tauri::AppHandle) -> Result<(), String> {
+    paste_latest_history_text_inner(&app)
+        .await
+        .map_err(AppError::into_message)
+}
+
+#[tauri::command]
+pub fn copy_latest_history_text(app: tauri::AppHandle) -> Result<(), String> {
+    copy_latest_history_text_to_clipboard(&app).map_err(AppError::into_message)
+}
+
+#[tauri::command]
+pub async fn repeat_latest_history_record(app: tauri::AppHandle) -> Result<(), String> {
+    repeat_latest_history_record_inner(app)
+        .await
+        .map_err(AppError::into_message)
+}
+
 fn toggle_dictation(app: tauri::AppHandle) {
     let is_recording = app
         .state::<DictationRuntime>()
@@ -129,6 +180,37 @@ fn toggle_dictation(app: tauri::AppHandle) {
     } else {
         start_dictation(app);
     }
+}
+
+async fn paste_latest_history_text_inner(app: &tauri::AppHandle) -> AppResult<()> {
+    if !is_session_idle(app) {
+        return Ok(());
+    }
+
+    let text = history::latest_history_text(app)?;
+    let paste_hotkey = settings::load_app_settings(app)?.paste_latest_hotkey().to_string();
+
+    if text.trim().is_empty() {
+        return Ok(());
+    }
+
+    shortcut_hook::wait_for_hotkey_release(&paste_hotkey).await?;
+
+    if !is_session_idle(app) {
+        return Ok(());
+    }
+
+    keyboard::paste_text(&text).await
+}
+
+pub fn copy_latest_history_text_to_clipboard(app: &tauri::AppHandle) -> AppResult<()> {
+    let text = history::latest_history_text(app)?;
+
+    if text.trim().is_empty() {
+        return Ok(());
+    }
+
+    keyboard::copy_text(&text)
 }
 
 fn start_dictation(app: tauri::AppHandle) {
@@ -171,6 +253,47 @@ fn start_dictation_inner(app: &tauri::AppHandle) -> AppResult<()> {
     emit_dictation_session(app, true);
 
     Ok(())
+}
+
+async fn repeat_latest_history_record_inner(app: tauri::AppHandle) -> AppResult<()> {
+    let Some((id, record_id)) = begin_repeat_latest_history_record(&app)? else {
+        return Ok(());
+    };
+
+    tauri::async_runtime::spawn(process_repeat_latest_history_record(app, id, record_id));
+
+    Ok(())
+}
+
+fn begin_repeat_latest_history_record(app: &tauri::AppHandle) -> AppResult<Option<(u64, String)>> {
+    let Some(record_id) = history::latest_history_record_id(app)? else {
+        return Ok(None);
+    };
+
+    let runtime = app.state::<DictationRuntime>();
+    let mut session = runtime
+        .session
+        .lock()
+        .map_err(|_| AppError::from("Could not lock dictation state"))?;
+
+    if !matches!(*session, DictationSession::Idle) {
+        return Ok(None);
+    }
+
+    overlay::show_transcribing_overlay(app)?;
+
+    let id = runtime.next_session_id.fetch_add(1, Ordering::Relaxed) + 1;
+    *session = DictationSession::Transcribing { id };
+
+    if let Ok(app_settings) = settings::load_app_settings(app) {
+        if let Err(error) = shortcut_hook::arm_cancel_hotkey(app_settings.cancel_hotkey()) {
+            emit_dictation_error(app, error.into_message());
+        }
+    }
+
+    emit_dictation_session(app, true);
+
+    Ok(Some((id, record_id)))
 }
 
 fn stop_dictation(app: tauri::AppHandle) {
@@ -249,6 +372,34 @@ async fn process_recording(app: tauri::AppHandle, id: u64, audio: RecordedAudio)
             emit_dictation_error(&app, error.into_message());
             reset_session(&app, id, false);
             let _ = overlay::show_error_overlay(&app, None);
+        }
+    }
+}
+
+async fn process_repeat_latest_history_record(app: tauri::AppHandle, id: u64, record_id: String) {
+    let outcome = process_repeat_latest_history_record_inner(&app, id, &record_id).await;
+
+    if !is_current_session(&app, id) {
+        reset_session(&app, id, true);
+        return;
+    }
+
+    match outcome {
+        Ok(DictationOutcome::Completed) => {
+            reset_session(&app, id, true);
+        }
+        Ok(DictationOutcome::SttError { record_id }) => {
+            reset_session(&app, id, false);
+            let _ = overlay::show_error_overlay(&app, record_id);
+        }
+        Ok(DictationOutcome::PostProcessError { record_id }) => {
+            reset_session(&app, id, false);
+            let _ = overlay::show_warning_overlay(&app, Some(record_id));
+        }
+        Err(error) => {
+            emit_dictation_error(&app, error.into_message());
+            reset_session(&app, id, false);
+            let _ = overlay::show_error_overlay(&app, Some(record_id));
         }
     }
 }
@@ -391,6 +542,55 @@ async fn process_recording_inner(
     Ok(DictationOutcome::Completed)
 }
 
+async fn process_repeat_latest_history_record_inner(
+    app: &tauri::AppHandle,
+    id: u64,
+    record_id: &str,
+) -> AppResult<DictationOutcome> {
+    if !is_current_session(app, id) {
+        return Ok(DictationOutcome::Completed);
+    }
+
+    let outcome = history::repeat_history_record_for_hotkey(app, record_id, || {
+        set_processing(app, id)?;
+        overlay::show_processing_overlay(app)
+    })
+    .await?;
+
+    if !is_current_session(app, id) {
+        return Ok(DictationOutcome::Completed);
+    }
+
+    match outcome {
+        history::RepeatHistoryHotkeyOutcome::Success { final_text } => {
+            if final_text.trim().is_empty() {
+                return Ok(DictationOutcome::Completed);
+            }
+
+            if is_current_session(app, id) {
+                keyboard::paste_text(&final_text).await?;
+            }
+
+            Ok(DictationOutcome::Completed)
+        }
+        history::RepeatHistoryHotkeyOutcome::SttError { record_id } => {
+            Ok(DictationOutcome::SttError {
+                record_id: Some(record_id),
+            })
+        }
+        history::RepeatHistoryHotkeyOutcome::PostProcessError {
+            record_id,
+            final_text,
+        } => {
+            if !final_text.trim().is_empty() && is_current_session(app, id) {
+                keyboard::paste_text(&final_text).await?;
+            }
+
+            Ok(DictationOutcome::PostProcessError { record_id })
+        }
+    }
+}
+
 fn set_processing(app: &tauri::AppHandle, id: u64) -> AppResult<()> {
     let runtime = app.state::<DictationRuntime>();
     let mut session = runtime
@@ -417,6 +617,14 @@ fn is_current_session(app: &tauri::AppHandle, id: u64) -> bool {
                     if current == id
             )
         })
+        .unwrap_or(false)
+}
+
+fn is_session_idle(app: &tauri::AppHandle) -> bool {
+    app.state::<DictationRuntime>()
+        .session
+        .lock()
+        .map(|session| matches!(*session, DictationSession::Idle))
         .unwrap_or(false)
 }
 

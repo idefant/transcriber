@@ -100,6 +100,12 @@ pub struct NewHistoryRecord {
     pub transcription: Result<SttRunOutput, (SttSettingsSnapshot, AppError)>,
 }
 
+pub enum RepeatHistoryHotkeyOutcome {
+    Success { final_text: String },
+    SttError { record_id: String },
+    PostProcessError { record_id: String, final_text: String },
+}
+
 #[tauri::command]
 pub fn get_history_groups(
     app: tauri::AppHandle,
@@ -264,6 +270,54 @@ pub fn latest_history_text(app: &tauri::AppHandle) -> AppResult<String> {
         .first()
         .map(|record| record.final_text.clone())
         .unwrap_or_default())
+}
+
+pub fn latest_history_record_id(app: &tauri::AppHandle) -> AppResult<Option<String>> {
+    let mut records = load_history_store(app)?.records;
+
+    sort_records(&mut records);
+
+    Ok(records.first().map(|record| record.id.clone()))
+}
+
+pub async fn repeat_history_record_for_hotkey(
+    app: &tauri::AppHandle,
+    record_id: &str,
+    before_post_process: impl FnOnce() -> AppResult<()>,
+) -> AppResult<RepeatHistoryHotkeyOutcome> {
+    prepare_history_record_repeat(app, record_id)?;
+
+    let record = repeat_history_transcription_inner(app, record_id).await?;
+    let config = load_processing_config(app)?;
+    let record = if config.post_process.enabled
+        && matches!(record.transcription.status, HistoryResultStatus::Success)
+    {
+        before_post_process()?;
+        repeat_history_post_processing_inner(app, record_id).await?
+    } else {
+        record
+    };
+
+    repeat_history_hotkey_outcome(record)
+}
+
+fn repeat_history_hotkey_outcome(record: HistoryRecord) -> AppResult<RepeatHistoryHotkeyOutcome> {
+    if matches!(record.transcription.status, HistoryResultStatus::Error) {
+        return Ok(RepeatHistoryHotkeyOutcome::SttError {
+            record_id: record.id,
+        });
+    }
+
+    if matches!(record.postprocessing.status, HistoryResultStatus::Error) {
+        return Ok(RepeatHistoryHotkeyOutcome::PostProcessError {
+            record_id: record.id,
+            final_text: record.final_text,
+        });
+    }
+
+    Ok(RepeatHistoryHotkeyOutcome::Success {
+        final_text: record.final_text,
+    })
 }
 
 fn get_history_groups_inner(
@@ -437,13 +491,7 @@ async fn repeat_history_record_inner(
     app: &tauri::AppHandle,
     record_id: &str,
 ) -> AppResult<HistoryRecord> {
-    let mut store = load_history_store(app)?;
-    let index = find_record_index(&store.records, record_id)?;
-
-    store.records[index].postprocessing = skipped_result(None);
-    store.records[index].final_text = String::new();
-    save_history_store(app, &store)?;
-    emit_history_updated(app, Some(&store.records[index]));
+    prepare_history_record_repeat(app, record_id)?;
 
     let record = repeat_history_transcription_inner(app, record_id).await?;
     let config = load_processing_config(app)?;
@@ -455,6 +503,18 @@ async fn repeat_history_record_inner(
     } else {
         Ok(record)
     }
+}
+
+fn prepare_history_record_repeat(app: &tauri::AppHandle, record_id: &str) -> AppResult<()> {
+    let mut store = load_history_store(app)?;
+    let index = find_record_index(&store.records, record_id)?;
+
+    store.records[index].postprocessing = skipped_result(None);
+    store.records[index].final_text = String::new();
+    save_history_store(app, &store)?;
+    emit_history_updated(app, Some(&store.records[index]));
+
+    Ok(())
 }
 
 async fn repeat_history_post_processing_inner(

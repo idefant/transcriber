@@ -33,6 +33,18 @@ const DictationHotkeyFallback: FC = () => {
     const dictationHotkey = parseHotkey(settings.hotkey);
     const cancelHotkey =
       settings.cancelHotkey.trim().length > 0 ? parseHotkey(settings.cancelHotkey) : undefined;
+    const copyLatestHotkey =
+      settings.copyLatestHotkey.trim().length > 0
+        ? parseHotkey(settings.copyLatestHotkey)
+        : undefined;
+    const pasteLatestHotkey =
+      settings.pasteLatestHotkey.trim().length > 0
+        ? parseHotkey(settings.pasteLatestHotkey)
+        : undefined;
+    const repeatLatestHotkey =
+      settings.repeatLatestHotkey.trim().length > 0
+        ? parseHotkey(settings.repeatLatestHotkey)
+        : undefined;
 
     if (dictationHotkey === undefined) {
       return;
@@ -51,7 +63,20 @@ const DictationHotkeyFallback: FC = () => {
         return;
       }
 
-      // Cancel hotkey — only consumed when a dictation session is active.
+      if (matchesHotkey(event, pressedModifierCodes, dictationHotkey)) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (event.repeat) {
+          return;
+        }
+
+        isShortcutActiveRef.current = true;
+        void dictationApi.notifyDictationShortcutPressed();
+        return;
+      }
+
+      // Cancel hotkey is only consumed when a dictation session is active.
       if (
         cancelHotkey !== undefined &&
         isSessionActiveRef.current &&
@@ -63,17 +88,34 @@ const DictationHotkeyFallback: FC = () => {
         return;
       }
 
-      // Dictation hotkey.
-      if (matchesHotkey(event, pressedModifierCodes, dictationHotkey)) {
+      if (
+        copyLatestHotkey !== undefined &&
+        matchesHotkey(event, pressedModifierCodes, copyLatestHotkey)
+      ) {
         event.preventDefault();
         event.stopPropagation();
+        void dictationApi.copyLatestHistoryText();
+        return;
+      }
 
-        if (event.repeat) {
-          return;
-        }
+      if (
+        pasteLatestHotkey !== undefined &&
+        matchesHotkey(event, pressedModifierCodes, pasteLatestHotkey)
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        void dictationApi.pasteLatestHistoryText();
+        return;
+      }
 
-        isShortcutActiveRef.current = true;
-        void dictationApi.notifyDictationShortcutPressed();
+      if (
+        repeatLatestHotkey !== undefined &&
+        matchesHotkey(event, pressedModifierCodes, repeatLatestHotkey)
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        void dictationApi.repeatLatestHistoryRecord();
+        return;
       }
     };
 
@@ -116,7 +158,13 @@ const DictationHotkeyFallback: FC = () => {
       globalThis.removeEventListener('keyup', handleKeyUp, { capture: true });
       globalThis.removeEventListener('blur', handleBlur);
     };
-  }, [settings.hotkey, settings.cancelHotkey]);
+  }, [
+    settings.cancelHotkey,
+    settings.copyLatestHotkey,
+    settings.hotkey,
+    settings.pasteLatestHotkey,
+    settings.repeatLatestHotkey,
+  ]);
 
   return null;
 };

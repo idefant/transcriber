@@ -42,6 +42,46 @@ pub fn set_dictation_hotkey(_hotkey: &str) -> AppResult<()> {
 }
 
 #[cfg(target_os = "windows")]
+pub fn set_copy_latest_hotkey(hotkey: &str) -> AppResult<()> {
+    windows_hook::set_copy_latest_hotkey(hotkey)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn set_copy_latest_hotkey(_hotkey: &str) -> AppResult<()> {
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn set_paste_latest_hotkey(hotkey: &str) -> AppResult<()> {
+    windows_hook::set_paste_latest_hotkey(hotkey)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn set_paste_latest_hotkey(_hotkey: &str) -> AppResult<()> {
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn set_repeat_latest_hotkey(hotkey: &str) -> AppResult<()> {
+    windows_hook::set_repeat_latest_hotkey(hotkey)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn set_repeat_latest_hotkey(_hotkey: &str) -> AppResult<()> {
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub async fn wait_for_hotkey_release(hotkey: &str) -> AppResult<()> {
+    windows_hook::wait_for_hotkey_release(hotkey).await
+}
+
+#[cfg(not(target_os = "windows"))]
+pub async fn wait_for_hotkey_release(_hotkey: &str) -> AppResult<()> {
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
 pub fn arm_cancel_hotkey(hotkey: &str) -> AppResult<()> {
     windows_hook::arm_cancel_hotkey(hotkey)
 }
@@ -343,6 +383,7 @@ mod windows_hook {
             Mutex, OnceLock,
         },
         thread,
+        time::Duration,
     };
 
     use tauri::AppHandle;
@@ -373,10 +414,16 @@ mod windows_hook {
     enum HookEvent {
         Dictation(ShortcutState),
         Cancel,
+        CopyLatest,
+        PasteLatest,
+        RepeatLatest,
     }
 
     static HOTKEY: OnceLock<Mutex<HookHotkey>> = OnceLock::new();
     static CANCEL_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>> = OnceLock::new();
+    static COPY_LATEST_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>> = OnceLock::new();
+    static PASTE_LATEST_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>> = OnceLock::new();
+    static REPEAT_LATEST_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>> = OnceLock::new();
     static EVENT_SENDER: OnceLock<Sender<HookEvent>> = OnceLock::new();
 
     struct HookHotkey {
@@ -395,6 +442,9 @@ mod windows_hook {
                 match event {
                     HookEvent::Dictation(state) => dictation::handle_shortcut_event(&app, state),
                     HookEvent::Cancel => dictation::handle_cancel_shortcut(&app),
+                    HookEvent::CopyLatest => dictation::handle_copy_latest_shortcut(&app),
+                    HookEvent::PasteLatest => dictation::handle_paste_latest_shortcut(&app),
+                    HookEvent::RepeatLatest => dictation::handle_repeat_latest_shortcut(&app),
                 }
             }
         });
@@ -442,35 +492,99 @@ mod windows_hook {
         CANCEL_HOTKEY.get_or_init(|| Mutex::new(None))
     }
 
-    pub fn arm_cancel_hotkey(value: &str) -> AppResult<()> {
-        let mut cancel = get_cancel_hotkey()
-            .lock()
-            .map_err(|_| AppError::from("Could not lock cancel hotkey state"))?;
+    fn get_paste_latest_hotkey() -> &'static Mutex<Option<HookHotkey>> {
+        PASTE_LATEST_HOTKEY.get_or_init(|| Mutex::new(None))
+    }
+
+    fn get_copy_latest_hotkey() -> &'static Mutex<Option<HookHotkey>> {
+        COPY_LATEST_HOTKEY.get_or_init(|| Mutex::new(None))
+    }
+
+    fn get_repeat_latest_hotkey() -> &'static Mutex<Option<HookHotkey>> {
+        REPEAT_LATEST_HOTKEY.get_or_init(|| Mutex::new(None))
+    }
+
+    fn set_optional_hotkey(
+        mutex: &'static Mutex<Option<HookHotkey>>,
+        value: &str,
+        lock_error: &'static str,
+    ) -> AppResult<()> {
+        let mut hotkey = mutex.lock().map_err(|_| AppError::from(lock_error))?;
 
         if value.trim().is_empty() {
-            *cancel = None;
+            *hotkey = None;
             return Ok(());
         }
 
         match Hotkey::parse(value) {
-            Ok(hotkey) => {
-                *cancel = Some(HookHotkey {
-                    hotkey,
+            Ok(parsed) => {
+                *hotkey = Some(HookHotkey {
+                    hotkey: parsed,
                     is_main_key_down: false,
                 });
                 Ok(())
             }
-            Err(e) => {
-                *cancel = None;
-                Err(e)
+            Err(error) => {
+                *hotkey = None;
+                Err(error)
             }
         }
+    }
+
+    pub fn arm_cancel_hotkey(value: &str) -> AppResult<()> {
+        set_optional_hotkey(
+            get_cancel_hotkey(),
+            value,
+            "Could not lock cancel hotkey state",
+        )
+    }
+
+    pub fn set_paste_latest_hotkey(value: &str) -> AppResult<()> {
+        set_optional_hotkey(
+            get_paste_latest_hotkey(),
+            value,
+            "Could not lock paste latest hotkey state",
+        )
+    }
+
+    pub fn set_copy_latest_hotkey(value: &str) -> AppResult<()> {
+        set_optional_hotkey(
+            get_copy_latest_hotkey(),
+            value,
+            "Could not lock copy latest hotkey state",
+        )
+    }
+
+    pub fn set_repeat_latest_hotkey(value: &str) -> AppResult<()> {
+        set_optional_hotkey(
+            get_repeat_latest_hotkey(),
+            value,
+            "Could not lock repeat latest hotkey state",
+        )
     }
 
     pub fn disarm_cancel_hotkey() {
         if let Ok(mut cancel) = get_cancel_hotkey().lock() {
             *cancel = None;
         }
+    }
+
+    pub async fn wait_for_hotkey_release(value: &str) -> AppResult<()> {
+        if value.trim().is_empty() {
+            return Ok(());
+        }
+
+        let hotkey = Hotkey::parse(value)?;
+
+        for _ in 0..50 {
+            if !is_hotkey_still_pressed(hotkey) {
+                return Ok(());
+            }
+
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        Ok(())
     }
 
     unsafe extern "system" fn keyboard_proc(code: i32, w_param: usize, l_param: isize) -> isize {
@@ -496,6 +610,9 @@ mod windows_hook {
     fn should_consume_event(vk_code: u32, is_key_down: bool, is_key_up: bool) -> bool {
         try_consume_dictation_event(vk_code, is_key_down, is_key_up)
             || try_consume_cancel_event(vk_code, is_key_down, is_key_up)
+            || try_consume_copy_latest_event(vk_code, is_key_down, is_key_up)
+            || try_consume_paste_latest_event(vk_code, is_key_down, is_key_up)
+            || try_consume_repeat_latest_event(vk_code, is_key_down, is_key_up)
     }
 
     fn try_consume_dictation_event(vk_code: u32, is_key_down: bool, is_key_up: bool) -> bool {
@@ -545,11 +662,69 @@ mod windows_hook {
     }
 
     fn try_consume_cancel_event(vk_code: u32, is_key_down: bool, is_key_up: bool) -> bool {
-        let Ok(mut cancel) = get_cancel_hotkey().lock() else {
+        try_consume_optional_event(
+            get_cancel_hotkey(),
+            vk_code,
+            is_key_down,
+            is_key_up,
+            HookEvent::Cancel,
+        )
+    }
+
+    fn try_consume_paste_latest_event(vk_code: u32, is_key_down: bool, is_key_up: bool) -> bool {
+        if super::IS_HOTKEY_CAPTURE_ACTIVE.load(Ordering::Relaxed) {
+            return false;
+        }
+
+        try_consume_optional_event(
+            get_paste_latest_hotkey(),
+            vk_code,
+            is_key_down,
+            is_key_up,
+            HookEvent::PasteLatest,
+        )
+    }
+
+    fn try_consume_copy_latest_event(vk_code: u32, is_key_down: bool, is_key_up: bool) -> bool {
+        if super::IS_HOTKEY_CAPTURE_ACTIVE.load(Ordering::Relaxed) {
+            return false;
+        }
+
+        try_consume_optional_event(
+            get_copy_latest_hotkey(),
+            vk_code,
+            is_key_down,
+            is_key_up,
+            HookEvent::CopyLatest,
+        )
+    }
+
+    fn try_consume_repeat_latest_event(vk_code: u32, is_key_down: bool, is_key_up: bool) -> bool {
+        if super::IS_HOTKEY_CAPTURE_ACTIVE.load(Ordering::Relaxed) {
+            return false;
+        }
+
+        try_consume_optional_event(
+            get_repeat_latest_hotkey(),
+            vk_code,
+            is_key_down,
+            is_key_up,
+            HookEvent::RepeatLatest,
+        )
+    }
+
+    fn try_consume_optional_event(
+        hotkey_mutex: &'static Mutex<Option<HookHotkey>>,
+        vk_code: u32,
+        is_key_down: bool,
+        is_key_up: bool,
+        hook_event: HookEvent,
+    ) -> bool {
+        let Ok(mut hotkey) = hotkey_mutex.lock() else {
             return false;
         };
 
-        let Some(ref mut config) = *cancel else {
+        let Some(ref mut config) = *hotkey else {
             return false;
         };
 
@@ -569,7 +744,7 @@ mod windows_hook {
         if is_key_down {
             if !config.is_main_key_down {
                 config.is_main_key_down = true;
-                send_hook_event(HookEvent::Cancel);
+                send_hook_event(hook_event);
             }
 
             return true;
@@ -587,11 +762,28 @@ mod windows_hook {
         }
     }
 
+    fn modifier_side_is_pressed(side: ModifierSide, l_vk: u32, r_vk: u32) -> bool {
+        match side {
+            ModifierSide::None => false,
+            ModifierSide::Either => is_key_down(l_vk) || is_key_down(r_vk),
+            ModifierSide::Left => is_key_down(l_vk),
+            ModifierSide::Right => is_key_down(r_vk),
+        }
+    }
+
     fn modifiers_match(hotkey: Hotkey) -> bool {
         modifier_side_matches(hotkey.ctrl, VK_LCONTROL, VK_RCONTROL)
             && modifier_side_matches(hotkey.alt, VK_LMENU, VK_RMENU)
             && modifier_side_matches(hotkey.shift, VK_LSHIFT, VK_RSHIFT)
             && modifier_side_matches(hotkey.win, VK_LWIN, VK_RWIN)
+    }
+
+    fn is_hotkey_still_pressed(hotkey: Hotkey) -> bool {
+        is_key_down(hotkey.main_key.vk)
+            || modifier_side_is_pressed(hotkey.ctrl, VK_LCONTROL, VK_RCONTROL)
+            || modifier_side_is_pressed(hotkey.alt, VK_LMENU, VK_RMENU)
+            || modifier_side_is_pressed(hotkey.shift, VK_LSHIFT, VK_RSHIFT)
+            || modifier_side_is_pressed(hotkey.win, VK_LWIN, VK_RWIN)
     }
 
     fn is_key_down(vk: u32) -> bool {

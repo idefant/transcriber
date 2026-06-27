@@ -15,3 +15,15 @@ export const setHotkeyCaptureActive = async (active: boolean): Promise<void> => 
 export const cancelDictation = async (): Promise<void> => {
   await invoke('cancel_dictation');
 };
+
+export const copyLatestHistoryText = async (): Promise<void> => {
+  await invoke('copy_latest_history_text');
+};
+
+export const pasteLatestHistoryText = async (): Promise<void> => {
+  await invoke('paste_latest_history_text');
+};
+
+export const repeatLatestHistoryRecord = async (): Promise<void> => {
+  await invoke('repeat_latest_history_record');
+};

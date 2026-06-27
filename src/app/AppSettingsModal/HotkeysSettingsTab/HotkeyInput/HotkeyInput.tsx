@@ -1,6 +1,6 @@
 import { type FC, useCallback, useEffect, useState } from 'react';
 import { Button, Input, Space, Tooltip } from 'antd';
-import { KeyboardIcon, LoaderIcon } from 'lucide-react';
+import { KeyboardIcon, LoaderIcon, XIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import * as dictationApi from '#/shared/dictationApi';
@@ -10,11 +10,22 @@ import { lockHotkeyCapture, unlockHotkeyCapture } from '#/shared/hotkeyCaptureLo
 import styles from './HotkeyInput.module.scss';
 
 interface HotkeyInputProps {
+  allowEmpty: boolean;
+  defaultValue: string;
+  emptyPlaceholder: string;
   onChange: (value: string) => void;
+  resetLabel: string;
   value: string;
 }
 
-const HotkeyInput: FC<HotkeyInputProps> = ({ onChange, value }) => {
+const HotkeyInput: FC<HotkeyInputProps> = ({
+  allowEmpty,
+  defaultValue,
+  emptyPlaceholder,
+  onChange,
+  resetLabel,
+  value,
+}) => {
   const { t } = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
 
@@ -35,6 +46,12 @@ const HotkeyInput: FC<HotkeyInputProps> = ({ onChange, value }) => {
       startRecording();
     }
   }, [isRecording, startRecording, stopRecording]);
+
+  const handleReset = useCallback(() => {
+    onChange(defaultValue);
+  }, [defaultValue, onChange]);
+
+  const shouldShowReset = !isRecording && value !== defaultValue;
 
   useEffect(() => {
     if (!isRecording) {
@@ -89,7 +106,16 @@ const HotkeyInput: FC<HotkeyInputProps> = ({ onChange, value }) => {
 
   return (
     <Space.Compact className={styles.root}>
-      <Input readOnly value={value} />
+      <Input placeholder={allowEmpty ? emptyPlaceholder : undefined} readOnly value={value} />
+      {shouldShowReset && (
+        <Tooltip title={resetLabel}>
+          <Button
+            aria-label={resetLabel}
+            icon={<XIcon size={16} strokeWidth={2} />}
+            onClick={handleReset}
+          />
+        </Tooltip>
+      )}
       <Tooltip title={isRecording ? t('settings.hotkeys.recording') : t('settings.hotkeys.record')}>
         <Button
           aria-label={isRecording ? t('settings.hotkeys.recording') : t('settings.hotkeys.record')}

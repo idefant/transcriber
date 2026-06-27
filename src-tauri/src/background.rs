@@ -11,8 +11,9 @@ use tauri::{
 
 use crate::{
     autostart::HIDDEN_START_ARG,
+    dictation,
     error::{AppError, AppResult},
-    history, keyboard,
+    history,
     settings::{self, EffectiveUiLanguage},
 };
 
@@ -123,15 +124,7 @@ fn setup_tray(app: &tauri::AppHandle) -> AppResult<()> {
                 let _ = show_main_window(app);
             }
             MENU_COPY_LATEST_ID => {
-                if let Ok(Some(text)) = history::latest_history_text(app).map(|text| {
-                    if text.trim().is_empty() {
-                        None
-                    } else {
-                        Some(text)
-                    }
-                }) {
-                    let _ = keyboard::copy_text(&text);
-                }
+                let _ = dictation::copy_latest_history_text_to_clipboard(app);
                 refresh_tray_history_state(app);
             }
             MENU_EXIT_ID => {

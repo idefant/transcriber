@@ -226,13 +226,25 @@ const AppSettingsModal: FC<AppSettingsModalProps> = ({ open, onClose }) => {
         return (
           <HotkeysSettingsTab
             cancelHotkey={settings.cancelHotkey}
+            copyLatestHotkey={settings.copyLatestHotkey}
             hotkey={settings.hotkey}
+            pasteLatestHotkey={settings.pasteLatestHotkey}
+            repeatLatestHotkey={settings.repeatLatestHotkey}
             triggerMode={settings.triggerMode}
             onCancelHotkeyChange={(cancelHotkey) => {
               void handleSettingsChange({ cancelHotkey });
             }}
+            onCopyLatestHotkeyChange={(copyLatestHotkey) => {
+              void handleSettingsChange({ copyLatestHotkey });
+            }}
             onHotkeyChange={(hotkey) => {
               void handleSettingsChange({ hotkey });
+            }}
+            onPasteLatestHotkeyChange={(pasteLatestHotkey) => {
+              void handleSettingsChange({ pasteLatestHotkey });
+            }}
+            onRepeatLatestHotkeyChange={(repeatLatestHotkey) => {
+              void handleSettingsChange({ repeatLatestHotkey });
             }}
             onTriggerModeChange={(triggerMode) => {
               void handleSettingsChange({ triggerMode });

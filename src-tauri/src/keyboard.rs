@@ -3,7 +3,7 @@ use crate::error::{AppError, AppResult};
 #[cfg(target_os = "windows")]
 pub async fn paste_text(text: &str) -> AppResult<()> {
     let previous = read_clipboard_text();
-    copy_text(text)?;
+    copy_text_hidden(text)?;
     let send_result = send_ctrl_v();
     // Give the target application time to process the paste before the
     // clipboard is restored. SendInput is asynchronous from the recipient's
@@ -22,6 +22,29 @@ pub async fn paste_text(_text: &str) -> AppResult<()> {
 
 #[cfg(target_os = "windows")]
 pub fn copy_text(text: &str) -> AppResult<()> {
+    write_clipboard_text(text, ClipboardHistoryMode::Visible)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn copy_text(_text: &str) -> AppResult<()> {
+    Err(AppError::from(
+        "Clipboard copy is only implemented on Windows in this version",
+    ))
+}
+
+#[cfg(target_os = "windows")]
+enum ClipboardHistoryMode {
+    Hidden,
+    Visible,
+}
+
+#[cfg(target_os = "windows")]
+fn copy_text_hidden(text: &str) -> AppResult<()> {
+    write_clipboard_text(text, ClipboardHistoryMode::Hidden)
+}
+
+#[cfg(target_os = "windows")]
+fn write_clipboard_text(text: &str, history_mode: ClipboardHistoryMode) -> AppResult<()> {
     use std::ptr;
 
     use windows_sys::Win32::System::{
@@ -38,18 +61,6 @@ pub fn copy_text(text: &str) -> AppResult<()> {
     let mut utf16: Vec<u16> = text.encode_utf16().collect();
     utf16.push(0);
     let bytes_len = utf16.len() * size_of::<u16>();
-
-    // Helper to encode a format name as null-terminated UTF-16.
-    let encode_format_name = |name: &str| -> Vec<u16> {
-        let mut v: Vec<u16> = name.encode_utf16().collect();
-        v.push(0);
-        v
-    };
-
-    // These Windows clipboard formats, when present, instruct the clipboard
-    // monitor (Win+V history, cloud sync) to exclude this entry from tracking.
-    let exclude_format_name = encode_format_name("ExcludeClipboardContentFromMonitorProcessing");
-    let no_history_format_name = encode_format_name("CanIncludeInClipboardHistory");
 
     unsafe {
         if OpenClipboard(ptr::null_mut()) == 0 {
@@ -81,24 +92,37 @@ pub fn copy_text(text: &str) -> AppResult<()> {
             return Err(AppError::from("Could not set Windows clipboard data"));
         }
 
-        // Exclude from clipboard history (Win+V) and cloud sync.
-        // "ExcludeClipboardContentFromMonitorProcessing": presence of the format
-        // is enough — no data payload needed.
-        let exclude_fmt = RegisterClipboardFormatW(exclude_format_name.as_ptr());
-        if exclude_fmt != 0 {
-            SetClipboardData(exclude_fmt, ptr::null_mut());
-        }
+        if matches!(history_mode, ClipboardHistoryMode::Hidden) {
+            // These Windows clipboard formats instruct the clipboard monitor
+            // (Win+V history, cloud sync) to ignore this entry.
+            let mut exclude_format_name: Vec<u16> =
+                "ExcludeClipboardContentFromMonitorProcessing"
+                    .encode_utf16()
+                    .collect();
+            exclude_format_name.push(0);
 
-        // "CanIncludeInClipboardHistory": set DWORD 0 to opt out.
-        let no_history_fmt = RegisterClipboardFormatW(no_history_format_name.as_ptr());
-        if no_history_fmt != 0 {
-            let dword_handle = GlobalAlloc(GMEM_MOVEABLE, size_of::<u32>());
-            if !dword_handle.is_null() {
-                let dword_ptr = GlobalLock(dword_handle) as *mut u32;
-                if !dword_ptr.is_null() {
-                    *dword_ptr = 0;
-                    GlobalUnlock(dword_handle);
-                    SetClipboardData(no_history_fmt, dword_handle);
+            let mut no_history_format_name: Vec<u16> =
+                "CanIncludeInClipboardHistory".encode_utf16().collect();
+            no_history_format_name.push(0);
+
+            // "ExcludeClipboardContentFromMonitorProcessing": presence of the
+            // format is enough, no data payload is required.
+            let exclude_fmt = RegisterClipboardFormatW(exclude_format_name.as_ptr());
+            if exclude_fmt != 0 {
+                SetClipboardData(exclude_fmt, ptr::null_mut());
+            }
+
+            // "CanIncludeInClipboardHistory": set DWORD 0 to opt out.
+            let no_history_fmt = RegisterClipboardFormatW(no_history_format_name.as_ptr());
+            if no_history_fmt != 0 {
+                let dword_handle = GlobalAlloc(GMEM_MOVEABLE, size_of::<u32>());
+                if !dword_handle.is_null() {
+                    let dword_ptr = GlobalLock(dword_handle) as *mut u32;
+                    if !dword_ptr.is_null() {
+                        *dword_ptr = 0;
+                        GlobalUnlock(dword_handle);
+                        SetClipboardData(no_history_fmt, dword_handle);
+                    }
                 }
             }
         }
@@ -107,13 +131,6 @@ pub fn copy_text(text: &str) -> AppResult<()> {
     }
 
     Ok(())
-}
-
-#[cfg(not(target_os = "windows"))]
-pub fn copy_text(_text: &str) -> AppResult<()> {
-    Err(AppError::from(
-        "Clipboard copy is only implemented on Windows in this version",
-    ))
 }
 
 /// Reads the current clipboard text (CF_UNICODETEXT). Returns `None` if the
@@ -167,14 +184,14 @@ fn read_clipboard_text() -> Option<String> {
 }
 
 /// Restores the clipboard to its pre-paste state. When the previous contents
-/// were text, they are written back (also excluded from history to avoid a
-/// duplicate entry). When the previous contents were non-text or the clipboard
-/// was empty, the clipboard is cleared.
+/// were text, they are written back as hidden to avoid a duplicate clipboard
+/// history entry. When the previous contents were non-text or the clipboard was
+/// empty, the clipboard is cleared.
 #[cfg(target_os = "windows")]
 fn restore_clipboard(previous: Option<String>) {
     match previous {
         Some(text) => {
-            let _ = copy_text(&text);
+            let _ = copy_text_hidden(&text);
         }
         None => clear_clipboard(),
     }

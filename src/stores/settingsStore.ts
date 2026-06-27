@@ -6,6 +6,7 @@ import type { AppSettings, AppSettingsInput } from '#/models/Settings';
 
 const defaultAppSettings: AppSettings = {
   cancelHotkey: 'Ctrl+Z',
+  copyLatestHotkey: '',
   effectiveUiLanguage: 'en',
   hotkey: 'Ctrl+Space',
   isDebugLoggingEnabled: false,
@@ -14,6 +15,8 @@ const defaultAppSettings: AppSettings = {
   isOfferUnstableVersionsEnabled: false,
   overlayScreenMode: 'all',
   overlayVariant: 'center',
+  pasteLatestHotkey: '',
+  repeatLatestHotkey: '',
   themePreference: 'light',
   triggerMode: 'press',
   uiLanguage: 'system',

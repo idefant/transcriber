@@ -108,6 +108,12 @@ pub struct AppSettings {
     #[serde(default = "default_cancel_hotkey")]
     cancel_hotkey: String,
     #[serde(default)]
+    copy_latest_hotkey: String,
+    #[serde(default)]
+    paste_latest_hotkey: String,
+    #[serde(default)]
+    repeat_latest_hotkey: String,
+    #[serde(default)]
     trigger_mode: TriggerMode,
     #[serde(default)]
     overlay_variant: OverlayVariant,
@@ -128,6 +134,9 @@ impl Default for AppSettings {
             is_launch_at_login_enabled: default_launch_at_login_enabled(),
             hotkey: default_hotkey(),
             cancel_hotkey: default_cancel_hotkey(),
+            copy_latest_hotkey: String::new(),
+            paste_latest_hotkey: String::new(),
+            repeat_latest_hotkey: String::new(),
             trigger_mode: TriggerMode::default(),
             overlay_variant: OverlayVariant::default(),
             overlay_screen_mode: OverlayScreenMode::default(),
@@ -147,6 +156,18 @@ impl AppSettings {
 
     pub fn cancel_hotkey(&self) -> &str {
         &self.cancel_hotkey
+    }
+
+    pub fn paste_latest_hotkey(&self) -> &str {
+        &self.paste_latest_hotkey
+    }
+
+    pub fn copy_latest_hotkey(&self) -> &str {
+        &self.copy_latest_hotkey
+    }
+
+    pub fn repeat_latest_hotkey(&self) -> &str {
+        &self.repeat_latest_hotkey
     }
 
     pub fn trigger_mode(&self) -> &TriggerMode {
@@ -172,6 +193,9 @@ pub struct AppSettingsInput {
     is_launch_at_login_enabled: Option<bool>,
     hotkey: Option<String>,
     cancel_hotkey: Option<String>,
+    copy_latest_hotkey: Option<String>,
+    paste_latest_hotkey: Option<String>,
+    repeat_latest_hotkey: Option<String>,
     trigger_mode: Option<TriggerMode>,
     overlay_variant: Option<OverlayVariant>,
     overlay_screen_mode: Option<OverlayScreenMode>,
@@ -246,6 +270,30 @@ fn update_app_settings_inner(
         };
     }
 
+    if let Some(paste_latest_hotkey) = input.paste_latest_hotkey {
+        settings.paste_latest_hotkey = if paste_latest_hotkey.trim().is_empty() {
+            String::new()
+        } else {
+            shortcut_hook::normalize_hotkey(&paste_latest_hotkey)?
+        };
+    }
+
+    if let Some(copy_latest_hotkey) = input.copy_latest_hotkey {
+        settings.copy_latest_hotkey = if copy_latest_hotkey.trim().is_empty() {
+            String::new()
+        } else {
+            shortcut_hook::normalize_hotkey(&copy_latest_hotkey)?
+        };
+    }
+
+    if let Some(repeat_latest_hotkey) = input.repeat_latest_hotkey {
+        settings.repeat_latest_hotkey = if repeat_latest_hotkey.trim().is_empty() {
+            String::new()
+        } else {
+            shortcut_hook::normalize_hotkey(&repeat_latest_hotkey)?
+        };
+    }
+
     if let Some(trigger_mode) = input.trigger_mode {
         settings.trigger_mode = trigger_mode;
     }
@@ -290,6 +338,21 @@ pub fn load_app_settings(app: &tauri::AppHandle) -> AppResult<AppSettings> {
 
     if !settings.cancel_hotkey.trim().is_empty() {
         settings.cancel_hotkey = shortcut_hook::normalize_hotkey(&settings.cancel_hotkey)?;
+    }
+
+    if !settings.paste_latest_hotkey.trim().is_empty() {
+        settings.paste_latest_hotkey =
+            shortcut_hook::normalize_hotkey(&settings.paste_latest_hotkey)?;
+    }
+
+    if !settings.copy_latest_hotkey.trim().is_empty() {
+        settings.copy_latest_hotkey =
+            shortcut_hook::normalize_hotkey(&settings.copy_latest_hotkey)?;
+    }
+
+    if !settings.repeat_latest_hotkey.trim().is_empty() {
+        settings.repeat_latest_hotkey =
+            shortcut_hook::normalize_hotkey(&settings.repeat_latest_hotkey)?;
     }
 
     Ok(settings)
