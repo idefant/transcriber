@@ -27,9 +27,14 @@ pub fn run(app: &tauri::AppHandle) -> AppResult<()> {
         // If so, this is an existing installation that predates versioning — treat as v1.
         // If not, it's a fresh install — start at the current version directly.
         let app_data_dir = app.path().app_data_dir()?;
-        let has_existing_data = ["settings.json", "providers.json", "processing.json", "history.json"]
-            .iter()
-            .any(|name| app_data_dir.join(name).exists());
+        let has_existing_data = [
+            "settings.json",
+            "providers.json",
+            "processing.json",
+            "history.json",
+        ]
+        .iter()
+        .any(|name| app_data_dir.join(name).exists());
 
         if has_existing_data {
             1

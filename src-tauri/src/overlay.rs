@@ -33,11 +33,48 @@ const BOTTOM_SHADOW_MARGIN: f64 = 36.0;
 const CENTER_SHADOW_MARGIN: f64 = 80.0;
 
 /// Distance from the screen bottom to the bottom edge of the bottom-variant card.
-const OVERLAY_BOTTOM_OFFSET: f64 = 72.0;
+const OVERLAY_BOTTOM_OFFSET: f64 = 16.0;
 
 const HIDE_DELAY_MS: u64 = 250;
 const NOTICE_AUTO_HIDE_DELAY: Duration = Duration::from_secs(5);
 const NOTICE_LEAVE_HIDE_DELAY: Duration = Duration::from_secs(2);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct PhysicalFrame {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+}
+
+impl PhysicalFrame {
+    const fn new(x: i32, y: i32, width: u32, height: u32) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    fn bottom(self) -> i32 {
+        self.y + self.height as i32
+    }
+
+    fn center_point(self) -> (i32, i32) {
+        (
+            self.x + (self.width / 2) as i32,
+            self.y + (self.height / 2) as i32,
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct OverlayWindowGeometry {
+    card_height: f64,
+    physical_width: f64,
+    physical_height: f64,
+}
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -280,7 +317,9 @@ fn show_overlay_state(
     let monitors = target_monitors(app, &base, &screen_mode)?;
 
     if monitors.is_empty() {
-        return Err(AppError::from("No monitor is available for recording overlay"));
+        return Err(AppError::from(
+            "No monitor is available for recording overlay",
+        ));
     }
 
     let payload = OverlayShowPayload {
@@ -350,7 +389,9 @@ fn schedule_notice_dismissal(app: tauri::AppHandle, dismissal: ScheduledDismissa
             .state::<OverlayNoticeRuntime>()
             .0
             .lock()
-            .map(|tracker| tracker.should_dismiss(dismissal.generation, dismissal.deadline, Instant::now()))
+            .map(|tracker| {
+                tracker.should_dismiss(dismissal.generation, dismissal.deadline, Instant::now())
+            })
             .unwrap_or(false);
 
         if should_dismiss {
@@ -365,25 +406,22 @@ fn build_overlay_window(app: &tauri::AppHandle, label: &str) -> AppResult<Webvie
     }
 
     #[cfg_attr(not(all(debug_assertions, target_os = "windows")), allow(unused_mut))]
-    let mut builder = WebviewWindowBuilder::new(
-        app,
-        label,
-        WebviewUrl::App("src/overlay/index.html".into()),
-    )
-    .title("Recording")
-    .inner_size(
-        BOTTOM_CARD_WIDTH + BOTTOM_SHADOW_MARGIN * 2.0,
-        BOTTOM_CARD_HEIGHT + BOTTOM_SHADOW_MARGIN * 2.0,
-    )
-    .decorations(false)
-    .transparent(true)
-    .shadow(false)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .resizable(false)
-    .visible(false)
-    .focused(false)
-    .accept_first_mouse(true);
+    let mut builder =
+        WebviewWindowBuilder::new(app, label, WebviewUrl::App("src/overlay/index.html".into()))
+            .title("Recording")
+            .inner_size(
+                BOTTOM_CARD_WIDTH + BOTTOM_SHADOW_MARGIN * 2.0,
+                BOTTOM_CARD_HEIGHT + BOTTOM_SHADOW_MARGIN * 2.0,
+            )
+            .decorations(false)
+            .transparent(true)
+            .shadow(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .resizable(false)
+            .visible(false)
+            .focused(false)
+            .accept_first_mouse(true);
 
     // React DevTools (только dev, только Windows): включаем расширения WebView2 и
     // загружаем распакованное расширение в общий профиль. Расширения Chromium живут
@@ -444,48 +482,136 @@ fn position_overlay(
     variant: &OverlayVariant,
 ) -> AppResult<()> {
     let scale = monitor.scale_factor();
-
-    // The window is the card plus a transparent margin that holds the card's CSS
-    // drop shadow (the card is centered inside the window via `place-items`).
-    let (card_height, margin) = match variant {
-        OverlayVariant::Bottom => (BOTTOM_CARD_HEIGHT, BOTTOM_SHADOW_MARGIN),
-        OverlayVariant::Center => (CENTER_CARD_HEIGHT, CENTER_SHADOW_MARGIN),
-    };
-    let card_width = match variant {
-        OverlayVariant::Bottom => BOTTOM_CARD_WIDTH,
-        OverlayVariant::Center => CENTER_CARD_WIDTH,
-    };
-
-    let physical_width = ((card_width + margin * 2.0) * scale).round();
-    let physical_height = ((card_height + margin * 2.0) * scale).round();
+    let geometry = compute_overlay_window_geometry(variant, scale);
 
     window.set_size(Size::Physical(PhysicalSize::new(
-        physical_width as u32,
-        physical_height as u32,
+        geometry.physical_width as u32,
+        geometry.physical_height as u32,
     )))?;
 
-    let monitor_position = monitor.position();
-    let monitor_size = monitor.size();
-
-    // Center the window (and therefore the card) horizontally.
-    let x = monitor_position.x + ((monitor_size.width as f64 - physical_width) / 2.0).round() as i32;
-    let y = match variant {
-        OverlayVariant::Center => {
-            monitor_position.y + ((monitor_size.height as f64 - physical_height) / 2.0).round() as i32
-        }
-        OverlayVariant::Bottom => {
-            // The card is centered in the window, so its center sits at the window
-            // center. Place the window so the card bottom ends OVERLAY_BOTTOM_OFFSET
-            // above the screen bottom.
-            let card_bottom = monitor_size.height as f64 - OVERLAY_BOTTOM_OFFSET * scale;
-            let window_top = card_bottom - (card_height * scale) / 2.0 - physical_height / 2.0;
-            monitor_position.y + window_top.round() as i32
-        }
-    };
+    let anchor_area = resolve_overlay_anchor_area(monitor, variant);
+    let (x, y) = compute_overlay_position(anchor_area, variant, scale, geometry);
 
     window.set_position(Position::Physical(PhysicalPosition::new(x, y)))?;
 
     Ok(())
+}
+
+fn monitor_bounds(monitor: &Monitor) -> PhysicalFrame {
+    let position = monitor.position();
+    let size = monitor.size();
+
+    PhysicalFrame::new(position.x, position.y, size.width, size.height)
+}
+
+fn compute_overlay_window_geometry(variant: &OverlayVariant, scale: f64) -> OverlayWindowGeometry {
+    // The window is the card plus a transparent margin that holds the card's CSS
+    // drop shadow (the card is centered inside the window via `place-items`).
+    let (card_width, card_height, margin) = match variant {
+        OverlayVariant::Bottom => (BOTTOM_CARD_WIDTH, BOTTOM_CARD_HEIGHT, BOTTOM_SHADOW_MARGIN),
+        OverlayVariant::Center => (CENTER_CARD_WIDTH, CENTER_CARD_HEIGHT, CENTER_SHADOW_MARGIN),
+    };
+
+    OverlayWindowGeometry {
+        card_height,
+        physical_width: ((card_width + margin * 2.0) * scale).round(),
+        physical_height: ((card_height + margin * 2.0) * scale).round(),
+    }
+}
+
+fn compute_overlay_position(
+    anchor_area: PhysicalFrame,
+    variant: &OverlayVariant,
+    scale: f64,
+    geometry: OverlayWindowGeometry,
+) -> (i32, i32) {
+    let x =
+        anchor_area.x + ((anchor_area.width as f64 - geometry.physical_width) / 2.0).round() as i32;
+    let y = match variant {
+        OverlayVariant::Center => {
+            anchor_area.y
+                + ((anchor_area.height as f64 - geometry.physical_height) / 2.0).round() as i32
+        }
+        OverlayVariant::Bottom => compute_bottom_overlay_top(anchor_area, scale, geometry),
+    };
+
+    (x, y)
+}
+
+fn compute_bottom_overlay_top(
+    anchor_area: PhysicalFrame,
+    scale: f64,
+    geometry: OverlayWindowGeometry,
+) -> i32 {
+    let card_bottom = anchor_area.bottom() as f64 - OVERLAY_BOTTOM_OFFSET * scale;
+    let window_top =
+        card_bottom - (geometry.card_height * scale) / 2.0 - geometry.physical_height / 2.0;
+
+    window_top.round() as i32
+}
+
+fn resolve_overlay_anchor_area(monitor: &Monitor, variant: &OverlayVariant) -> PhysicalFrame {
+    match variant {
+        OverlayVariant::Bottom => resolve_bottom_overlay_anchor_area(monitor),
+        OverlayVariant::Center => monitor_bounds(monitor),
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_bottom_overlay_anchor_area(monitor: &Monitor) -> PhysicalFrame {
+    // On Windows the compact overlay should follow the same available work area
+    // that a maximized window uses, so taskbar auto-hide/show changes its anchor.
+    resolve_monitor_work_area(monitor).unwrap_or_else(|| monitor_bounds(monitor))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn resolve_bottom_overlay_anchor_area(monitor: &Monitor) -> PhysicalFrame {
+    // Tauri does not expose per-monitor work areas cross-platform here, so
+    // non-Windows builds fall back to the full monitor bounds.
+    monitor_bounds(monitor)
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_monitor_work_area(monitor: &Monitor) -> Option<PhysicalFrame> {
+    use windows_sys::Win32::{
+        Foundation::POINT,
+        Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST},
+    };
+
+    let bounds = monitor_bounds(monitor);
+    let (center_x, center_y) = bounds.center_point();
+    let handle = unsafe {
+        MonitorFromPoint(
+            POINT {
+                x: center_x,
+                y: center_y,
+            },
+            MONITOR_DEFAULTTONEAREST,
+        )
+    };
+
+    if handle.is_null() {
+        return None;
+    }
+
+    let mut monitor_info = unsafe { std::mem::zeroed::<MONITORINFO>() };
+    monitor_info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+
+    let result = unsafe { GetMonitorInfoW(handle, &mut monitor_info) };
+
+    if result == 0 {
+        return None;
+    }
+
+    Some(physical_frame_from_rect(monitor_info.rcWork))
+}
+
+#[cfg(target_os = "windows")]
+fn physical_frame_from_rect(rect: windows_sys::Win32::Foundation::RECT) -> PhysicalFrame {
+    let width = (rect.right - rect.left).max(0) as u32;
+    let height = (rect.bottom - rect.top).max(0) as u32;
+
+    PhysicalFrame::new(rect.left, rect.top, width, height)
 }
 
 fn hide_surplus_overlays(app: &tauri::AppHandle, active_count: usize) {
@@ -542,8 +668,16 @@ mod tests {
         let now = Instant::now();
         let dismissal = tracker.show_notice(now);
 
-        assert!(!tracker.should_dismiss(dismissal.generation, dismissal.deadline, now + Duration::from_secs(4)));
-        assert!(tracker.should_dismiss(dismissal.generation, dismissal.deadline, dismissal.deadline));
+        assert!(!tracker.should_dismiss(
+            dismissal.generation,
+            dismissal.deadline,
+            now + Duration::from_secs(4)
+        ));
+        assert!(tracker.should_dismiss(
+            dismissal.generation,
+            dismissal.deadline,
+            dismissal.deadline
+        ));
     }
 
     #[test]
@@ -619,7 +753,9 @@ mod tests {
         tracker.mouse_move(WINDOW_A, now + Duration::from_secs(1));
         tracker.mouse_move(WINDOW_B, now + Duration::from_secs(2));
 
-        assert!(tracker.mouse_leave(WINDOW_A, now + Duration::from_secs(3)).is_none());
+        assert!(tracker
+            .mouse_leave(WINDOW_A, now + Duration::from_secs(3))
+            .is_none());
         assert!(!tracker.should_dismiss(
             initial.generation,
             initial.deadline,
@@ -653,5 +789,61 @@ mod tests {
             dismissal.deadline,
             dismissal.deadline + Duration::from_millis(1),
         ));
+    }
+
+    #[test]
+    fn bottom_overlay_uses_work_area_bottom_offset() {
+        let anchor_area = PhysicalFrame::new(0, 0, 1920, 1040);
+        let geometry = compute_overlay_window_geometry(&OverlayVariant::Bottom, 1.0);
+
+        let (x, y) = compute_overlay_position(anchor_area, &OverlayVariant::Bottom, 1.0, geometry);
+
+        assert_eq!(x, 834);
+        assert_eq!(y, 892);
+    }
+
+    #[test]
+    fn bottom_overlay_moves_with_work_area_changes() {
+        let tall_area = PhysicalFrame::new(0, 0, 1920, 1080);
+        let short_area = PhysicalFrame::new(0, 0, 1920, 1040);
+        let geometry = compute_overlay_window_geometry(&OverlayVariant::Bottom, 1.0);
+
+        let (_, tall_y) =
+            compute_overlay_position(tall_area, &OverlayVariant::Bottom, 1.0, geometry);
+        let (_, short_y) =
+            compute_overlay_position(short_area, &OverlayVariant::Bottom, 1.0, geometry);
+
+        assert_eq!(tall_y - short_y, 40);
+    }
+
+    #[test]
+    fn bottom_overlay_centers_inside_available_area() {
+        let anchor_area = PhysicalFrame::new(80, 0, 1840, 1040);
+        let geometry = compute_overlay_window_geometry(&OverlayVariant::Bottom, 1.0);
+
+        let (x, _) = compute_overlay_position(anchor_area, &OverlayVariant::Bottom, 1.0, geometry);
+
+        assert_eq!(x, 874);
+    }
+
+    #[test]
+    fn bottom_overlay_keeps_card_bottom_at_offset_despite_shadow_margin() {
+        let anchor_area = PhysicalFrame::new(0, 0, 1920, 1040);
+        let geometry = compute_overlay_window_geometry(&OverlayVariant::Bottom, 1.0);
+        let top = compute_bottom_overlay_top(anchor_area, 1.0, geometry);
+        let card_bottom = top as f64 + geometry.physical_height / 2.0 + geometry.card_height / 2.0;
+
+        assert_eq!(card_bottom, 968.0);
+    }
+
+    #[test]
+    fn bottom_overlay_position_scales_in_physical_pixels() {
+        let anchor_area = PhysicalFrame::new(0, 0, 2560, 1440);
+        let geometry = compute_overlay_window_geometry(&OverlayVariant::Bottom, 1.5);
+
+        let (x, y) = compute_overlay_position(anchor_area, &OverlayVariant::Bottom, 1.5, geometry);
+
+        assert_eq!(x, 1091);
+        assert_eq!(y, 1218);
     }
 }

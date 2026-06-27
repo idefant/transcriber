@@ -48,8 +48,7 @@ pub fn copy_text(text: &str) -> AppResult<()> {
 
     // These Windows clipboard formats, when present, instruct the clipboard
     // monitor (Win+V history, cloud sync) to exclude this entry from tracking.
-    let exclude_format_name =
-        encode_format_name("ExcludeClipboardContentFromMonitorProcessing");
+    let exclude_format_name = encode_format_name("ExcludeClipboardContentFromMonitorProcessing");
     let no_history_format_name = encode_format_name("CanIncludeInClipboardHistory");
 
     unsafe {
@@ -185,9 +184,7 @@ fn restore_clipboard(previous: Option<String>) {
 fn clear_clipboard() {
     use std::ptr;
 
-    use windows_sys::Win32::System::DataExchange::{
-        CloseClipboard, EmptyClipboard, OpenClipboard,
-    };
+    use windows_sys::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard};
 
     unsafe {
         if OpenClipboard(ptr::null_mut()) != 0 {

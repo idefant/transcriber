@@ -299,7 +299,10 @@ fn default_post_process_user_template() -> AppResult<String> {
     Ok(load_prompt_defaults()?.post_process.user_template)
 }
 
-fn localized_prompt(prompts: LocalizedPrompts, language: &EffectiveUiLanguage) -> AppResult<String> {
+fn localized_prompt(
+    prompts: LocalizedPrompts,
+    language: &EffectiveUiLanguage,
+) -> AppResult<String> {
     Ok(match language {
         EffectiveUiLanguage::En => prompts.en,
         EffectiveUiLanguage::Ru => prompts.ru,
