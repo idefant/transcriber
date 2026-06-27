@@ -3,6 +3,7 @@ import type { Resource } from 'i18next';
 import type { EffectiveUiLanguage } from '#/models/Settings';
 
 export const defaultLanguage: EffectiveUiLanguage = 'en';
+export const defaultNamespace = 'translation';
 
 const en = {
   common: {
@@ -145,6 +146,7 @@ const en = {
         title: 'Version',
         description: 'Current version of Transcriber',
       },
+      updateAvailable: 'Update {{version}} is available',
       checkForUpdates: 'Check for updates',
       installUpdate: 'Install {{version}}',
       noUpdate: 'You are on the latest version',
@@ -357,6 +359,7 @@ const ru: typeof en = {
         title: 'Версия',
         description: 'Текущая версия Transcriber',
       },
+      updateAvailable: 'Доступно обновление {{version}}',
       checkForUpdates: 'Проверить обновления',
       installUpdate: 'Установить {{version}}',
       noUpdate: 'У вас установлена последняя версия',
@@ -426,11 +429,14 @@ const ru: typeof en = {
   },
 };
 
-export const resources: Resource = {
+export const resources = {
   en: {
     translation: en,
   },
   ru: {
     translation: ru,
   },
-};
+} as const satisfies Resource;
+
+export type I18nDefaultNamespace = typeof defaultNamespace;
+export type I18nResources = typeof resources.en;

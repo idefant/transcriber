@@ -2,7 +2,7 @@ import { type FC, type ReactNode, useEffect } from 'react';
 import i18next from 'i18next';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
 
-import { defaultLanguage, resources } from './resources';
+import { defaultLanguage, defaultNamespace, resources } from './resources';
 
 import type { EffectiveUiLanguage } from '#/models/Settings';
 import { useSettingsStore } from '#/stores';
@@ -14,6 +14,7 @@ interface I18nProviderProps {
 const i18n = i18next.createInstance();
 
 void i18n.use(initReactI18next).init({
+  defaultNS: defaultNamespace,
   fallbackLng: defaultLanguage,
   interpolation: {
     escapeValue: false,
