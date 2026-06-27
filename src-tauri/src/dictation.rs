@@ -476,8 +476,9 @@ async fn process_recording_inner(
     }
 
     let (final_text, postprocessing) = if config.post_process.enabled {
-        set_processing(app, id)?;
-        overlay::show_processing_overlay(app)?;
+        if !begin_processing_phase(app, id)? {
+            return Ok(DictationOutcome::Completed);
+        }
         let postprocessing_snapshot = runner::build_post_process_snapshot(app)?;
         let postprocessing_log_context = ModelRunLogContext {
             source: ModelRunSource::Dictation,
@@ -552,8 +553,7 @@ async fn process_repeat_latest_history_record_inner(
     }
 
     let outcome = history::repeat_history_record_for_hotkey(app, record_id, || {
-        set_processing(app, id)?;
-        overlay::show_processing_overlay(app)
+        begin_processing_phase(app, id)
     })
     .await?;
 
@@ -591,18 +591,39 @@ async fn process_repeat_latest_history_record_inner(
     }
 }
 
-fn set_processing(app: &tauri::AppHandle, id: u64) -> AppResult<()> {
+fn begin_processing_phase(app: &tauri::AppHandle, id: u64) -> AppResult<bool> {
     let runtime = app.state::<DictationRuntime>();
     let mut session = runtime
         .session
         .lock()
         .map_err(|_| AppError::from("Could not lock dictation state"))?;
 
-    if matches!(*session, DictationSession::Transcribing { id: current } if current == id) {
-        *session = DictationSession::Processing { id };
+    if !try_enter_processing(&mut session, id) {
+        return Ok(false);
     }
 
-    Ok(())
+    drop(session);
+
+    overlay::show_processing_overlay(app)?;
+
+    // Cancel can race with the STT -> post-processing transition. Re-check after
+    // showing the overlay so a late cancel cannot leave the processing overlay
+    // visible while the session is already cancelled.
+    if !is_current_session(app, id) {
+        let _ = overlay::hide_recording_overlay(app);
+        return Ok(false);
+    }
+
+    Ok(true)
+}
+
+fn try_enter_processing(session: &mut DictationSession, id: u64) -> bool {
+    if matches!(*session, DictationSession::Transcribing { id: current } if current == id) {
+        *session = DictationSession::Processing { id };
+        true
+    } else {
+        false
+    }
 }
 
 fn is_current_session(app: &tauri::AppHandle, id: u64) -> bool {
@@ -681,4 +702,33 @@ fn emit_dictation_error(app: &tauri::AppHandle, message: String) {
 
 fn emit_dictation_session(app: &tauri::AppHandle, active: bool) {
     let _ = app.emit("dictation-session", DictationSessionPayload { active });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{try_enter_processing, DictationSession};
+
+    #[test]
+    fn try_enter_processing_transitions_matching_transcribing_session() {
+        let mut session = DictationSession::Transcribing { id: 7 };
+
+        assert!(try_enter_processing(&mut session, 7));
+        assert!(matches!(session, DictationSession::Processing { id: 7 }));
+    }
+
+    #[test]
+    fn try_enter_processing_ignores_cancelled_session() {
+        let mut session = DictationSession::Cancelled { id: 7 };
+
+        assert!(!try_enter_processing(&mut session, 7));
+        assert!(matches!(session, DictationSession::Cancelled { id: 7 }));
+    }
+
+    #[test]
+    fn try_enter_processing_ignores_other_session_id() {
+        let mut session = DictationSession::Transcribing { id: 7 };
+
+        assert!(!try_enter_processing(&mut session, 8));
+        assert!(matches!(session, DictationSession::Transcribing { id: 7 }));
+    }
 }

@@ -283,16 +283,20 @@ pub fn latest_history_record_id(app: &tauri::AppHandle) -> AppResult<Option<Stri
 pub async fn repeat_history_record_for_hotkey(
     app: &tauri::AppHandle,
     record_id: &str,
-    before_post_process: impl FnOnce() -> AppResult<()>,
+    before_post_process: impl FnOnce() -> AppResult<bool>,
 ) -> AppResult<RepeatHistoryHotkeyOutcome> {
     prepare_history_record_repeat(app, record_id)?;
 
     let record = repeat_history_transcription_inner(app, record_id).await?;
     let config = load_processing_config(app)?;
-    let record = if config.post_process.enabled
-        && matches!(record.transcription.status, HistoryResultStatus::Success)
-    {
-        before_post_process()?;
+    let record = if should_run_repeat_hotkey_post_process(
+        config.post_process.enabled,
+        &record.transcription.status,
+    ) {
+        if !before_post_process()? {
+            return repeat_history_hotkey_outcome(record);
+        }
+
         repeat_history_post_processing_inner(app, record_id).await?
     } else {
         record
@@ -318,6 +322,13 @@ fn repeat_history_hotkey_outcome(record: HistoryRecord) -> AppResult<RepeatHisto
     Ok(RepeatHistoryHotkeyOutcome::Success {
         final_text: record.final_text,
     })
+}
+
+fn should_run_repeat_hotkey_post_process(
+    post_process_enabled: bool,
+    transcription_status: &HistoryResultStatus,
+) -> bool {
+    post_process_enabled && matches!(transcription_status, HistoryResultStatus::Success)
 }
 
 fn get_history_groups_inner(
@@ -865,6 +876,39 @@ fn sanitize_file_name(value: &str) -> String {
             character => character,
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{should_run_repeat_hotkey_post_process, HistoryResultStatus};
+
+    #[test]
+    fn repeat_hotkey_post_process_requires_feature_enabled() {
+        assert!(!should_run_repeat_hotkey_post_process(
+            false,
+            &HistoryResultStatus::Success,
+        ));
+    }
+
+    #[test]
+    fn repeat_hotkey_post_process_requires_successful_transcription() {
+        assert!(!should_run_repeat_hotkey_post_process(
+            true,
+            &HistoryResultStatus::Processing,
+        ));
+        assert!(!should_run_repeat_hotkey_post_process(
+            true,
+            &HistoryResultStatus::Error,
+        ));
+    }
+
+    #[test]
+    fn repeat_hotkey_post_process_runs_only_after_successful_stt() {
+        assert!(should_run_repeat_hotkey_post_process(
+            true,
+            &HistoryResultStatus::Success,
+        ));
+    }
 }
 
 fn sort_records(records: &mut [HistoryRecord]) {

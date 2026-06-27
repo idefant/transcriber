@@ -36,6 +36,14 @@ Because of that platform constraint, the code currently keeps the more conservat
 
 When the main window is **not** focused, the native hook handles everything. When it **is** focused, the native hook still runs but the webview's DOM handler also sees key events. For most hotkeys both paths fire; the backend commands for cancel, copy-latest, paste-latest, and repeat-latest are written so repeated triggers are harmless or become a no-op. The DOM handler skips non-cancel processing when the hotkey capture lock is active (during hotkey recording in settings).
 
+## Repeat-cancel boundary
+
+The "repeat latest transcription" flow has the same cancel invariant as ordinary dictation: once the session is cancelled, the overlay must stay hidden and the pipeline must not enter a new visible phase.
+
+The risky boundary is the hand-off from repeated STT to post-processing. A cancel can arrive after STT finishes but before post-processing starts. If the code shows the `processing` overlay without re-checking the live session state at that exact boundary, the cancelled session can resurrect the overlay and leave it orphaned because the cancel hotkey was already disarmed.
+
+To avoid that regression, the repeat hotkey path must treat "enter post-processing" as a guarded transition, not as an unconditional continuation after successful STT. The transition helper in `dictation.rs` re-checks the session while switching from `Transcribing` to `Processing`, then verifies again after showing the overlay and hides it immediately if a late cancel won the race.
+
 ## Left/right modifier format
 
 Hotkey strings use an optional side prefix on each modifier token:
