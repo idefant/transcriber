@@ -70,6 +70,48 @@ Provide the extension once; the folder is gitignored. Copy an installed Chrome R
 
 The extension is registered through `extensions_path` on the recording overlay window (`src-tauri/src/overlay.rs`); because Chromium extensions live at the profile level, it is then available in the main window's DevTools as well. Both windows must use the same `browserExtensionsEnabled` value, otherwise WebView2 requires separate data directories for them. On a profile's very first run the overlay installs the extension after the main window has already mounted React, so the Components/Profiler tabs may be missing until you relaunch the app once; the extension then persists in the WebView2 profile and loads early enough on every later run.
 
+## Tauri Build Variants
+
+The project uses three Tauri config files with different roles:
+
+| File                               | Used by                                                                | Purpose                                |
+| ---------------------------------- | ---------------------------------------------------------------------- | -------------------------------------- |
+| `src-tauri/tauri.conf.json`        | `npm run build:tauri`, stable release builds, installed production app | Base production config                 |
+| `src-tauri/tauri.dev.conf.json`    | `npm run dev:tauri`, `npm run dev:tauri:debug`                         | Dev-only overrides for the desktop app |
+| `src-tauri/tauri.canary.conf.json` | `npm run build:tauri:canary`, GitHub Actions prerelease tags           | Canary/pre-release overrides           |
+
+The important distinction is that `npm run build` is **not** a desktop build. It only runs TypeScript checks and produces the frontend bundle in `dist`. Window options such as `decorations`, bundle metadata, updater settings, and NSIS packaging are only applied when a real Tauri build runs.
+
+### Command Matrix
+
+| Command                      | What it builds or starts                              | Tauri config                                          |
+| ---------------------------- | ----------------------------------------------------- | ----------------------------------------------------- |
+| `npm run dev`                | Vite dev server only                                  | none                                                  |
+| `npm run dev:tauri`          | Desktop app in dev mode                               | `tauri.conf.json` + `tauri.dev.conf.json` override    |
+| `npm run dev:tauri:debug`    | Desktop app in dev mode with WebView2 CDP port `9222` | `tauri.conf.json` + `tauri.dev.conf.json` override    |
+| `npm run build`              | Frontend production bundle only                       | none                                                  |
+| `npm run build:tauri`        | Stable desktop bundle / installer                     | `tauri.conf.json`                                     |
+| `npm run build:tauri:canary` | Canary desktop bundle / installer                     | `tauri.conf.json` + `tauri.canary.conf.json` override |
+
+### Config Responsibilities
+
+- `tauri.conf.json` is the canonical production baseline. Shared window behavior such as undecorated titlebar, size limits, updater public key, bundle targets, and default icons belongs here.
+- `tauri.dev.conf.json` should only contain development-only differences, for example a different app title/identifier and `browserExtensionsEnabled` for React DevTools.
+- `tauri.canary.conf.json` should only contain prerelease branding and other intentional canary-specific differences.
+
+### Merge Gotcha: `app.windows`
+
+Tauri config overrides are not deep-merged in a way that safely preserves every nested window field for array items. In practice, if an override file redefines `app.windows`, treat each overridden window object as needing all required shared fields to be repeated explicitly.
+
+For this project that means a canary/dev override must keep structural window flags in sync with the base config, for example:
+
+- `decorations: false`
+- `shadow: true`
+- `minWidth` / `minHeight`
+- `visible`
+
+Otherwise a prerelease or dev build can silently drift from stable behavior even if the base `tauri.conf.json` is correct.
+
 ## Build
 
 Build the frontend production bundle:

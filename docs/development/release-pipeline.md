@@ -108,6 +108,16 @@ Canary-specific changes applied during build:
 `src-tauri/tauri.canary.conf.json` is a partial Tauri config that overrides only the window title
 and `bundle.icon`. It is applied via `--config src-tauri/tauri.canary.conf.json`.
 
+Important: because the override also redefines `app.windows`, shared structural window fields must
+be repeated there explicitly instead of assuming they will safely inherit from `tauri.conf.json`.
+Keep these in sync with the base config when changing shell behavior:
+
+- `decorations`
+- `shadow`
+- `width` / `height`
+- `minWidth` / `minHeight`
+- `visible`
+
 ### CI automation
 
 In `.github/workflows/release.yml`, the `Build and publish Tauri release` step sets:
