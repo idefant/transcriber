@@ -19,7 +19,7 @@
   {
     "key": "openrouter-gpt-oss-20b",
     "label": "OpenRouter GPT OSS 20B",
-    "enabled": true,
+    "enabled": false,
     "provider": "openrouter",
     "apiId": "openai/gpt-oss-20b",
     "baseUrl": "https://openrouter.ai/api/v1",
@@ -136,7 +136,7 @@
   {
     "key": "openrouter-qwen3-32b",
     "label": "OpenRouter Qwen3 32B",
-    "enabled": true,
+    "enabled": false,
     "provider": "openrouter",
     "apiId": "qwen/qwen3-32b",
     "baseUrl": "https://openrouter.ai/api/v1",
@@ -176,7 +176,7 @@
   {
     "key": "openrouter-llama-3-3-70b-instruct",
     "label": "OpenRouter Llama 3.3 70B Instruct 128k",
-    "enabled": true,
+    "enabled": false,
     "provider": "openrouter",
     "apiId": "meta-llama/llama-3.3-70b-instruct",
     "baseUrl": "https://openrouter.ai/api/v1",
@@ -211,7 +211,7 @@
   {
     "key": "openrouter-llama-3-1-8b-instruct",
     "label": "OpenRouter Llama 3.1 8B Instruct 128k",
-    "enabled": true,
+    "enabled": false,
     "provider": "openrouter",
     "apiId": "meta-llama/llama-3.1-8b-instruct",
     "baseUrl": "https://openrouter.ai/api/v1",
@@ -285,7 +285,7 @@
   {
     "key": "openai-gpt-5-mini",
     "label": "OpenAI gpt-5-mini",
-    "enabled": true,
+    "enabled": false,
     "provider": "openai",
     "apiId": "gpt-5-mini",
     "baseUrl": "https://api.openai.com/v1",
@@ -301,7 +301,7 @@
   {
     "key": "openai-gpt-5-nano",
     "label": "OpenAI gpt-5-nano",
-    "enabled": true,
+    "enabled": false,
     "provider": "openai",
     "apiId": "gpt-5-nano",
     "baseUrl": "https://api.openai.com/v1",
@@ -332,7 +332,7 @@
   {
     "key": "openai-gpt-4-1-nano",
     "label": "OpenAI gpt-4.1-nano",
-    "enabled": true,
+    "enabled": false,
     "provider": "openai",
     "apiId": "gpt-4.1-nano",
     "baseUrl": "https://api.openai.com/v1",
