@@ -1,4 +1,4 @@
-import { type FC, type MouseEvent as ReactMouseEvent, useEffect, useState } from 'react';
+import { type FC, useEffect, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Typography } from 'antd';
 import { CopyIcon, MinusIcon, SquareIcon, XIcon } from 'lucide-react';
@@ -14,19 +14,6 @@ const closeWindow = async () => {
 
 const minimizeWindow = async () => {
   await appWindow.minimize();
-};
-
-const startWindowDragging = async (event: ReactMouseEvent<HTMLDivElement>) => {
-  if (event.button !== 0) {
-    return;
-  }
-
-  if (event.detail > 1) {
-    return;
-  }
-
-  event.preventDefault();
-  await appWindow.startDragging();
 };
 
 interface WindowHeaderProps {
@@ -117,13 +104,9 @@ const WindowHeader: FC<WindowHeaderProps> = ({ title }) => {
 
   return (
     <div className={styles.windowHeader}>
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div
         className={styles.dragRegion}
         data-tauri-drag-region=""
-        onMouseDown={(event) => {
-          void startWindowDragging(event);
-        }}
         onDoubleClick={() => {
           void handleHeaderDoubleClick();
         }}
