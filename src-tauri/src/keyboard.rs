@@ -95,10 +95,9 @@ fn write_clipboard_text(text: &str, history_mode: ClipboardHistoryMode) -> AppRe
         if matches!(history_mode, ClipboardHistoryMode::Hidden) {
             // These Windows clipboard formats instruct the clipboard monitor
             // (Win+V history, cloud sync) to ignore this entry.
-            let mut exclude_format_name: Vec<u16> =
-                "ExcludeClipboardContentFromMonitorProcessing"
-                    .encode_utf16()
-                    .collect();
+            let mut exclude_format_name: Vec<u16> = "ExcludeClipboardContentFromMonitorProcessing"
+                .encode_utf16()
+                .collect();
             exclude_format_name.push(0);
 
             let mut no_history_format_name: Vec<u16> =

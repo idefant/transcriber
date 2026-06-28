@@ -149,9 +149,7 @@ impl NoticeAutoHideTracker {
     }
 
     fn mouse_leave(&mut self, label: &str, now: Instant) -> Option<ScheduledDismissal> {
-        let Some(session) = self.session.as_mut() else {
-            return None;
-        };
+        let session = self.session.as_mut()?;
 
         if !session.armed_windows.contains(label) {
             return None;

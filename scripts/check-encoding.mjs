@@ -9,6 +9,7 @@ const ignoredDirectories = new Set([
   'dist',
   'extensions',
   'node_modules',
+  'storybook-static',
   'target',
   'ui-audit-artifacts',
 ]);

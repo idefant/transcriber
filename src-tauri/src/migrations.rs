@@ -63,12 +63,11 @@ pub fn run(app: &tauri::AppHandle) -> AppResult<()> {
 }
 
 fn run_migration_step(app: &tauri::AppHandle, to_version: u32) -> AppResult<()> {
-    match to_version {
-        // Add future migration steps here, e.g.:
-        // 2 => migrate_to_v2(app),
-        _ => {
-            let _ = app;
-            Ok(())
-        }
-    }
+    // Add future migration steps here, e.g.:
+    // match to_version {
+    //     2 => migrate_to_v2(app),
+    //     _ => Ok(()),
+    // }
+    let _ = (app, to_version);
+    Ok(())
 }

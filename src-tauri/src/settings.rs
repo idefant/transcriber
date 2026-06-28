@@ -8,84 +8,54 @@ use crate::{
 
 const SETTINGS_FILE_NAME: &str = "settings.json";
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 enum ThemePreference {
     Auto,
     Dark,
+    #[default]
     Light,
 }
 
-impl Default for ThemePreference {
-    fn default() -> Self {
-        Self::Light
-    }
-}
-
-#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TriggerMode {
     Hold,
+    #[default]
     Press,
 }
 
-impl Default for TriggerMode {
-    fn default() -> Self {
-        Self::Press
-    }
-}
-
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 enum UiLanguage {
     En,
     Ru,
+    #[default]
     System,
 }
 
-impl Default for UiLanguage {
-    fn default() -> Self {
-        Self::System
-    }
-}
-
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EffectiveUiLanguage {
+    #[default]
     En,
     Ru,
 }
 
-impl Default for EffectiveUiLanguage {
-    fn default() -> Self {
-        Self::En
-    }
-}
-
-#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum OverlayVariant {
     Bottom,
+    #[default]
     Center,
 }
 
-impl Default for OverlayVariant {
-    fn default() -> Self {
-        Self::Center
-    }
-}
-
-#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum OverlayScreenMode {
+    #[default]
     All,
     Cursor,
-}
-
-impl Default for OverlayScreenMode {
-    fn default() -> Self {
-        Self::All
-    }
 }
 
 #[derive(Clone, Deserialize, Serialize)]

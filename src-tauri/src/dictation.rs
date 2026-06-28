@@ -24,18 +24,23 @@ pub struct DictationRuntime {
     next_session_id: AtomicU64,
 }
 
+#[derive(Default)]
 enum DictationSession {
+    #[default]
     Idle,
-    Recording { id: u64, recording: AudioRecording },
-    Transcribing { id: u64 },
-    Processing { id: u64 },
-    Cancelled { id: u64 },
-}
-
-impl Default for DictationSession {
-    fn default() -> Self {
-        Self::Idle
-    }
+    Recording {
+        id: u64,
+        recording: AudioRecording,
+    },
+    Transcribing {
+        id: u64,
+    },
+    Processing {
+        id: u64,
+    },
+    Cancelled {
+        id: u64,
+    },
 }
 
 #[derive(Clone, Serialize)]
@@ -188,7 +193,9 @@ async fn paste_latest_history_text_inner(app: &tauri::AppHandle) -> AppResult<()
     }
 
     let text = history::latest_history_text(app)?;
-    let paste_hotkey = settings::load_app_settings(app)?.paste_latest_hotkey().to_string();
+    let paste_hotkey = settings::load_app_settings(app)?
+        .paste_latest_hotkey()
+        .to_string();
 
     if text.trim().is_empty() {
         return Ok(());

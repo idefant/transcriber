@@ -140,7 +140,10 @@ npm run format:check
 # Check text files for common UTF-8/Windows-codepage mojibake sequences.
 npm run encoding:check
 
-# Run the full quality gate: TypeScript, ESLint, Stylelint, Prettier check, encoding check, and production build.
+# Run rustfmt --check and clippy with warnings denied.
+npm run rust:check
+
+# Run the full quality gate: TypeScript, ESLint, Stylelint, Prettier check, encoding check, Rust checks, and production build.
 npm run check
 ```
 
@@ -174,8 +177,10 @@ The Zustand store architecture, canonical sort order rule, history event subscri
 
 ## Git Hooks
 
-Husky runs lint-staged before commits:
+Husky runs two layers before commits:
 
+- `lint-staged` for staged frontend/docs files:
 - JS/TS files: ESLint fix + Prettier
 - CSS/SCSS files: Stylelint fix + Prettier
 - HTML/JSON/Markdown/YAML files: Prettier
+- `npm run rust:check` for the Tauri crate as a whole (`cargo fmt --check` + `cargo clippy --all-targets -- -D warnings`)

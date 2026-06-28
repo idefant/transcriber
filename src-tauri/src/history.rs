@@ -101,9 +101,16 @@ pub struct NewHistoryRecord {
 }
 
 pub enum RepeatHistoryHotkeyOutcome {
-    Success { final_text: String },
-    SttError { record_id: String },
-    PostProcessError { record_id: String, final_text: String },
+    Success {
+        final_text: String,
+    },
+    SttError {
+        record_id: String,
+    },
+    PostProcessError {
+        record_id: String,
+        final_text: String,
+    },
 }
 
 #[tauri::command]
@@ -878,39 +885,6 @@ fn sanitize_file_name(value: &str) -> String {
         .collect()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{should_run_repeat_hotkey_post_process, HistoryResultStatus};
-
-    #[test]
-    fn repeat_hotkey_post_process_requires_feature_enabled() {
-        assert!(!should_run_repeat_hotkey_post_process(
-            false,
-            &HistoryResultStatus::Success,
-        ));
-    }
-
-    #[test]
-    fn repeat_hotkey_post_process_requires_successful_transcription() {
-        assert!(!should_run_repeat_hotkey_post_process(
-            true,
-            &HistoryResultStatus::Processing,
-        ));
-        assert!(!should_run_repeat_hotkey_post_process(
-            true,
-            &HistoryResultStatus::Error,
-        ));
-    }
-
-    #[test]
-    fn repeat_hotkey_post_process_runs_only_after_successful_stt() {
-        assert!(should_run_repeat_hotkey_post_process(
-            true,
-            &HistoryResultStatus::Success,
-        ));
-    }
-}
-
 fn sort_records(records: &mut [HistoryRecord]) {
     records.sort_by(|first, second| second.created_at.cmp(&first.created_at));
 }
@@ -947,4 +921,37 @@ fn format_cost(cost: Option<f64>) -> Option<String> {
 fn emit_history_updated(app: &tauri::AppHandle, record: Option<&HistoryRecord>) {
     let _ = app.emit(HISTORY_UPDATED_EVENT, record);
     crate::background::refresh_tray_history_state(app);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{should_run_repeat_hotkey_post_process, HistoryResultStatus};
+
+    #[test]
+    fn repeat_hotkey_post_process_requires_feature_enabled() {
+        assert!(!should_run_repeat_hotkey_post_process(
+            false,
+            &HistoryResultStatus::Success,
+        ));
+    }
+
+    #[test]
+    fn repeat_hotkey_post_process_requires_successful_transcription() {
+        assert!(!should_run_repeat_hotkey_post_process(
+            true,
+            &HistoryResultStatus::Processing,
+        ));
+        assert!(!should_run_repeat_hotkey_post_process(
+            true,
+            &HistoryResultStatus::Error,
+        ));
+    }
+
+    #[test]
+    fn repeat_hotkey_post_process_runs_only_after_successful_stt() {
+        assert!(should_run_repeat_hotkey_post_process(
+            true,
+            &HistoryResultStatus::Success,
+        ));
+    }
 }

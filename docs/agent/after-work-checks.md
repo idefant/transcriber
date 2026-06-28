@@ -9,6 +9,7 @@ npm run typecheck
 npm run lint
 npm run stylelint
 npm run format:check
+npm run rust:check
 ```
 
 On Windows, prefer Git Bash for these commands. If direct PowerShell blocks `npm.ps1`, run the command through `scripts/powershell-utf8.cmd`, for example:
