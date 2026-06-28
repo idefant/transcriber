@@ -1,7 +1,6 @@
 .overlay,
 .overlayVisible {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  display: flex;
   gap: 8px;
   align-items: center;
   width: 180px;
@@ -27,14 +26,12 @@
 
 .error {
   .statusIcon {
-    // color: rgb(254 226 226);
     color: #f41a1a;
   }
 }
 
 .warning {
   .statusIcon {
-    // color: rgb(255 237 213);
     color: #f4b31a;
   }
 }
@@ -64,6 +61,7 @@
 
 .status {
   display: flex;
+  flex: 1;
   gap: 6px;
   align-items: center;
   min-width: 0;
@@ -90,7 +88,7 @@
 .levels {
   display: flex;
   gap: 2px;
-  align-items: center;
+  align-items: flex-end;
   height: 18px;
 }
 
@@ -99,8 +97,7 @@
   height: 16px;
   background: rgb(56 189 248);
   border-radius: 999px;
-  transform-origin: center;
-  transition: transform 80ms ease;
+  transition: height 80ms ease;
 }
 
 .cancelButton {

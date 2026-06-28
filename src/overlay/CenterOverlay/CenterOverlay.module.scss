@@ -46,7 +46,8 @@
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-top: 36px;
+
+  // margin-top: 36px;
 }
 
 .actionButton {
@@ -85,7 +86,7 @@
 .levels {
   display: flex;
   gap: 4px;
-  align-items: center;
+  align-items: flex-end;
   height: 24px;
 }
 
@@ -94,8 +95,7 @@
   height: 20px;
   background: rgb(56 189 248);
   border-radius: 999px;
-  transform-origin: center;
-  transition: transform 80ms ease;
+  transition: height 80ms ease;
 }
 
 .spinIcon {

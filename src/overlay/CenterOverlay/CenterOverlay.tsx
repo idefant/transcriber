@@ -14,6 +14,8 @@ import { cancelLabel, closeLabel, isNoticeState, openRecordLabel, stateLabels } 
 
 import styles from './CenterOverlay.module.scss';
 
+const MAX_LEVEL_HEIGHT = 20;
+
 interface CenterOverlayProps {
   isVisible: boolean;
   levels: number[];
@@ -38,6 +40,7 @@ const CenterOverlay: FC<CenterOverlayProps> = ({
   state,
 }) => {
   const isNotice = isNoticeState(state);
+  const showsMicLevels = state === 'recording';
   const statusIcon = useMemo(() => {
     if (state === 'recording') return <MicIcon aria-hidden size={22} strokeWidth={2} />;
     if (state === 'transcribing') {
@@ -66,6 +69,17 @@ const CenterOverlay: FC<CenterOverlayProps> = ({
       <div className={styles.statusIcon}>{statusIcon}</div>
       <span className={styles.statusText}>{stateLabels[state]}</span>
 
+      <div aria-hidden className={styles.levels}>
+        {showsMicLevels &&
+          levels.map((level, index) => (
+            <span
+              className={styles.level}
+              key={index}
+              style={{ height: `${level * MAX_LEVEL_HEIGHT}px` }}
+            />
+          ))}
+      </div>
+
       {isNotice ? (
         <div className={styles.actions}>
           {recordId ? (
@@ -92,16 +106,6 @@ const CenterOverlay: FC<CenterOverlayProps> = ({
         </div>
       ) : (
         <>
-          <div aria-hidden className={styles.levels}>
-            {levels.map((level, index) => (
-              <span
-                className={styles.level}
-                key={index}
-                style={{ transform: `scaleY(${Math.max(0.18, Math.min(1, level * 3.2))})` }}
-              />
-            ))}
-          </div>
-
           <button
             aria-label={cancelLabel}
             className={styles.actionButton}

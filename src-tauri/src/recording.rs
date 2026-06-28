@@ -192,33 +192,23 @@ fn emit_levels_if_due(
     }
 
     *last_emit = Instant::now();
-    overlay::emit_mic_levels(app, calculate_channel_levels(samples, channels));
+    overlay::emit_mic_level(app, calculate_input_level(samples, channels));
 }
 
-fn calculate_channel_levels(samples: &[f32], channels: usize) -> Vec<f32> {
+fn calculate_input_level(samples: &[f32], channels: usize) -> f32 {
     if samples.is_empty() || channels == 0 {
-        return vec![0.0];
+        return 0.0;
     }
 
-    let mut sums = vec![0.0; channels];
-    let mut counts = vec![0_u32; channels];
+    let frame_count = samples.len() / channels;
 
-    for (index, sample) in samples.iter().enumerate() {
-        let channel = index % channels;
-        sums[channel] += sample.abs();
-        counts[channel] += 1;
+    if frame_count == 0 {
+        return 0.0;
     }
 
-    sums.into_iter()
-        .zip(counts)
-        .map(|(sum, count)| {
-            if count == 0 {
-                0.0
-            } else {
-                (sum / count as f32).clamp(0.0, 1.0)
-            }
-        })
-        .collect()
+    let sum_squares = samples.iter().map(|sample| sample * sample).sum::<f32>();
+
+    (sum_squares / samples.len() as f32).sqrt().clamp(0.0, 1.0)
 }
 
 fn encode_wav_pcm16(samples: &[f32], sample_rate: u32, channels: u16) -> AppResult<Vec<u8>> {

@@ -6,13 +6,62 @@ import BottomOverlay from '../BottomOverlay';
 import CenterOverlay from '../CenterOverlay';
 import type { OverlayShowPayload, OverlayState, OverlayVariant } from '../types';
 
+type ActivityLevels = [number, number, number];
+
+const MIN_ACTIVITY_LEVEL = 0.05;
+const MAX_ACTIVITY_LEVEL = 1;
+const ACTIVITY_LEVEL_RANGE = MAX_ACTIVITY_LEVEL - MIN_ACTIVITY_LEVEL;
+const BASELINE_ACTIVITY_LEVELS: ActivityLevels = [
+  MIN_ACTIVITY_LEVEL,
+  MIN_ACTIVITY_LEVEL,
+  MIN_ACTIVITY_LEVEL,
+];
+const SILENCE_GATE = 0.003;
+
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
+
+const blendActivityLevels = (
+  [left, center, right]: ActivityLevels,
+  [nextLeft, nextCenter, nextRight]: ActivityLevels,
+): ActivityLevels => [
+  left * 0.45 + nextLeft * 0.55,
+  center * 0.45 + nextCenter * 0.55,
+  right * 0.45 + nextRight * 0.55,
+];
+
+const createRecordingActivityLevels = (micLevel: number): ActivityLevels => {
+  if (micLevel <= SILENCE_GATE) {
+    return BASELINE_ACTIVITY_LEVELS;
+  }
+
+  const normalized = clamp01((micLevel - SILENCE_GATE) / (1 - SILENCE_GATE));
+  const strength = clamp01(Math.pow(normalized, 0.35) * 1.4);
+
+  return [
+    clamp01(MIN_ACTIVITY_LEVEL + ACTIVITY_LEVEL_RANGE * strength * 0.72),
+    clamp01(MIN_ACTIVITY_LEVEL + ACTIVITY_LEVEL_RANGE * strength),
+    clamp01(MIN_ACTIVITY_LEVEL + ACTIVITY_LEVEL_RANGE * strength * 0.84),
+  ];
+};
+
 const RecordingOverlay: FC = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [state, setState] = useState<OverlayState>('recording');
   const [variant, setVariant] = useState<OverlayVariant>('center');
-  const [levels, setLevels] = useState<number[]>([0, 0, 0]);
+  const [activityLevels, setActivityLevels] = useState<ActivityLevels>(BASELINE_ACTIVITY_LEVELS);
   const [recordId, setRecordId] = useState<string | null>(null);
   const isNoticeHoverTrackedRef = useRef(false);
+
+  const applyOverlayState = useCallback(
+    (nextState: OverlayState, nextVariant: OverlayVariant, nextRecordId: string | null) => {
+      setState(nextState);
+      setVariant(nextVariant);
+      setRecordId(nextRecordId);
+      setActivityLevels(BASELINE_ACTIVITY_LEVELS);
+      setIsVisible(true);
+    },
+    [],
+  );
 
   useEffect(() => {
     // A window created for a secondary monitor may mount after the `show-overlay`
@@ -20,10 +69,7 @@ const RecordingOverlay: FC = () => {
     void invoke<OverlayShowPayload | null>('get_overlay_state').then((payload) => {
       if (payload) {
         isNoticeHoverTrackedRef.current = false;
-        setState(payload.state);
-        setVariant(payload.variant);
-        setRecordId(payload.recordId ?? null);
-        setIsVisible(true);
+        applyOverlayState(payload.state, payload.variant, payload.recordId ?? null);
       }
 
       return null;
@@ -32,17 +78,21 @@ const RecordingOverlay: FC = () => {
     const unlisteners = [
       listen<OverlayShowPayload>('show-overlay', (event) => {
         isNoticeHoverTrackedRef.current = false;
-        setState(event.payload.state);
-        setVariant(event.payload.variant);
-        setRecordId(event.payload.recordId ?? null);
-        setIsVisible(true);
+        applyOverlayState(
+          event.payload.state,
+          event.payload.variant,
+          event.payload.recordId ?? null,
+        );
       }),
       listen('hide-overlay', () => {
         isNoticeHoverTrackedRef.current = false;
+        setActivityLevels(BASELINE_ACTIVITY_LEVELS);
         setIsVisible(false);
       }),
-      listen<number[]>('mic-level', (event) => {
-        setLevels(event.payload.length > 0 ? event.payload.slice(0, 3) : [0, 0, 0]);
+      listen<number>('mic-level', (event) => {
+        setActivityLevels((current) =>
+          blendActivityLevels(current, createRecordingActivityLevels(event.payload)),
+        );
       }),
     ];
 
@@ -55,7 +105,7 @@ const RecordingOverlay: FC = () => {
         return null;
       });
     };
-  }, []);
+  }, [applyOverlayState]);
 
   useEffect(() => {
     isNoticeHoverTrackedRef.current = false;
@@ -98,7 +148,7 @@ const RecordingOverlay: FC = () => {
   return (
     <OverlayComponent
       isVisible={isVisible}
-      levels={levels}
+      levels={activityLevels}
       recordId={recordId}
       state={state}
       onCancel={handleCancel}

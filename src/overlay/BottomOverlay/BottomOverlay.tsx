@@ -14,6 +14,8 @@ import { cancelLabel, closeLabel, isNoticeState, openRecordLabel, stateLabels } 
 
 import styles from './BottomOverlay.module.scss';
 
+const MAX_LEVEL_HEIGHT = 16;
+
 interface BottomOverlayProps {
   isVisible: boolean;
   levels: number[];
@@ -38,6 +40,7 @@ const BottomOverlay: FC<BottomOverlayProps> = ({
   state,
 }) => {
   const isNotice = isNoticeState(state);
+  const showsMicLevels = state === 'recording';
   const statusIcon = useMemo(() => {
     if (state === 'recording') return <MicIcon aria-hidden size={15} strokeWidth={2.2} />;
     if (state === 'transcribing') {
@@ -95,15 +98,17 @@ const BottomOverlay: FC<BottomOverlayProps> = ({
         </div>
       ) : (
         <>
-          <div aria-hidden className={styles.levels}>
-            {levels.map((level, index) => (
-              <span
-                className={styles.level}
-                key={index}
-                style={{ transform: `scaleY(${Math.max(0.18, Math.min(1, level * 3.2))})` }}
-              />
-            ))}
-          </div>
+          {showsMicLevels ? (
+            <div aria-hidden className={styles.levels}>
+              {levels.map((level, index) => (
+                <span
+                  className={styles.level}
+                  key={index}
+                  style={{ height: `${level * MAX_LEVEL_HEIGHT}px` }}
+                />
+              ))}
+            </div>
+          ) : null}
 
           <button
             aria-label={cancelLabel}

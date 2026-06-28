@@ -298,8 +298,8 @@ pub fn hide_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-pub fn emit_mic_levels(app: &tauri::AppHandle, levels: Vec<f32>) {
-    let _ = app.emit("mic-level", levels);
+pub fn emit_mic_level(app: &tauri::AppHandle, level: f32) {
+    let _ = app.emit("mic-level", level);
 }
 
 fn show_overlay_state(

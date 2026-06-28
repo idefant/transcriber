@@ -7,7 +7,7 @@ const meta: Meta<typeof CenterOverlay> = {
   component: CenterOverlay,
   args: {
     isVisible: true,
-    levels: [0.6, 0.9, 0.4],
+    levels: [0.34, 0.76, 0.52],
     onCancel: () => {},
     onClose: () => {},
     onOpenRecord: () => {},
