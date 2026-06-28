@@ -1,4 +1,6 @@
 .root {
+  --app-root-header-height: 52px;
+
   height: 100vh;
   overflow: hidden;
 }
@@ -10,44 +12,51 @@
   border-inline-end: 1px solid var(--app-color-border-secondary);
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  height: var(--app-root-header-height);
+  padding: 0 20px;
+
+  &Text {
+    display: flex;
+    align-items: flex-end;
+    height: 23px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 1.125rem;
+    font-weight: 650;
+    line-height: 1.2;
+    color: var(--app-color-text);
+    white-space: nowrap;
+  }
+}
+
 .mainLayout {
   min-width: 0;
   height: 100vh;
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  min-height: 64px;
-  padding: 0 24px;
-  font-size: 1.125rem;
-  font-weight: 800;
-  color: var(--app-color-text);
-}
-
 .menu {
+  margin: 4px 0;
   background: var(--app-color-bg-container);
   border: none !important;
 }
 
 .header {
   display: flex;
-  flex: 0 0 64px;
+  flex: 0 0 var(--app-root-header-height);
   align-items: center;
-  height: 64px;
-  padding: 0 32px;
+  height: var(--app-root-header-height);
+  padding: 0 12px 0 24px;
   border-bottom: 1px solid;
-}
-
-.title {
-  margin: 0 !important;
 }
 
 .content {
   display: grid;
   gap: 24px;
   align-content: start;
-  height: calc(100vh - 64px);
+  height: calc(100vh - var(--app-root-header-height));
   min-height: 0;
   padding: 32px;
   overflow: auto;

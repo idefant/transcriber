@@ -13,6 +13,12 @@ const en = {
     productName: 'Transcriber',
     save: 'Save',
     seconds: '{{value}} s',
+    windowControls: {
+      close: 'Close',
+      maximize: 'Maximize',
+      minimize: 'Minimize',
+      restore: 'Restore down',
+    },
   },
   navigation: {
     dictionary: 'Dictionary',
@@ -244,6 +250,12 @@ const ru: typeof en = {
     productName: 'Transcriber',
     save: 'Сохранить',
     seconds: '{{value}} с',
+    windowControls: {
+      close: 'Закрыть',
+      maximize: 'Развернуть',
+      minimize: 'Скрыть',
+      restore: 'Восстановить',
+    },
   },
   navigation: {
     dictionary: 'Словарь',

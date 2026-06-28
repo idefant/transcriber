@@ -1,10 +1,11 @@
 import { type FC, useMemo } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
-import { Layout, Menu, type MenuProps, theme, Typography } from 'antd';
+import { Layout, Menu, type MenuProps, theme } from 'antd';
 import { BookOpenIcon, HistoryIcon, SettingsIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import AppSettingsModal from '#/app/AppSettingsModal';
+import WindowHeader from '#/app/RootLayout/WindowHeader';
 import { routes } from '#/shared/routes';
 
 import styles from './RootLayout.module.scss';
@@ -59,7 +60,10 @@ const RootLayout: FC = () => {
   return (
     <Layout className={styles.root}>
       <Sider className={styles.sider} theme="light" width={168}>
-        <div className={styles.brand}>{t('common.productName')}</div>
+        <div className={styles.brand}>
+          <div className={styles.brandText}>{t('common.productName')}</div>
+        </div>
+
         <Menu
           className={styles.menu}
           items={menuItems}
@@ -77,9 +81,7 @@ const RootLayout: FC = () => {
             borderBottomColor: token.colorBorderSecondary,
           }}
         >
-          <Typography.Title className={styles.title} level={3}>
-            {currentPageTitle}
-          </Typography.Title>
+          <WindowHeader title={currentPageTitle} />
         </Header>
 
         <Content className={styles.content}>

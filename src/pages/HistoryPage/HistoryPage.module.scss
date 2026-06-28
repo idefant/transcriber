@@ -28,7 +28,7 @@
 
 .detailsSlot {
   position: fixed;
-  top: 64px;
+  top: var(--app-root-header-height);
   right: 0;
   bottom: 0;
   align-self: start;

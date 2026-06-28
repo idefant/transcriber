@@ -11,6 +11,8 @@
         "minWidth": 1080,
         "minHeight": 600,
         "visible": false,
+        "decorations": false,
+        "shadow": true,
         "browserExtensionsEnabled": true
       }
     ]

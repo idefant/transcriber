@@ -1,0 +1,84 @@
+.windowHeader {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+}
+
+.dragRegion {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  user-select: none;
+}
+
+.title {
+  margin: 0 !important;
+  font-size: 1.2rem !important;
+  font-weight: 650 !important;
+  line-height: 1.2 !important;
+  pointer-events: none;
+}
+
+.controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  margin-inline-end: -12px;
+}
+
+.controlButton {
+  display: inline-flex;
+  flex: 0 0 46px;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  min-width: 46px;
+  height: 100%;
+  padding: 0;
+  color: var(--app-color-text);
+  appearance: none;
+  cursor: default;
+  outline: none;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+
+  &:not(:disabled):hover,
+  &:not(:disabled):focus-visible {
+    color: var(--app-color-text);
+    background: rgb(0 0 0 / 6%);
+  }
+
+  &:disabled {
+    color: var(--app-color-text-tertiary);
+    background: transparent;
+  }
+
+  &:focus,
+  &:focus-visible,
+  &:active {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  svg {
+    pointer-events: none;
+  }
+}
+
+.closeButton {
+  &:not(:disabled):hover,
+  &:not(:disabled):focus-visible {
+    color: var(--app-color-white);
+    background: #e81123;
+  }
+}
