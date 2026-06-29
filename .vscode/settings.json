@@ -46,5 +46,12 @@
   "stylelint.validate": ["css", "scss"],
   "rust-analyzer.check.command": "clippy",
   "rust-analyzer.check.allTargets": true,
-  "editor.rulers": [100]
+  "editor.rulers": [100],
+  "python-envs.pythonProjects": [
+    {
+      "path": ".",
+      "envManager": "ms-python.python:venv",
+      "packageManager": "ms-python.python:pip"
+    }
+  ]
 }
