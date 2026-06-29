@@ -186,18 +186,28 @@ fn read_clipboard_text() -> Option<String> {
 /// were text, they are written back as hidden to avoid a duplicate clipboard
 /// history entry. When the previous contents were non-text or the clipboard was
 /// empty, the clipboard is cleared.
+///
+/// Retries several times because the target application may hold the clipboard
+/// open briefly while processing the Ctrl+V paste, causing OpenClipboard to
+/// fail transiently.
 #[cfg(target_os = "windows")]
 fn restore_clipboard(previous: Option<String>) {
-    match previous {
-        Some(text) => {
-            let _ = copy_text_hidden(&text);
+    for attempt in 0..5u32 {
+        if attempt > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(30));
         }
-        None => clear_clipboard(),
+        let ok = match &previous {
+            Some(text) => copy_text_hidden(text).is_ok(),
+            None => try_clear_clipboard(),
+        };
+        if ok {
+            return;
+        }
     }
 }
 
 #[cfg(target_os = "windows")]
-fn clear_clipboard() {
+fn try_clear_clipboard() -> bool {
     use std::ptr;
 
     use windows_sys::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard};
@@ -206,6 +216,9 @@ fn clear_clipboard() {
         if OpenClipboard(ptr::null_mut()) != 0 {
             EmptyClipboard();
             CloseClipboard();
+            true
+        } else {
+            false
         }
     }
 }
