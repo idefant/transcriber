@@ -29,7 +29,7 @@ import type {
   ProviderInput,
 } from '#/models/Provider';
 import type { AppSettingsInput, SettingsSectionKey } from '#/models/Settings';
-import { useAppSettings, useCatalog, useProviders, useUiStore } from '#/stores';
+import { useAppSettings, useCatalog, useProcessingStore, useProviders, useUiStore } from '#/stores';
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -47,6 +47,7 @@ const AppSettingsModal: FC = () => {
   } = useProviders();
   const { settings, updateSettings } = useAppSettings();
   const { catalog } = useCatalog();
+  const reloadProcessing = useProcessingStore((s) => s.load);
   const activeSection = useUiStore((s) => s.settingsSection);
   const closeSettings = useUiStore((s) => s.closeSettings);
   const isSettingsModalOpen = useUiStore((s) => s.isSettingsModalOpen);
@@ -122,6 +123,7 @@ const AppSettingsModal: FC = () => {
   const handleDeleteProvider = async (providerId: string) => {
     try {
       await deleteProvider(providerId);
+      await reloadProcessing();
     } catch (error) {
       void messageApi.error(getErrorMessage(error));
     }
@@ -134,6 +136,7 @@ const AppSettingsModal: FC = () => {
       await (editingProvider === undefined
         ? createProvider(input)
         : updateProvider(editingProvider.id, input));
+      await reloadProcessing();
 
       setIsProviderModalOpen(false);
     } catch (error) {

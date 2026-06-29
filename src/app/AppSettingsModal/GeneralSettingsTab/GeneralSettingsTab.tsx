@@ -105,6 +105,7 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
       >
         <Select
           className={styles.languageSelect}
+          placeholder={t('settings.general.language.placeholder')}
           value={uiLanguage}
           options={[
             {
@@ -130,6 +131,7 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
       >
         <Select
           className={styles.overlaySelect}
+          placeholder={t('settings.general.overlayVariant.placeholder')}
           value={overlayVariant}
           options={[
             {
@@ -151,6 +153,7 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
       >
         <Select
           className={styles.overlaySelect}
+          placeholder={t('settings.general.overlayScreenMode.placeholder')}
           value={overlayScreenMode}
           options={[
             {

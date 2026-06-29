@@ -2,7 +2,7 @@ use serde::Serialize;
 
 use crate::providers::ProviderKind;
 
-#[derive(Clone, Copy, Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ModelTask {
     Stt,

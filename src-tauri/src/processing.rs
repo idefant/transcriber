@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    catalog::{model_by_key, ModelTask},
     error::{AppError, AppResult},
+    providers::find_provider_kind,
     settings::{get_effective_ui_language, EffectiveUiLanguage},
     storage,
 };
@@ -131,8 +133,8 @@ struct LocalizedPrompts {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SttConfigInput {
-    provider_id: Option<String>,
-    model_key: Option<String>,
+    provider_id: Option<Option<String>>,
+    model_key: Option<Option<String>>,
     language: Option<String>,
     use_custom_prompt: Option<bool>,
     system_prompt: Option<String>,
@@ -142,8 +144,8 @@ pub struct SttConfigInput {
 #[serde(rename_all = "camelCase")]
 pub struct PostProcessConfigInput {
     enabled: Option<bool>,
-    provider_id: Option<String>,
-    model_key: Option<String>,
+    provider_id: Option<Option<String>>,
+    model_key: Option<Option<String>>,
     use_custom_prompts: Option<bool>,
     system_prompt: Option<String>,
     user_prompt_template: Option<String>,
@@ -199,13 +201,8 @@ fn update_stt_config_inner(
 ) -> AppResult<ProcessingConfig> {
     let mut config = load_processing_config(app)?;
 
-    if let Some(provider_id) = input.provider_id {
-        config.stt.provider_id = normalize_optional_string(provider_id);
-    }
-
-    if let Some(model_key) = input.model_key {
-        config.stt.model_key = normalize_optional_string(model_key);
-    }
+    apply_optional_string_patch(&mut config.stt.provider_id, input.provider_id);
+    apply_optional_string_patch(&mut config.stt.model_key, input.model_key);
 
     if let Some(language) = input.language {
         config.stt.language = language.trim().to_string();
@@ -219,6 +216,7 @@ fn update_stt_config_inner(
         config.stt.system_prompt = system_prompt;
     }
 
+    normalize_processing_config(app, &mut config)?;
     save_processing_config(app, &config)?;
 
     Ok(config)
@@ -234,13 +232,8 @@ fn update_post_process_config_inner(
         config.post_process.enabled = enabled;
     }
 
-    if let Some(provider_id) = input.provider_id {
-        config.post_process.provider_id = normalize_optional_string(provider_id);
-    }
-
-    if let Some(model_key) = input.model_key {
-        config.post_process.model_key = normalize_optional_string(model_key);
-    }
+    apply_optional_string_patch(&mut config.post_process.provider_id, input.provider_id);
+    apply_optional_string_patch(&mut config.post_process.model_key, input.model_key);
 
     if let Some(use_custom_prompts) = input.use_custom_prompts {
         config.post_process.use_custom_prompts = use_custom_prompts;
@@ -254,13 +247,20 @@ fn update_post_process_config_inner(
         config.post_process.user_prompt_template = user_prompt_template;
     }
 
+    normalize_processing_config(app, &mut config)?;
     save_processing_config(app, &config)?;
 
     Ok(config)
 }
 
 pub fn load_processing_config(app: &tauri::AppHandle) -> AppResult<ProcessingConfig> {
-    storage::load_json_or_default(app, PROCESSING_FILE_NAME)
+    let mut config = storage::load_json_or_default(app, PROCESSING_FILE_NAME)?;
+
+    if normalize_processing_config(app, &mut config)? {
+        save_processing_config(app, &config)?;
+    }
+
+    Ok(config)
 }
 
 fn save_processing_config(app: &tauri::AppHandle, config: &ProcessingConfig) -> AppResult<()> {
@@ -275,6 +275,63 @@ fn normalize_optional_string(value: String) -> Option<String> {
     } else {
         Some(trimmed)
     }
+}
+
+fn apply_optional_string_patch(target: &mut Option<String>, patch: Option<Option<String>>) {
+    if let Some(value) = patch {
+        *target = value.and_then(normalize_optional_string);
+    }
+}
+
+fn normalize_processing_config(
+    app: &tauri::AppHandle,
+    config: &mut ProcessingConfig,
+) -> AppResult<bool> {
+    let mut changed = false;
+
+    changed |= normalize_model_selection(
+        app,
+        &mut config.stt.provider_id,
+        &mut config.stt.model_key,
+        ModelTask::Stt,
+    )?;
+    changed |= normalize_model_selection(
+        app,
+        &mut config.post_process.provider_id,
+        &mut config.post_process.model_key,
+        ModelTask::PostProcess,
+    )?;
+
+    Ok(changed)
+}
+
+fn normalize_model_selection(
+    app: &tauri::AppHandle,
+    provider_id: &mut Option<String>,
+    model_key: &mut Option<String>,
+    task: ModelTask,
+) -> AppResult<bool> {
+    let Some(provider_id_value) = provider_id.as_deref() else {
+        return Ok(model_key.take().is_some());
+    };
+
+    let Some(provider_kind) = find_provider_kind(app, provider_id_value)? else {
+        let provider_cleared = provider_id.take().is_some();
+        let model_cleared = model_key.take().is_some();
+
+        return Ok(provider_cleared || model_cleared);
+    };
+
+    let is_valid = model_key
+        .as_deref()
+        .and_then(model_by_key)
+        .is_some_and(|model| model.task == task && model.entry_for(provider_kind).is_some());
+
+    if is_valid {
+        return Ok(false);
+    }
+
+    Ok(model_key.take().is_some())
 }
 
 fn default_language() -> String {

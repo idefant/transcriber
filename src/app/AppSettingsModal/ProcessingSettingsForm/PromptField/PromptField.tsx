@@ -9,6 +9,7 @@ interface PromptFieldProps {
   enabled: boolean;
   hint?: string;
   label: string;
+  placeholder: string;
   storedValue: string;
   onPersist: (value: string) => void;
 }
@@ -21,6 +22,7 @@ const PromptField: FC<PromptFieldProps> = ({
   enabled,
   hint,
   label,
+  placeholder,
   storedValue,
   onPersist,
 }) => {
@@ -66,6 +68,7 @@ const PromptField: FC<PromptFieldProps> = ({
         autoSize={{ maxRows: 16, minRows: 3 }}
         className={styles.textArea}
         disabled={disabled || !enabled}
+        placeholder={placeholder}
         value={value}
         onBlur={handleBlur}
         onChange={(event) => {

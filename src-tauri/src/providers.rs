@@ -480,6 +480,16 @@ pub fn resolve_provider_api_key(app: &tauri::AppHandle, provider_id: &str) -> Ap
         .ok_or_else(|| "Provider API key was not found".into())
 }
 
+pub fn find_provider_kind(
+    app: &tauri::AppHandle,
+    provider_id: &str,
+) -> AppResult<Option<ProviderKind>> {
+    Ok(load_providers(app)?
+        .into_iter()
+        .find(|provider| provider.id == provider_id)
+        .map(|provider| provider.provider))
+}
+
 fn load_providers(app: &tauri::AppHandle) -> AppResult<Vec<StoredProvider>> {
     storage::load_json_strict(app, PROVIDERS_FILE_NAME)
 }

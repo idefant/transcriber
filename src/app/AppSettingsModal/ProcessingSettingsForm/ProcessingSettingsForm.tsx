@@ -47,7 +47,9 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
 
   const isStt = task === 'stt';
   const currentConfig = isStt ? config.stt : config.postProcess;
-  const selectedModelKey = currentConfig.modelKey ?? '';
+  const storedProviderId = currentConfig.providerId;
+  const storedModelKey = currentConfig.modelKey;
+  const shouldAutofillDefaultSelection = storedProviderId === null && storedModelKey === null;
 
   // Providers that have at least one curated model for this task
   const compatibleProviders = useMemo(() => {
@@ -58,9 +60,15 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
     return providers.filter((p) => compatibleKinds.has(p.provider));
   }, [catalog, providers, task]);
 
-  const selectedProvider =
-    compatibleProviders.find((p) => p.id === (currentConfig.providerId ?? '')) ??
-    compatibleProviders[0];
+  const selectedProvider = useMemo(() => {
+    const provider = compatibleProviders.find((p) => p.id === (storedProviderId ?? ''));
+
+    if (provider) {
+      return provider;
+    }
+
+    return shouldAutofillDefaultSelection ? compatibleProviders[0] : undefined;
+  }, [compatibleProviders, shouldAutofillDefaultSelection, storedProviderId]);
 
   // Curated models for the selected provider
   const modelOptions = useMemo<(ModelOption | ModelOptionGroup)[]>(() => {
@@ -114,34 +122,32 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
   );
 
   const providerOptions = compatibleProviders.map((p) => ({ label: p.name, value: p.id }));
+  const selectedProviderId = selectedProvider?.id;
+  const selectedModelKey = useMemo(() => {
+    if (
+      storedModelKey &&
+      selectableModelOptions.some((option) => option.value === storedModelKey)
+    ) {
+      return storedModelKey;
+    }
 
-  const effectiveProviderId = selectedProvider?.id ?? '';
-  const effectiveModelKey = selectableModelOptions.some((o) => o.value === selectedModelKey)
-    ? selectedModelKey
-    : (selectableModelOptions[0]?.value ?? '');
+    return shouldAutofillDefaultSelection
+      ? (selectableModelOptions[0]?.value ?? undefined)
+      : undefined;
+  }, [selectableModelOptions, shouldAutofillDefaultSelection, storedModelKey]);
 
-  // Primitive refs to avoid object identity issues in deps
-  const storedProviderId = currentConfig.providerId;
-  const storedModelKey = currentConfig.modelKey;
-
-  // Auto-persist defaults so that SttTestPanel / PostProcessTestPanel see non-null values
-  // even when the user has never explicitly made a selection (first launch).
+  // Auto-persist defaults only for the pristine "nothing selected yet" case.
   useEffect(() => {
-    if (!effectiveProviderId || !effectiveModelKey) return;
-    if (storedProviderId && storedModelKey) return;
+    if (!shouldAutofillDefaultSelection || !selectedProviderId || !selectedModelKey) return;
 
     const update = isStt ? updateSttConfig : updatePostProcessConfig;
 
-    void update({
-      ...(storedProviderId ? {} : { providerId: effectiveProviderId }),
-      ...(storedModelKey ? {} : { modelKey: effectiveModelKey }),
-    });
+    void update({ modelKey: selectedModelKey, providerId: selectedProviderId });
   }, [
-    effectiveModelKey,
-    effectiveProviderId,
     isStt,
-    storedModelKey,
-    storedProviderId,
+    selectedModelKey,
+    selectedProviderId,
+    shouldAutofillDefaultSelection,
     updatePostProcessConfig,
     updateSttConfig,
   ]);
@@ -205,16 +211,19 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
       <Form.Item label={t('settings.processing.provider')}>
         <Select
           options={providerOptions}
-          value={effectiveProviderId}
+          placeholder={t('settings.processing.providerPlaceholder')}
+          value={selectedProviderId}
           onChange={handleProviderChange}
         />
       </Form.Item>
 
       <Form.Item label={t('settings.processing.model')}>
         <Select
+          disabled={selectedProviderId === undefined}
           notFoundContent={t('settings.processing.noModels')}
           options={modelOptions}
-          value={effectiveModelKey}
+          placeholder={t('settings.processing.modelPlaceholder')}
+          value={selectedModelKey}
           onChange={handleModelChange}
         />
       </Form.Item>
@@ -223,6 +232,7 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
         <Form.Item label={t('settings.processing.language')}>
           <Select
             options={languageOptions}
+            placeholder={t('settings.processing.languagePlaceholder')}
             value={config.stt.language}
             onChange={handleLanguageChange}
           />
@@ -243,6 +253,7 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
             disabled={disabled}
             enabled={useCustomPrompts}
             label={t('settings.processing.systemPrompt')}
+            placeholder={t('settings.processing.systemPromptPlaceholder')}
             storedValue={currentConfig.systemPrompt}
             onPersist={persistSystemPrompt}
           />
@@ -254,6 +265,7 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
               enabled={useCustomPrompts}
               hint={t('settings.processing.userPromptTemplateHint')}
               label={t('settings.processing.userPromptTemplate')}
+              placeholder={t('settings.processing.userPromptTemplatePlaceholder')}
               storedValue={config.postProcess.userPromptTemplate}
               onPersist={persistUserPromptTemplate}
             />

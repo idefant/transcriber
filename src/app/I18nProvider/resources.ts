@@ -54,6 +54,7 @@ const en = {
       language: {
         title: 'Interface language',
         description: 'Choose the language used in the Transcriber interface',
+        placeholder: 'Choose interface language',
         system: 'System',
         ru: 'Russian',
         en: 'English',
@@ -61,12 +62,14 @@ const en = {
       overlayVariant: {
         title: 'Overlay style',
         description: 'Choose how the recording overlay looks on screen',
+        placeholder: 'Choose overlay style',
         bottom: 'Compact bar at the bottom',
         center: 'Large panel in the center',
       },
       overlayScreenMode: {
         title: 'Overlay screens',
         description: 'Choose which monitors show the recording overlay',
+        placeholder: 'Choose overlay screens',
         cursor: 'Screen with the cursor',
         all: 'Every screen',
       },
@@ -141,10 +144,13 @@ const en = {
     processing: {
       noProviders: 'Add a provider first',
       provider: 'Provider',
+      providerPlaceholder: 'Choose provider',
       model: 'Model',
+      modelPlaceholder: 'Choose model',
       noModels: 'No models are available for this provider',
       unrecommendedModels: 'Not recommended',
       language: 'Language',
+      languagePlaceholder: 'Choose language',
       languages: {
         auto: 'Auto',
         ru: 'Russian',
@@ -152,7 +158,9 @@ const en = {
       },
       useCustomPrompts: 'Use custom prompts',
       systemPrompt: 'System prompt',
+      systemPromptPlaceholder: 'Enter system prompt',
       userPromptTemplate: 'User prompt template',
+      userPromptTemplatePlaceholder: 'Enter user prompt template',
       userPromptTemplateHint: 'Leave empty if you do not want to use a custom template.',
       selectProviderAndModel: 'Choose a provider and model above',
     },
@@ -292,6 +300,7 @@ const ru: typeof en = {
       language: {
         title: 'Язык интерфейса',
         description: 'Выберите язык, который используется в интерфейсе Transcriber',
+        placeholder: 'Выберите язык интерфейса',
         system: 'Системный',
         ru: 'Русский',
         en: 'English',
@@ -299,12 +308,14 @@ const ru: typeof en = {
       overlayVariant: {
         title: 'Вид оверлея',
         description: 'Выберите, как выглядит оверлей записи на экране',
+        placeholder: 'Выберите вид оверлея',
         bottom: 'Компактная панель снизу',
         center: 'Большая панель по центру',
       },
       overlayScreenMode: {
         title: 'Экраны оверлея',
         description: 'Выберите, на каких мониторах показывать оверлей записи',
+        placeholder: 'Выберите экраны оверлея',
         cursor: 'Экран с курсором',
         all: 'Каждый экран',
       },
@@ -380,10 +391,13 @@ const ru: typeof en = {
     processing: {
       noProviders: 'Сначала добавьте провайдера',
       provider: 'Провайдер',
+      providerPlaceholder: 'Выберите провайдера',
       model: 'Модель',
+      modelPlaceholder: 'Выберите модель',
       noModels: 'Нет доступных моделей для этого провайдера',
       unrecommendedModels: 'Нерекомендованные',
       language: 'Язык',
+      languagePlaceholder: 'Выберите язык',
       languages: {
         auto: 'Авто',
         ru: 'Русский',
@@ -391,7 +405,9 @@ const ru: typeof en = {
       },
       useCustomPrompts: 'Использовать кастомные промпты',
       systemPrompt: 'Системный промпт',
+      systemPromptPlaceholder: 'Введите системный промпт',
       userPromptTemplate: 'Шаблон пользовательского промпта',
+      userPromptTemplatePlaceholder: 'Введите шаблон пользовательского промпта',
       userPromptTemplateHint:
         'Оставьте пустым, если не хотите использовать пользовательский шаблон.',
       selectProviderAndModel: 'Выберите провайдера и модель выше',
