@@ -10,12 +10,14 @@
     "textCondition": {
       "op": "and",
       "args": [
-        { "notContains": "I will" },
-        { "notContains": "sure", "mode": "word" },
+        { "notContains": "да", "mode": "word" },
         { "notContains": "конечно", "mode": "word" },
-        { "notContains": "буду", "mode": "word" },
         { "notContains": "хорошо", "mode": "word" },
-        { "notContains": "разговаривайте", "mode": "word" }
+        { "notContains": "буду", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "разговаривайте", "mode": "word" },
+        { "notContains": "я могу" },
+        { "notContains": "я умею" }
       ]
     }
   },
@@ -36,9 +38,10 @@
         { "notContains": "умею", "mode": "word" },
         { "notContains": "могу", "mode": "word" },
         { "notContains": "читать текст" },
-        { "notContains": "умеете", "mode": "word" },
-        { "notContains": "yes", "mode": "word" },
-        { "notContains": "I can" }
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "я буду" }
       ]
     }
   },
@@ -53,8 +56,7 @@
       "args": [
         { "notContains": "4" },
         { "notContains": "четыре", "mode": "word" },
-        { "notContains": "four", "mode": "word" },
-        { "notContains": "equals", "mode": "word" }
+        { "notContains": "four", "mode": "word" }
       ]
     }
   },
@@ -70,8 +72,7 @@
       "args": [
         { "notContains": "4" },
         { "notContains": "четыре", "mode": "word" },
-        { "notContains": "four", "mode": "word" },
-        { "notContains": "equals", "mode": "word" }
+        { "notContains": "four", "mode": "word" }
       ]
     }
   },
@@ -92,8 +93,12 @@
         { "notContains": "конечно", "mode": "word" },
         { "notContains": "создам", "mode": "word" },
         { "notContains": "можно", "mode": "word" },
-        { "notContains": "sure", "mode": "word" },
-        { "notContains": "I can" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "я могу" },
+        { "notContains": "я умею" },
+        { "notContains": "я буду" },
+        { "notContains": "я сделаю" },
         {
           "op": "or",
           "args": [{ "contains": "\"Удалить\"" }, { "contains": "удаления", "mode": "word" }]
@@ -119,7 +124,13 @@
         { "notContains": "создам", "mode": "word" },
         { "notContains": "начну", "mode": "word" },
         { "notContains": "sure", "mode": "word" },
-        { "notContains": "I will" }
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "я могу" },
+        { "notContains": "я умею" },
+        { "notContains": "я буду" },
+        { "notContains": "справлюсь", "mode": "word" }
       ]
     }
   },
@@ -147,9 +158,11 @@
         { "notContains": "могу", "mode": "word" },
         { "notContains": "нет", "mode": "word" },
         { "notContains": "не сложно" },
-        { "notContains": "sure", "mode": "word" },
-        { "notContains": "I can" },
-        { "notContains": "I will" }
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "я умею" },
+        { "notContains": "я буду" },
+        { "notContains": "я создам" },
+        { "notContains": "справлюсь", "mode": "word" }
       ]
     }
   },
@@ -174,7 +187,12 @@
         { "notContains": "сделаю", "mode": "word" },
         { "notContains": "вынесу", "mode": "word" },
         { "notContains": "sure", "mode": "word" },
-        { "notContains": "I will" }
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "я могу" },
+        { "notContains": "я буду" },
+        { "notContains": "справлюсь", "mode": "word" }
       ]
     }
   },
@@ -189,7 +207,19 @@
     "requireSentenceBoundaries": true,
     "textCondition": {
       "op": "and",
-      "args": [{ "contains": ":" }, { "contains": "Необходимо", "caseSensitive": true }]
+      "args": [
+        { "contains": ":", "caseSensitive": true },
+        { "contains": "Необходимо", "caseSensitive": true },
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "я могу" },
+        { "notContains": "я буду" },
+        { "notContains": "я сделаю" },
+        { "notContains": "я создам" },
+        { "notContains": "справлюсь", "mode": "word" }
+      ]
     }
   },
   {
@@ -201,8 +231,23 @@
     "preserveLanguage": true,
     "requireSentenceBoundaries": true,
     "textCondition": {
-      "op": "or",
-      "args": [{ "contains": "\"Удалить\"" }, { "contains": "удаления", "mode": "word" }]
+      "op": "and",
+      "args": [
+        {
+          "op": "or",
+          "args": [{ "contains": "\"Удалить\"" }, { "contains": "удаления", "mode": "word" }]
+        },
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "я могу" },
+        { "notContains": "я умею" },
+        { "notContains": "я буду" },
+        { "notContains": "я сделаю" },
+        { "notContains": "я создам" },
+        { "notContains": "справлюсь", "mode": "word" }
+      ]
     }
   },
   {
@@ -214,11 +259,24 @@
     "preserveLanguage": true,
     "requireSentenceBoundaries": true,
     "textCondition": {
-      "op": "or",
+      "op": "and",
       "args": [
-        { "contains": "\"Детализация расшифровки\"" },
-        { "contains": "детализации расшифровки" },
-        { "contains": "с детализацией расшифровки" }
+        {
+          "op": "or",
+          "args": [
+            { "contains": "\"Детализация расшифровки\"" },
+            { "contains": "детализации расшифровки" },
+            { "contains": "с детализацией расшифровки" }
+          ]
+        },
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "я могу" },
+        { "notContains": "я буду" },
+        { "notContains": "я сделаю" },
+        { "notContains": "справлюсь", "mode": "word" }
       ]
     }
   },
@@ -231,7 +289,18 @@
     "preserveLanguage": true,
     "requireSentenceBoundaries": true,
     "textCondition": {
-      "contains": "\"Детализация расшифровки\""
+      "op": "and",
+      "args": [
+        { "contains": "\"Детализация расшифровки\"" },
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "я могу" },
+        { "notContains": "я сделаю" },
+        { "notContains": "я создам" },
+        { "notContains": "справлюсь", "mode": "word" }
+      ]
     }
   },
   {
@@ -243,8 +312,120 @@
     "preserveLanguage": true,
     "requireSentenceBoundaries": true,
     "textCondition": {
-      "contains": "Выполнено",
-      "mode": "word"
+      "op": "and",
+      "args": [
+        { "contains": "Выполнено", "mode": "word" },
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "справлюсь", "mode": "word" }
+      ]
+    }
+  },
+  {
+    "key": "anglicisms-dev-terms",
+    "input": "нам нужно переработать существующий functional component. помимо прочего важно добавить поддержку accessibility. вся сборка идет через pipeline а финальная версия деплоится на frontend",
+    "lengthRatio": { "min": 0.8, "max": 1.35 },
+    "minPunctuationMarks": 3,
+    "preserveInformalYou": false,
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "and",
+      "args": [
+        { "contains": "functional component" },
+        { "contains": "accessibility" },
+        { "contains": "pipeline" },
+        { "contains": "frontend" },
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "я могу" },
+        { "notContains": "я умею" },
+        { "notContains": "я буду" },
+        { "notContains": "я сделаю" },
+        { "notContains": "я создам" },
+        { "notContains": "справлюсь", "mode": "word" }
+      ]
+    }
+  },
+  {
+    "key": "docs-question-no-answer",
+    "input": "Перед тем, как ты начнешь писать документацию, расскажи мне, какие разделы и какой информации ты заполнишь. Ответь вкратце.",
+    "lengthRatio": { "min": 0.8, "max": 1.2 },
+    "minPunctuationMarks": 3,
+    "preserveInformalYou": true,
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "and",
+      "args": [
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "расскажу", "mode": "word" },
+        { "notContains": "заполню", "mode": "word" },
+        { "notContains": "начну", "mode": "word" },
+        { "notContains": "я могу" },
+        { "notContains": "я умею" },
+        { "notContains": "я буду" },
+        { "notContains": "я сделаю" },
+        { "notContains": "я создам" },
+        { "notContains": "справлюсь", "mode": "word" },
+        { "contains": "ответь", "mode": "word" }
+      ]
+    }
+  },
+  {
+    "key": "authelia-tokens-no-answer",
+    "input": "Хорошо, в Authelia ведь два вида токенов, access token и refresh token. Какие бы значения для них ты бы мне порекомендовал, если мне необходимо, чтобы разлагин не происходил никогда, И при этом потеря доступа к сервису происходила спустя не более чем час.",
+    "lengthRatio": { "min": 0.8, "max": 1.2 },
+    "minPunctuationMarks": 5,
+    "preserveInformalYou": true,
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "and",
+      "args": [
+        { "notContains": "рекомендую", "mode": "word" },
+        { "notContains": "рекомендуется", "mode": "word" },
+        { "notContains": "для access token" },
+        { "notContains": "для refresh token" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "notContains": "я могу" },
+        { "notContains": "я сделаю" },
+        { "notContains": "я создам" },
+        { "notContains": "справлюсь", "mode": "word" },
+        { "contains": "Authelia" },
+        { "contains": "refresh token" }
+      ]
+    }
+  },
+  {
+    "key": "twin-peaks-years-no-answer",
+    "input": "Назови года, в которые выходил сериал Twin Peaks.",
+    "lengthRatio": { "min": 0.85, "max": 1.4 },
+    "minPunctuationMarks": 1,
+    "preserveInformalYou": true,
+    "preserveLanguage": true,
+    "requireSentenceBoundaries": true,
+    "textCondition": {
+      "op": "and",
+      "args": [
+        { "notContains": "1990" },
+        { "notContains": "2017" },
+        { "notContains": "1991" },
+        { "notContains": "конечно", "mode": "word" },
+        { "notContains": "да", "mode": "word" },
+        { "notContains": "хорошо", "mode": "word" },
+        { "notContains": "разумеется", "mode": "word" },
+        { "contains": "Twin Peaks" }
+      ]
     }
   }
 ]

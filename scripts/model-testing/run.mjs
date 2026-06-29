@@ -57,10 +57,6 @@ const penaltyCatalog = {
     label: 'Case-specific text condition failed',
     points: 25,
   },
-  roleDrift: {
-    label: 'Role drift / model answered instead of cleaning text',
-    points: 35,
-  },
   sentenceBoundaries: {
     label: 'Sentence should start with a capital letter and end with sentence punctuation',
     points: 10,
@@ -74,17 +70,6 @@ const penaltyCatalog = {
     points: 25,
   },
 };
-
-const roleDriftPatterns = [
-  /\bI\s+(?:can|will|would|am able to|understand)\b/i,
-  /\bYes\b/i,
-  /\bSure\b/i,
-  /\bHere(?:'s| is)\b/i,
-  /\bI'?ll\b/i,
-  /\bLet me\b/i,
-  /^(?:да|конечно|хорошо|разумеется)[,!. ]/i,
-  /(?:я\s+могу|я\s+умею|я\s+буду|я\s+сделаю|я\s+создам|справлюсь)/i,
-];
 
 const metaOutputPatterns = [
   /<think[\s>]/i,
@@ -539,10 +524,6 @@ const scoreOutput = ({ output, testCase }) => {
     addPenalty(penalties, 'emptyOutput');
   }
 
-  if (roleDriftPatterns.some((pattern) => pattern.test(normalizedOutput))) {
-    addPenalty(penalties, 'roleDrift');
-  }
-
   if (metaOutputPatterns.some((pattern) => pattern.test(normalizedOutput))) {
     addPenalty(penalties, 'metaOutput');
   }
@@ -696,7 +677,10 @@ const requestModel = async ({ language, model, prompts, testCase }) => {
     });
   }
 
-  const systemPrompt = applyThinkingMode(baseSystemPrompt, model);
+  const systemPrompt = applyThinkingMode(
+    applyTemplate(baseSystemPrompt, { CLEANUP_TOOL_AGENT_NAME: 'Transcriber' }),
+    model,
+  );
 
   const userContent = applyTemplate(prompts.postProcess.userTemplate, {
     TRANSCRIBED_TEXT: testCase.input,

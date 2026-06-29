@@ -401,10 +401,11 @@ pub async fn run_post_process_with_snapshot(
     }
 
     if let Some(reasoning) = &snapshot.reasoning {
-        body["reasoning"] = serde_json::json!({
-            "effort": reasoning.effort,
-            "exclude": reasoning.exclude,
-        });
+        let mut r = serde_json::json!({ "effort": reasoning.effort });
+        if reasoning.exclude {
+            r["exclude"] = serde_json::json!(true);
+        }
+        body["reasoning"] = r;
     }
 
     if let Some(reasoning_effort) = &snapshot.reasoning_effort {

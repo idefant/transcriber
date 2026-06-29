@@ -290,7 +290,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                     include_reasoning: None,
                     reasoning: Some(ReasoningParams {
                         effort: "none",
-                        exclude: true,
+                        exclude: false,
                     }),
                 },
             ],
@@ -358,7 +358,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                     include_reasoning: None,
                     reasoning: Some(ReasoningParams {
                         effort: "none",
-                        exclude: true,
+                        exclude: false,
                     }),
                 },
             ],
@@ -382,7 +382,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 include_reasoning: None,
                 reasoning: Some(ReasoningParams {
                     effort: "none",
-                    exclude: true,
+                    exclude: false,
                 }),
             }],
             params: ModelParams::PostProcess(PostProcessParams {
@@ -405,7 +405,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 include_reasoning: None,
                 reasoning: Some(ReasoningParams {
                     effort: "none",
-                    exclude: true,
+                    exclude: false,
                 }),
             }],
             params: ModelParams::PostProcess(PostProcessParams {
@@ -428,7 +428,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 include_reasoning: None,
                 reasoning: Some(ReasoningParams {
                     effort: "none",
-                    exclude: true,
+                    exclude: false,
                 }),
             }],
             params: ModelParams::PostProcess(PostProcessParams {

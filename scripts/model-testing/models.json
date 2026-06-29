@@ -148,8 +148,7 @@
       "maxCompletionTokens": 4096,
       "disableThinking": true,
       "reasoning": {
-        "effort": "none",
-        "exclude": true
+        "effort": "none"
       }
     },
     "providerRouting": {
@@ -261,8 +260,7 @@
       "maxCompletionTokens": 4096,
       "disableThinking": true,
       "reasoning": {
-        "effort": "none",
-        "exclude": true
+        "effort": "none"
       }
     }
   },
@@ -373,8 +371,7 @@
       "temperature": 0.2,
       "maxCompletionTokens": 4096,
       "reasoning": {
-        "effort": "none",
-        "exclude": true
+        "effort": "none"
       }
     }
   },
@@ -392,8 +389,7 @@
       "temperature": 0.2,
       "maxCompletionTokens": 4096,
       "reasoning": {
-        "effort": "none",
-        "exclude": true
+        "effort": "none"
       }
     }
   },
@@ -411,8 +407,7 @@
       "temperature": 0.2,
       "maxCompletionTokens": 4096,
       "reasoning": {
-        "effort": "none",
-        "exclude": true
+        "effort": "none"
       }
     }
   },
