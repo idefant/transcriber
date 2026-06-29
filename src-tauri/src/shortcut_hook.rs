@@ -99,6 +99,14 @@ pub fn disarm_cancel_hotkey() {
 #[cfg(not(target_os = "windows"))]
 pub fn disarm_cancel_hotkey() {}
 
+#[cfg(target_os = "windows")]
+pub fn set_main_window_focused(focused: bool) {
+    windows_hook::set_main_window_focused(focused);
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn set_main_window_focused(_focused: bool) {}
+
 #[derive(Clone, Copy)]
 enum ModifierSide {
     None,
@@ -387,12 +395,15 @@ mod windows_hook {
     };
 
     use tauri::AppHandle;
-    use windows_sys::Win32::UI::{
-        Input::KeyboardAndMouse::GetAsyncKeyState,
-        WindowsAndMessaging::{
-            CallNextHookEx, DispatchMessageW, GetMessageW, SetWindowsHookExW, TranslateMessage,
-            HHOOK, KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN,
-            WM_SYSKEYUP,
+    use windows_sys::Win32::{
+        System::Threading::GetCurrentThreadId,
+        UI::{
+            Input::KeyboardAndMouse::GetAsyncKeyState,
+            WindowsAndMessaging::{
+                CallNextHookEx, DispatchMessageW, GetMessageW, PostThreadMessageW,
+                SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, HHOOK, KBDLLHOOKSTRUCT,
+                MSG, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP,
+            },
         },
     };
 
@@ -425,49 +436,23 @@ mod windows_hook {
     static PASTE_LATEST_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>> = OnceLock::new();
     static REPEAT_LATEST_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>> = OnceLock::new();
     static EVENT_SENDER: OnceLock<Sender<HookEvent>> = OnceLock::new();
+    static HOOK_RUNTIME: OnceLock<Mutex<HookRuntime>> = OnceLock::new();
 
     struct HookHotkey {
         hotkey: Hotkey,
         is_main_key_down: bool,
     }
 
+    #[derive(Default)]
+    struct HookRuntime {
+        hook: Option<isize>,
+        hook_thread_id: Option<u32>,
+    }
+
     pub fn install(app: AppHandle, hotkey: &str) -> AppResult<()> {
         set_hotkey(hotkey)?;
-
-        let (sender, receiver) = mpsc::channel::<HookEvent>();
-        let _ = EVENT_SENDER.set(sender);
-
-        thread::spawn(move || {
-            for event in receiver {
-                match event {
-                    HookEvent::Dictation(state) => dictation::handle_shortcut_event(&app, state),
-                    HookEvent::Cancel => dictation::handle_cancel_shortcut(&app),
-                    HookEvent::CopyLatest => dictation::handle_copy_latest_shortcut(&app),
-                    HookEvent::PasteLatest => dictation::handle_paste_latest_shortcut(&app),
-                    HookEvent::RepeatLatest => dictation::handle_repeat_latest_shortcut(&app),
-                }
-            }
-        });
-
-        let (install_sender, install_receiver) = mpsc::channel::<bool>();
-
-        thread::spawn(move || unsafe {
-            let hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), ptr::null_mut(), 0);
-
-            if hook.is_null() {
-                let _ = install_sender.send(false);
-                return;
-            }
-
-            let _ = install_sender.send(true);
-            run_message_loop();
-        });
-
-        if !install_receiver.recv().unwrap_or(false) {
-            return Err(AppError::from("Could not install Windows keyboard hook"));
-        }
-
-        Ok(())
+        ensure_event_dispatch_thread(app);
+        enable_hook()
     }
 
     pub fn set_hotkey(value: &str) -> AppResult<()> {
@@ -567,6 +552,14 @@ mod windows_hook {
         if let Ok(mut cancel) = get_cancel_hotkey().lock() {
             *cancel = None;
         }
+    }
+
+    pub fn set_main_window_focused(focused: bool) {
+        let _ = if focused {
+            disable_hook()
+        } else {
+            enable_hook()
+        };
     }
 
     pub async fn wait_for_hotkey_release(value: &str) -> AppResult<()> {
@@ -788,6 +781,116 @@ mod windows_hook {
 
     fn is_key_down(vk: u32) -> bool {
         unsafe { GetAsyncKeyState(vk as i32) & 0x8000u16 as i16 != 0 }
+    }
+
+    fn ensure_event_dispatch_thread(app: AppHandle) {
+        if EVENT_SENDER.get().is_some() {
+            return;
+        }
+
+        let (sender, receiver) = mpsc::channel::<HookEvent>();
+
+        if EVENT_SENDER.set(sender).is_err() {
+            return;
+        }
+
+        thread::spawn(move || {
+            for event in receiver {
+                match event {
+                    HookEvent::Dictation(state) => dictation::handle_shortcut_event(&app, state),
+                    HookEvent::Cancel => dictation::handle_cancel_shortcut(&app),
+                    HookEvent::CopyLatest => dictation::handle_copy_latest_shortcut(&app),
+                    HookEvent::PasteLatest => dictation::handle_paste_latest_shortcut(&app),
+                    HookEvent::RepeatLatest => dictation::handle_repeat_latest_shortcut(&app),
+                }
+            }
+        });
+    }
+
+    fn hook_runtime() -> &'static Mutex<HookRuntime> {
+        HOOK_RUNTIME.get_or_init(|| Mutex::new(HookRuntime::default()))
+    }
+
+    fn enable_hook() -> AppResult<()> {
+        let mut runtime = hook_runtime()
+            .lock()
+            .map_err(|_| AppError::from("Could not lock shortcut hook runtime"))?;
+
+        if runtime.hook.is_some() {
+            return Ok(());
+        }
+
+        let (install_sender, install_receiver) = mpsc::channel::<Option<(isize, u32)>>();
+
+        thread::spawn(move || unsafe {
+            let thread_id = GetCurrentThreadId();
+            let hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), ptr::null_mut(), 0);
+
+            if hook.is_null() {
+                let _ = install_sender.send(None);
+                return;
+            }
+
+            let _ = install_sender.send(Some((hook as isize, thread_id)));
+            run_message_loop();
+        });
+
+        let Some((hook, hook_thread_id)) = install_receiver.recv().unwrap_or(None) else {
+            return Err(AppError::from("Could not install Windows keyboard hook"));
+        };
+
+        runtime.hook = Some(hook);
+        runtime.hook_thread_id = Some(hook_thread_id);
+
+        Ok(())
+    }
+
+    fn disable_hook() -> AppResult<()> {
+        let mut runtime = hook_runtime()
+            .lock()
+            .map_err(|_| AppError::from("Could not lock shortcut hook runtime"))?;
+
+        let hook = runtime.hook.take();
+        let hook_thread_id = runtime.hook_thread_id.take();
+
+        drop(runtime);
+
+        reset_pressed_hook_state();
+
+        if let Some(hook) = hook {
+            unsafe {
+                let _ = UnhookWindowsHookEx(hook as HHOOK);
+            }
+        }
+
+        if let Some(thread_id) = hook_thread_id {
+            unsafe {
+                let _ = PostThreadMessageW(thread_id, WM_QUIT, 0, 0);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn reset_pressed_hook_state() {
+        if let Some(mutex) = HOTKEY.get() {
+            if let Ok(mut config) = mutex.lock() {
+                config.is_main_key_down = false;
+            }
+        }
+
+        for mutex in [
+            get_cancel_hotkey(),
+            get_copy_latest_hotkey(),
+            get_paste_latest_hotkey(),
+            get_repeat_latest_hotkey(),
+        ] {
+            if let Ok(mut hotkey) = mutex.lock() {
+                if let Some(config) = hotkey.as_mut() {
+                    config.is_main_key_down = false;
+                }
+            }
+        }
     }
 
     fn send_hook_event(event: HookEvent) {

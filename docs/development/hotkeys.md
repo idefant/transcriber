@@ -4,11 +4,11 @@ This document describes the two-path hotkey system: the native Windows hook and 
 
 ## Two paths
 
-The app does **not** use Tauri's global-shortcut plugin. Instead it maintains two independent mechanisms that work together:
+The app does **not** use Tauri's global-shortcut plugin. Instead it maintains two mechanisms and switches between them based on whether the main window is focused:
 
-**Native `WH_KEYBOARD_LL` hook** (`src-tauri/src/shortcut_hook.rs`) — installed once at startup (`dictation::register_dictation_shortcut`) and lives for the app's lifetime. Runs on a dedicated thread with its own Windows message loop. Operates globally and is focus-independent. Consumes (returns `1`) a key event only when it matches one of the configured hotkeys; everything else passes through `CallNextHookEx`.
+**Native `WH_KEYBOARD_LL` hook** (`src-tauri/src/shortcut_hook.rs`) — installed by `dictation::register_dictation_shortcut`, but enabled only while the main window is **not** focused. Runs on a dedicated thread with its own Windows message loop. In that state it operates globally and consumes (returns `1`) only key events that match one of the configured hotkeys; everything else passes through `CallNextHookEx`.
 
-**In-app DOM handler** (`src/app/DictationHotkeyFallback/DictationHotkeyFallback.tsx`) — mounted in the main window only (`App.tsx`). Listens to `keydown`/`keyup` on `globalThis` with `capture: true`. Only fires when the main window is focused and the webview receives key events. Handles the dictation hotkey, the cancel hotkey (gated by session state), the "copy latest transcription" hotkey, the "paste latest transcription" hotkey, and the "repeat latest transcription" hotkey. Acts as the fallback for the focused-window case.
+**In-app DOM handler** (`src/app/DictationHotkeyFallback/DictationHotkeyFallback.tsx`) — mounted in the main window only (`App.tsx`). Listens to `keydown`/`keyup` on `globalThis` with `capture: true`. It is the only hotkey path while the main window is focused and the webview receives key events. Handles the dictation hotkey, the cancel hotkey (gated by session state), the "copy latest transcription" hotkey, the "paste latest transcription" hotkey, and the "repeat latest transcription" hotkey.
 
 ## Supported actions
 
@@ -34,7 +34,13 @@ Because of that platform constraint, the code currently keeps the more conservat
 
 ## Focus boundary
 
-When the main window is **not** focused, the native hook handles everything. When it **is** focused, the native hook still runs but the webview's DOM handler also sees key events. For most hotkeys both paths fire; the backend commands for cancel, copy-latest, paste-latest, and repeat-latest are written so repeated triggers are harmless or become a no-op. The DOM handler skips non-cancel processing when the hotkey capture lock is active (during hotkey recording in settings).
+When the main window is **not** focused, the native hook handles everything. When the main window **is** focused, the backend uninstalls the low-level hook and leaves the focused-window case entirely to the DOM handler.
+
+This is not just an optimization. Keeping the `WH_KEYBOARD_LL` hook installed while the Transcriber window was focused caused unrelated AutoHotkey shortcuts to stop firing, even when the pressed key was not one of the app's configured hotkeys. The problem reproduced with keys such as `F1`, `F13`, `F14`, `F15`, and `F16`, and the decisive diagnostic was that AHK started seeing the key again as soon as the native hook was fully removed. Tightening the hook's event-filtering logic was not sufficient; the fix had to be lifecycle-based.
+
+The focus switch is driven by Tauri window events in `src-tauri/src/background.rs`. `WindowEvent::Focused(true)` calls `shortcut_hook::set_main_window_focused(true)` and tears the hook down. `WindowEvent::Focused(false)` enables it again, and startup also synchronizes the initial focus state so the hook is not left active when the app opens directly into a focused window.
+
+Because of that split, there is no longer any intentional overlap between native and DOM handling in the focused-window case. The DOM handler still skips non-cancel processing when the hotkey capture lock is active (during hotkey recording in settings).
 
 ## Repeat-cancel boundary
 

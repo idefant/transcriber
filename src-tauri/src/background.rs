@@ -15,6 +15,7 @@ use crate::{
     error::{AppError, AppResult},
     history,
     settings::{self, EffectiveUiLanguage},
+    shortcut_hook,
 };
 
 const MAIN_WINDOW_LABEL: &str = "main";
@@ -29,9 +30,10 @@ pub struct BackgroundRuntime {
 }
 
 pub fn setup_background_mode(app: &tauri::AppHandle) -> AppResult<()> {
-    setup_main_window_close_handler(app)?;
+    setup_main_window_event_handlers(app)?;
     setup_tray(app)?;
     apply_startup_window_visibility(app)?;
+    sync_main_window_focus_state(app)?;
 
     Ok(())
 }
@@ -52,26 +54,28 @@ pub fn refresh_tray_history_state(app: &tauri::AppHandle) {
     }
 }
 
-fn setup_main_window_close_handler(app: &tauri::AppHandle) -> AppResult<()> {
+fn setup_main_window_event_handlers(app: &tauri::AppHandle) -> AppResult<()> {
     let window = main_window(app)?;
     let app_handle = app.clone();
 
-    window.on_window_event(move |event| {
-        let WindowEvent::CloseRequested { api, .. } = event else {
-            return;
-        };
+    window.on_window_event(move |event| match event {
+        WindowEvent::CloseRequested { api, .. } => {
+            let runtime = app_handle.state::<BackgroundRuntime>();
 
-        let runtime = app_handle.state::<BackgroundRuntime>();
+            if runtime.is_exiting.load(Ordering::SeqCst) {
+                return;
+            }
 
-        if runtime.is_exiting.load(Ordering::SeqCst) {
-            return;
+            api.prevent_close();
+            let _ = main_window(&app_handle).and_then(|window| {
+                window.hide()?;
+                Ok(())
+            });
         }
-
-        api.prevent_close();
-        let _ = main_window(&app_handle).and_then(|window| {
-            window.hide()?;
-            Ok(())
-        });
+        WindowEvent::Focused(focused) => {
+            shortcut_hook::set_main_window_focused(*focused);
+        }
+        _ => {}
     });
 
     Ok(())
@@ -148,6 +152,15 @@ fn apply_startup_window_visibility(app: &tauri::AppHandle) -> AppResult<()> {
     }
 
     show_main_window(app)
+}
+
+fn sync_main_window_focus_state(app: &tauri::AppHandle) -> AppResult<()> {
+    let window = main_window(app)?;
+    let is_focused = window.is_focused()?;
+
+    shortcut_hook::set_main_window_focused(is_focused);
+
+    Ok(())
 }
 
 pub(crate) fn show_main_window(app: &tauri::AppHandle) -> AppResult<()> {
