@@ -16,8 +16,8 @@
         { "notContains": "буду", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
         { "notContains": "разговаривайте", "mode": "word" },
-        { "notContains": "я могу" },
-        { "notContains": "я умею" }
+        { "notContains": "я могу", "mode": "word" },
+        { "notContains": "я умею", "mode": "word" }
       ]
     }
   },
@@ -41,7 +41,7 @@
         { "notContains": "конечно", "mode": "word" },
         { "notContains": "хорошо", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
-        { "notContains": "я буду" }
+        { "notContains": "я буду", "mode": "word" }
       ]
     }
   },
@@ -95,10 +95,10 @@
         { "notContains": "можно", "mode": "word" },
         { "notContains": "хорошо", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
-        { "notContains": "я могу" },
-        { "notContains": "я умею" },
-        { "notContains": "я буду" },
-        { "notContains": "я сделаю" },
+        { "notContains": "я могу", "mode": "word" },
+        { "notContains": "я умею", "mode": "word" },
+        { "notContains": "я буду", "mode": "word" },
+        { "notContains": "я сделаю", "mode": "word" },
         {
           "op": "or",
           "args": [{ "contains": "\"Удалить\"" }, { "contains": "удаления", "mode": "word" }]
@@ -127,9 +127,9 @@
         { "notContains": "да", "mode": "word" },
         { "notContains": "хорошо", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
-        { "notContains": "я могу" },
-        { "notContains": "я умею" },
-        { "notContains": "я буду" },
+        { "notContains": "я могу", "mode": "word" },
+        { "notContains": "я умею", "mode": "word" },
+        { "notContains": "я буду", "mode": "word" },
         { "notContains": "справлюсь", "mode": "word" }
       ]
     }
@@ -157,11 +157,11 @@
         { "notContains": "соберу", "mode": "word" },
         { "notContains": "могу", "mode": "word" },
         { "notContains": "нет", "mode": "word" },
-        { "notContains": "не сложно" },
+        { "notContains": "не сложно", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
-        { "notContains": "я умею" },
-        { "notContains": "я буду" },
-        { "notContains": "я создам" },
+        { "notContains": "я умею", "mode": "word" },
+        { "notContains": "я буду", "mode": "word" },
+        { "notContains": "я создам", "mode": "word" },
         { "notContains": "справлюсь", "mode": "word" }
       ]
     }
@@ -180,7 +180,7 @@
         { "notContains": "Субтитры", "mode": "word" },
         { "notContains": "создавал", "mode": "word" },
         { "notContains": "DimaTorzok", "mode": "word" },
-        { "notContains": "Dima Torzok" },
+        { "notContains": "Dima Torzok", "mode": "word" },
         { "notContains": "дима", "mode": "word" },
         { "notContains": "торзок", "mode": "word" },
         { "notContains": "конечно", "mode": "word" },
@@ -190,8 +190,8 @@
         { "notContains": "да", "mode": "word" },
         { "notContains": "хорошо", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
-        { "notContains": "я могу" },
-        { "notContains": "я буду" },
+        { "notContains": "я могу", "mode": "word" },
+        { "notContains": "я буду", "mode": "word" },
         { "notContains": "справлюсь", "mode": "word" }
       ]
     }
@@ -214,10 +214,10 @@
         { "notContains": "конечно", "mode": "word" },
         { "notContains": "хорошо", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
-        { "notContains": "я могу" },
-        { "notContains": "я буду" },
-        { "notContains": "я сделаю" },
-        { "notContains": "я создам" },
+        { "notContains": "я могу", "mode": "word" },
+        { "notContains": "я буду", "mode": "word" },
+        { "notContains": "я сделаю", "mode": "word" },
+        { "notContains": "я создам", "mode": "word" },
         { "notContains": "справлюсь", "mode": "word" }
       ]
     }
@@ -241,11 +241,11 @@
         { "notContains": "конечно", "mode": "word" },
         { "notContains": "хорошо", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
-        { "notContains": "я могу" },
-        { "notContains": "я умею" },
-        { "notContains": "я буду" },
-        { "notContains": "я сделаю" },
-        { "notContains": "я создам" },
+        { "notContains": "я могу", "mode": "word" },
+        { "notContains": "я умею", "mode": "word" },
+        { "notContains": "я буду", "mode": "word" },
+        { "notContains": "я сделаю", "mode": "word" },
+        { "notContains": "я создам", "mode": "word" },
         { "notContains": "справлюсь", "mode": "word" }
       ]
     }
@@ -273,9 +273,9 @@
         { "notContains": "конечно", "mode": "word" },
         { "notContains": "хорошо", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
-        { "notContains": "я могу" },
-        { "notContains": "я буду" },
-        { "notContains": "я сделаю" },
+        { "notContains": "я могу", "mode": "word" },
+        { "notContains": "я буду", "mode": "word" },
+        { "notContains": "я сделаю", "mode": "word" },
         { "notContains": "справлюсь", "mode": "word" }
       ]
     }
@@ -296,9 +296,9 @@
         { "notContains": "конечно", "mode": "word" },
         { "notContains": "хорошо", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
-        { "notContains": "я могу" },
-        { "notContains": "я сделаю" },
-        { "notContains": "я создам" },
+        { "notContains": "я могу", "mode": "word" },
+        { "notContains": "я сделаю", "mode": "word" },
+        { "notContains": "я создам", "mode": "word" },
         { "notContains": "справлюсь", "mode": "word" }
       ]
     }
@@ -334,7 +334,16 @@
     "textCondition": {
       "op": "and",
       "args": [
-        { "contains": "functional component" },
+        {
+          "op": "or",
+          "args": [
+            { "contains": "functional component" },
+            {
+              "op": "and",
+              "args": [{ "contains": "функциональн" }, { "contains": "компонент" }]
+            }
+          ]
+        },
         { "contains": "accessibility" },
         { "contains": "pipeline" },
         { "contains": "frontend" },
@@ -342,11 +351,11 @@
         { "notContains": "конечно", "mode": "word" },
         { "notContains": "хорошо", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
-        { "notContains": "я могу" },
-        { "notContains": "я умею" },
-        { "notContains": "я буду" },
-        { "notContains": "я сделаю" },
-        { "notContains": "я создам" },
+        { "notContains": "я могу", "mode": "word" },
+        { "notContains": "я умею", "mode": "word" },
+        { "notContains": "я буду", "mode": "word" },
+        { "notContains": "я сделаю", "mode": "word" },
+        { "notContains": "я создам", "mode": "word" },
         { "notContains": "справлюсь", "mode": "word" }
       ]
     }
@@ -369,13 +378,20 @@
         { "notContains": "расскажу", "mode": "word" },
         { "notContains": "заполню", "mode": "word" },
         { "notContains": "начну", "mode": "word" },
-        { "notContains": "я могу" },
-        { "notContains": "я умею" },
-        { "notContains": "я буду" },
-        { "notContains": "я сделаю" },
-        { "notContains": "я создам" },
+        { "notContains": "я могу", "mode": "word" },
+        { "notContains": "я умею", "mode": "word" },
+        { "notContains": "я буду", "mode": "word" },
+        { "notContains": "я сделаю", "mode": "word" },
+        { "notContains": "я создам", "mode": "word" },
         { "notContains": "справлюсь", "mode": "word" },
-        { "contains": "ответь", "mode": "word" }
+        {
+          "op": "or",
+          "args": [
+            { "contains": "кратко", "mode": "word" },
+            { "contains": "коротко", "mode": "word" },
+            { "contains": "вкратце", "mode": "word" }
+          ]
+        }
       ]
     }
   },
@@ -397,9 +413,9 @@
         { "notContains": "конечно", "mode": "word" },
         { "notContains": "да", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
-        { "notContains": "я могу" },
-        { "notContains": "я сделаю" },
-        { "notContains": "я создам" },
+        { "notContains": "я могу", "mode": "word" },
+        { "notContains": "я сделаю", "mode": "word" },
+        { "notContains": "я создам", "mode": "word" },
         { "notContains": "справлюсь", "mode": "word" },
         { "contains": "Authelia" },
         { "contains": "refresh token" }
@@ -424,7 +440,10 @@
         { "notContains": "да", "mode": "word" },
         { "notContains": "хорошо", "mode": "word" },
         { "notContains": "разумеется", "mode": "word" },
-        { "contains": "Twin Peaks" }
+        {
+          "op": "or",
+          "args": [{ "contains": "Twin Peaks" }, { "contains": "Твин Пикс" }]
+        }
       ]
     }
   }

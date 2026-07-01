@@ -179,7 +179,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Openai,
                     api_id: "gpt-4o-mini",
-                    is_recommended: true,
+                    is_recommended: false,
                     reasoning_effort: None,
                     reasoning_format: None,
                     include_reasoning: None,
@@ -188,7 +188,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Openrouter,
                     api_id: "openai/gpt-4o-mini",
-                    is_recommended: true,
+                    is_recommended: false,
                     reasoning_effort: None,
                     reasoning_format: None,
                     include_reasoning: None,
@@ -210,7 +210,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Openai,
                     api_id: "gpt-4.1-mini",
-                    is_recommended: true,
+                    is_recommended: false,
                     reasoning_effort: None,
                     reasoning_format: None,
                     include_reasoning: None,
@@ -219,7 +219,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Openrouter,
                     api_id: "openai/gpt-4.1-mini",
-                    is_recommended: true,
+                    is_recommended: false,
                     reasoning_effort: None,
                     reasoning_format: None,
                     include_reasoning: None,
@@ -241,7 +241,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Openai,
                     api_id: "gpt-5-mini",
-                    is_recommended: false,
+                    is_recommended: true,
                     reasoning_effort: Some("minimal"),
                     reasoning_format: None,
                     include_reasoning: None,
@@ -250,7 +250,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Openrouter,
                     api_id: "openai/gpt-5-mini",
-                    is_recommended: false,
+                    is_recommended: true,
                     reasoning_effort: None,
                     reasoning_format: None,
                     include_reasoning: None,
@@ -399,7 +399,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
             entries: vec![ProviderApiEntry {
                 provider: ProviderKind::Openrouter,
                 api_id: "google/gemini-2.5-flash-lite",
-                is_recommended: true,
+                is_recommended: false,
                 reasoning_effort: None,
                 reasoning_format: None,
                 include_reasoning: None,
@@ -422,7 +422,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
             entries: vec![ProviderApiEntry {
                 provider: ProviderKind::Openrouter,
                 api_id: "google/gemini-3.1-flash-lite",
-                is_recommended: true,
+                is_recommended: false,
                 reasoning_effort: None,
                 reasoning_format: None,
                 include_reasoning: None,
@@ -446,7 +446,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Groq,
                     api_id: "meta-llama/llama-4-scout-17b-16e-instruct",
-                    is_recommended: true,
+                    is_recommended: false,
                     reasoning_effort: None,
                     reasoning_format: None,
                     include_reasoning: None,
@@ -455,7 +455,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 ProviderApiEntry {
                     provider: ProviderKind::Openrouter,
                     api_id: "meta-llama/llama-4-scout",
-                    is_recommended: true,
+                    is_recommended: false,
                     reasoning_effort: None,
                     reasoning_format: None,
                     include_reasoning: None,
