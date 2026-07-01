@@ -50,6 +50,26 @@ The risky boundary is the hand-off from repeated STT to post-processing. A cance
 
 To avoid that regression, the repeat hotkey path must treat "enter post-processing" as a guarded transition, not as an unconditional continuation after successful STT. The transition helper in `dictation.rs` re-checks the session while switching from `Transcribing` to `Processing`, then verifies again after showing the overlay and hides it immediately if a late cancel won the race.
 
+## Hold-mode activation identity
+
+The focused-window DOM path has one extra race that the native hook path does not naturally expose: `keydown` / `cancel` / `keyup` are sent to the backend as separate async commands. If a hold-mode session is cancelled and the user immediately starts a new hold-mode session, the late `keyup` from the old activation can arrive after the new recording has already started.
+
+That `keyup` must not be treated as "stop whatever is currently recording". Each DOM hold activation therefore gets its own monotonically increasing `activationId` in `DictationHotkeyFallback`, and both `dictation_shortcut_pressed` and `dictation_shortcut_released` carry that id into Rust.
+
+`dictation.rs` stores only the currently active DOM hold activation id. A `Released` event stops recording only when its `activationId` still matches the active recording. If the session was cancelled and restarted, the stale release is ignored.
+
+The same identity rule applies to the focused-window cancel hotkey. `dictation-session` now carries the active `sessionId`, and the DOM cancel path sends that id back with `cancel_dictation`. A late cancel from session A must not be allowed to cancel session B.
+
+If future work touches the dictation hotkey protocol, preserve this invariant: transport events from the focused DOM path are not ordered strongly enough to infer identity from timing alone.
+
+## Local cancellation vs remote cancellation
+
+Cancelling dictation now aborts the local async task that is waiting on STT/post-processing. This is intentionally stronger than the old "mark the session cancelled and ignore the result later" behavior, because otherwise a cancelled session can keep a live task around long enough to race with the next session's UI updates.
+
+This does **not** guarantee that the upstream AI provider stops processing the request. The local task is aborted, but the remote server may already have accepted the request and may continue its own work. The important application invariant is narrower: once the session is cancelled, the app must not keep waiting locally, must not transition the cancelled session into a new visible phase, and must not let stale completion handlers update overlay state for a later session.
+
+There is one more UI-side invariant here: `hide_recording_overlay` uses a delayed native window hide to avoid flicker during state transitions, so each hide request must be tied to an overlay visibility generation. Without that guard, a delayed hide from session A can physically hide the already visible overlay of session B even when the React state and dictation session state are both correct.
+
 ## Left/right modifier format
 
 Hotkey strings use an optional side prefix on each modifier token:

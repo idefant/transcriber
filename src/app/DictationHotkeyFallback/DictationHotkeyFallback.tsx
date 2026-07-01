@@ -9,17 +9,25 @@ import { useSettingsStore } from '#/stores';
 
 const DictationHotkeyFallback: FC = () => {
   const settings = useSettingsStore((s) => s.settings);
-  const isShortcutActiveRef = useRef(false);
   const isSessionActiveRef = useRef(false);
+  const currentSessionIdRef = useRef<number | null>(null);
+  const nextActivationIdRef = useRef(1);
+  const activeActivationIdRef = useRef<number | null>(null);
   const pressedModifierCodesRef = useRef(new Set<string>());
 
   // Track dictation session state to gate the cancel hotkey.
   // Cancel is only intercepted while a session is active; outside a session
   // Ctrl+Z (or any other cancel hotkey) passes through to the webview unchanged.
   useEffect(() => {
-    const unlistenPromise = listen<{ active: boolean }>('dictation-session', (event) => {
-      isSessionActiveRef.current = event.payload.active;
-    });
+    const unlistenPromise = listen<{ active: boolean; sessionId?: number | null }>(
+      'dictation-session',
+      (event) => {
+        isSessionActiveRef.current = event.payload.active;
+        currentSessionIdRef.current = event.payload.active
+          ? (event.payload.sessionId ?? null)
+          : null;
+      },
+    );
 
     return () => {
       void unlistenPromise.then((unlisten) => {
@@ -71,8 +79,10 @@ const DictationHotkeyFallback: FC = () => {
           return;
         }
 
-        isShortcutActiveRef.current = true;
-        void dictationApi.notifyDictationShortcutPressed();
+        const activationId = nextActivationIdRef.current;
+        nextActivationIdRef.current += 1;
+        activeActivationIdRef.current = activationId;
+        void dictationApi.notifyDictationShortcutPressed(activationId);
         return;
       }
 
@@ -84,7 +94,7 @@ const DictationHotkeyFallback: FC = () => {
       ) {
         event.preventDefault();
         event.stopPropagation();
-        void dictationApi.cancelDictation();
+        void dictationApi.cancelDictation(currentSessionIdRef.current);
         return;
       }
 
@@ -126,7 +136,9 @@ const DictationHotkeyFallback: FC = () => {
         return;
       }
 
-      if (!isShortcutActiveRef.current) {
+      const activationId = activeActivationIdRef.current;
+
+      if (activationId === null) {
         return;
       }
 
@@ -139,8 +151,8 @@ const DictationHotkeyFallback: FC = () => {
 
       event.preventDefault();
       event.stopPropagation();
-      isShortcutActiveRef.current = false;
-      void dictationApi.notifyDictationShortcutReleased();
+      activeActivationIdRef.current = null;
+      void dictationApi.notifyDictationShortcutReleased(activationId);
     };
 
     // Clear tracked modifier state when the window loses focus so stale entries

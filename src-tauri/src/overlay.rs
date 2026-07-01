@@ -1,6 +1,9 @@
 use std::{
     collections::HashSet,
-    sync::{Mutex, OnceLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex, OnceLock,
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -38,6 +41,8 @@ const OVERLAY_BOTTOM_OFFSET: f64 = 16.0;
 const HIDE_DELAY_MS: u64 = 250;
 const NOTICE_AUTO_HIDE_DELAY: Duration = Duration::from_secs(5);
 const NOTICE_LEAVE_HIDE_DELAY: Duration = Duration::from_secs(2);
+
+static OVERLAY_VISIBILITY_EPOCH: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct PhysicalFrame {
@@ -278,6 +283,7 @@ pub fn hide_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
         *current = None;
     }
 
+    let hide_epoch = OVERLAY_VISIBILITY_EPOCH.fetch_add(1, Ordering::Relaxed) + 1;
     clear_notice_auto_hide(app);
 
     let windows = overlay_windows(app);
@@ -290,6 +296,9 @@ pub fn hide_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
 
     thread::spawn(move || {
         thread::sleep(Duration::from_millis(HIDE_DELAY_MS));
+        if OVERLAY_VISIBILITY_EPOCH.load(Ordering::Relaxed) != hide_epoch {
+            return;
+        }
         for window in windows {
             let _ = window.hide();
         }
@@ -307,6 +316,8 @@ fn show_overlay_state(
     state: &'static str,
     record_id: Option<String>,
 ) -> AppResult<()> {
+    OVERLAY_VISIBILITY_EPOCH.fetch_add(1, Ordering::Relaxed);
+
     let app_settings = settings::load_app_settings(app)?;
     let variant = app_settings.overlay_variant().clone();
     let screen_mode = app_settings.overlay_screen_mode().clone();

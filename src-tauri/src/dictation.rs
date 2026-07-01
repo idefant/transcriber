@@ -3,6 +3,7 @@ use std::sync::{
     Mutex,
 };
 
+use serde::Deserialize;
 use serde::Serialize;
 use tauri::{Emitter, Manager};
 use uuid::Uuid;
@@ -21,7 +22,14 @@ use crate::{
 #[derive(Default)]
 pub struct DictationRuntime {
     session: Mutex<DictationSession>,
+    active_hold_activation_id: Mutex<Option<u64>>,
+    active_task: Mutex<Option<ActiveDictationTask>>,
     next_session_id: AtomicU64,
+}
+
+struct ActiveDictationTask {
+    session_id: u64,
+    handle: tauri::async_runtime::JoinHandle<()>,
 }
 
 #[derive(Default)]
@@ -38,9 +46,6 @@ enum DictationSession {
     Processing {
         id: u64,
     },
-    Cancelled {
-        id: u64,
-    },
 }
 
 #[derive(Clone, Serialize)]
@@ -53,6 +58,13 @@ struct DictationErrorPayload {
 #[serde(rename_all = "camelCase")]
 struct DictationSessionPayload {
     active: bool,
+    session_id: Option<u64>,
+}
+
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DictationShortcutPayload {
+    activation_id: u64,
 }
 
 /// Result of processing a recording, used to decide how the overlay ends.
@@ -94,10 +106,10 @@ pub fn handle_shortcut_event(app: &tauri::AppHandle, state: ShortcutState) {
 
     match (settings.trigger_mode(), state) {
         (TriggerMode::Hold, ShortcutState::Pressed) => {
-            start_dictation(app.clone());
+            start_dictation(app.clone(), None);
         }
         (TriggerMode::Hold, ShortcutState::Released) => {
-            stop_dictation(app.clone());
+            stop_dictation(app.clone(), None);
         }
         (TriggerMode::Press, ShortcutState::Pressed) => {
             toggle_dictation(app.clone());
@@ -107,7 +119,7 @@ pub fn handle_shortcut_event(app: &tauri::AppHandle, state: ShortcutState) {
 }
 
 pub fn handle_cancel_shortcut(app: &tauri::AppHandle) {
-    if let Err(error) = cancel_dictation_inner(app.clone()) {
+    if let Err(error) = cancel_dictation_inner(app.clone(), None) {
         emit_dictation_error(app, error.into_message());
     }
 }
@@ -139,18 +151,18 @@ pub fn handle_repeat_latest_shortcut(app: &tauri::AppHandle) {
 }
 
 #[tauri::command]
-pub fn cancel_dictation(app: tauri::AppHandle) -> Result<(), String> {
-    cancel_dictation_inner(app).map_err(AppError::into_message)
+pub fn cancel_dictation(app: tauri::AppHandle, session_id: Option<u64>) -> Result<(), String> {
+    cancel_dictation_inner(app, session_id).map_err(AppError::into_message)
 }
 
 #[tauri::command]
-pub fn dictation_shortcut_pressed(app: tauri::AppHandle) {
-    handle_shortcut_event(&app, ShortcutState::Pressed);
+pub fn dictation_shortcut_pressed(app: tauri::AppHandle, activation_id: u64) {
+    handle_dom_shortcut_pressed(&app, DictationShortcutPayload { activation_id });
 }
 
 #[tauri::command]
-pub fn dictation_shortcut_released(app: tauri::AppHandle) {
-    handle_shortcut_event(&app, ShortcutState::Released);
+pub fn dictation_shortcut_released(app: tauri::AppHandle, activation_id: u64) {
+    handle_dom_shortcut_released(&app, DictationShortcutPayload { activation_id });
 }
 
 #[tauri::command]
@@ -181,9 +193,30 @@ fn toggle_dictation(app: tauri::AppHandle) {
         .unwrap_or(false);
 
     if is_recording {
-        stop_dictation(app);
+        stop_dictation(app, None);
     } else {
-        start_dictation(app);
+        start_dictation(app, None);
+    }
+}
+
+fn handle_dom_shortcut_pressed(app: &tauri::AppHandle, payload: DictationShortcutPayload) {
+    let Ok(settings) = settings::load_app_settings(app) else {
+        return;
+    };
+
+    match settings.trigger_mode() {
+        TriggerMode::Hold => start_dictation(app.clone(), Some(payload.activation_id)),
+        TriggerMode::Press => toggle_dictation(app.clone()),
+    }
+}
+
+fn handle_dom_shortcut_released(app: &tauri::AppHandle, payload: DictationShortcutPayload) {
+    let Ok(settings) = settings::load_app_settings(app) else {
+        return;
+    };
+
+    if matches!(settings.trigger_mode(), TriggerMode::Hold) {
+        stop_dictation(app.clone(), Some(payload.activation_id));
     }
 }
 
@@ -220,24 +253,21 @@ pub fn copy_latest_history_text_to_clipboard(app: &tauri::AppHandle) -> AppResul
     keyboard::copy_text(&text)
 }
 
-fn start_dictation(app: tauri::AppHandle) {
-    if let Err(error) = start_dictation_inner(&app) {
+fn start_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
+    if let Err(error) = start_dictation_inner(&app, activation_id) {
         emit_dictation_error(&app, error.into_message());
         let _ = overlay::hide_recording_overlay(&app);
     }
 }
 
-fn start_dictation_inner(app: &tauri::AppHandle) -> AppResult<()> {
+fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> AppResult<()> {
     let runtime = app.state::<DictationRuntime>();
     let mut session = runtime
         .session
         .lock()
         .map_err(|_| AppError::from("Could not lock dictation state"))?;
 
-    if !matches!(
-        *session,
-        DictationSession::Idle | DictationSession::Cancelled { .. }
-    ) {
+    if !matches!(*session, DictationSession::Idle) {
         return Ok(());
     }
 
@@ -247,6 +277,9 @@ fn start_dictation_inner(app: &tauri::AppHandle) -> AppResult<()> {
     let id = runtime.next_session_id.fetch_add(1, Ordering::Relaxed) + 1;
 
     *session = DictationSession::Recording { id, recording };
+    drop(session);
+
+    set_active_hold_activation_id(app, activation_id);
 
     // Arm the cancel hotkey for the duration of this session. A missing or
     // empty cancel hotkey silently disarms the hook (no key is consumed).
@@ -257,7 +290,7 @@ fn start_dictation_inner(app: &tauri::AppHandle) -> AppResult<()> {
     }
 
     // Notify the frontend that a session is now active (used to gate in-app cancel hotkey).
-    emit_dictation_session(app, true);
+    emit_dictation_session(app, true, Some(id));
 
     Ok(())
 }
@@ -267,7 +300,12 @@ async fn repeat_latest_history_record_inner(app: tauri::AppHandle) -> AppResult<
         return Ok(());
     };
 
-    tauri::async_runtime::spawn(process_repeat_latest_history_record(app, id, record_id));
+    let handle = tauri::async_runtime::spawn(process_repeat_latest_history_record(
+        app.clone(),
+        id,
+        record_id,
+    ));
+    register_active_task(&app, id, handle);
 
     Ok(())
 }
@@ -298,13 +336,14 @@ fn begin_repeat_latest_history_record(app: &tauri::AppHandle) -> AppResult<Optio
         }
     }
 
-    emit_dictation_session(app, true);
+    clear_active_hold_activation_id(app);
+    emit_dictation_session(app, true, Some(id));
 
     Ok(Some((id, record_id)))
 }
 
-fn stop_dictation(app: tauri::AppHandle) {
-    let (id, recording) = match take_recording(&app) {
+fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
+    let (id, recording) = match take_recording(&app, activation_id) {
         Ok(Some((id, recording))) => (id, recording),
         Ok(None) => return,
         Err(error) => {
@@ -318,21 +357,33 @@ fn stop_dictation(app: tauri::AppHandle) {
     let audio = match recording.stop() {
         Ok(audio) => audio,
         Err(error) => {
-            reset_session(&app, id, true);
+            let _ = reset_session(&app, id, true);
             emit_dictation_error(&app, error.into_message());
             return;
         }
     };
 
-    tauri::async_runtime::spawn(process_recording(app, id, audio));
+    let handle = tauri::async_runtime::spawn(process_recording(app.clone(), id, audio));
+    register_active_task(&app, id, handle);
 }
 
-fn take_recording(app: &tauri::AppHandle) -> AppResult<Option<(u64, AudioRecording)>> {
+fn take_recording(
+    app: &tauri::AppHandle,
+    activation_id: Option<u64>,
+) -> AppResult<Option<(u64, AudioRecording)>> {
     let runtime = app.state::<DictationRuntime>();
     let mut session = runtime
         .session
         .lock()
         .map_err(|_| AppError::from("Could not lock dictation state"))?;
+    let mut active_hold_activation_id = runtime
+        .active_hold_activation_id
+        .lock()
+        .map_err(|_| AppError::from("Could not lock active hold shortcut state"))?;
+
+    if activation_id.is_some() && *active_hold_activation_id != activation_id {
+        return Ok(None);
+    }
 
     // Guard before replace: std::mem::replace writes Idle unconditionally, so we
     // must confirm the state is Recording before calling it, otherwise a spurious
@@ -349,64 +400,73 @@ fn take_recording(app: &tauri::AppHandle) -> AppResult<Option<(u64, AudioRecordi
     };
 
     *session = DictationSession::Transcribing { id };
+    *active_hold_activation_id = None;
 
     Ok(Some((id, recording)))
 }
 
 async fn process_recording(app: tauri::AppHandle, id: u64, audio: RecordedAudio) {
     let outcome = process_recording_inner(&app, id, audio).await;
+    clear_active_task(&app, id);
 
     // A cancelled or superseded session has already hidden its overlay via
     // cancel_dictation_inner; just make sure the session state is reset.
     if !is_current_session(&app, id) {
-        reset_session(&app, id, true);
+        let _ = reset_session(&app, id, true);
         return;
     }
 
     match outcome {
         Ok(DictationOutcome::Completed) => {
-            reset_session(&app, id, true);
+            let _ = reset_session(&app, id, true);
         }
         Ok(DictationOutcome::SttError { record_id }) => {
-            reset_session(&app, id, false);
-            let _ = overlay::show_error_overlay(&app, record_id);
+            if reset_session(&app, id, false) {
+                let _ = overlay::show_error_overlay(&app, record_id);
+            }
         }
         Ok(DictationOutcome::PostProcessError { record_id }) => {
-            reset_session(&app, id, false);
-            let _ = overlay::show_warning_overlay(&app, Some(record_id));
+            if reset_session(&app, id, false) {
+                let _ = overlay::show_warning_overlay(&app, Some(record_id));
+            }
         }
         Err(error) => {
             emit_dictation_error(&app, error.into_message());
-            reset_session(&app, id, false);
-            let _ = overlay::show_error_overlay(&app, None);
+            if reset_session(&app, id, false) {
+                let _ = overlay::show_error_overlay(&app, None);
+            }
         }
     }
 }
 
 async fn process_repeat_latest_history_record(app: tauri::AppHandle, id: u64, record_id: String) {
     let outcome = process_repeat_latest_history_record_inner(&app, id, &record_id).await;
+    clear_active_task(&app, id);
 
     if !is_current_session(&app, id) {
-        reset_session(&app, id, true);
+        let _ = reset_session(&app, id, true);
         return;
     }
 
     match outcome {
         Ok(DictationOutcome::Completed) => {
-            reset_session(&app, id, true);
+            let _ = reset_session(&app, id, true);
         }
         Ok(DictationOutcome::SttError { record_id }) => {
-            reset_session(&app, id, false);
-            let _ = overlay::show_error_overlay(&app, record_id);
+            if reset_session(&app, id, false) {
+                let _ = overlay::show_error_overlay(&app, record_id);
+            }
         }
         Ok(DictationOutcome::PostProcessError { record_id }) => {
-            reset_session(&app, id, false);
-            let _ = overlay::show_warning_overlay(&app, Some(record_id));
+            if reset_session(&app, id, false) {
+                let _ = overlay::show_warning_overlay(&app, Some(record_id));
+            }
         }
         Err(error) => {
             emit_dictation_error(&app, error.into_message());
-            reset_session(&app, id, false);
-            let _ = overlay::show_error_overlay(&app, Some(record_id));
+            if reset_session(&app, id, false) {
+                let _ = overlay::show_error_overlay(&app, Some(record_id));
+            }
         }
     }
 }
@@ -659,46 +719,61 @@ fn is_session_idle(app: &tauri::AppHandle) -> bool {
 /// Reset a finished session to idle. The overlay is hidden only when
 /// `hide_overlay` is set — the error/warning notifications keep it visible and
 /// manage their own dismissal instead.
-fn reset_session(app: &tauri::AppHandle, id: u64, hide_overlay: bool) {
+fn reset_session(app: &tauri::AppHandle, id: u64, hide_overlay: bool) -> bool {
     if let Ok(mut session) = app.state::<DictationRuntime>().session.lock() {
         if matches!(
             *session,
             DictationSession::Transcribing { id: current }
                 | DictationSession::Processing { id: current }
-                | DictationSession::Cancelled { id: current }
                 if current == id
         ) {
             *session = DictationSession::Idle;
+            clear_active_task(app, id);
+            clear_active_hold_activation_id(app);
             shortcut_hook::disarm_cancel_hotkey();
-            emit_dictation_session(app, false);
+            emit_dictation_session(app, false, None);
             if hide_overlay {
                 let _ = overlay::hide_recording_overlay(app);
             }
+
+            return true;
         }
     }
+
+    false
 }
 
-fn cancel_dictation_inner(app: tauri::AppHandle) -> AppResult<()> {
+fn cancel_dictation_inner(
+    app: tauri::AppHandle,
+    expected_session_id: Option<u64>,
+) -> AppResult<()> {
     let runtime = app.state::<DictationRuntime>();
     let mut session = runtime
         .session
         .lock()
         .map_err(|_| AppError::from("Could not lock dictation state"))?;
 
-    match std::mem::replace(&mut *session, DictationSession::Idle) {
-        DictationSession::Idle | DictationSession::Cancelled { .. } => {}
-        DictationSession::Recording { .. } => {
-            shortcut_hook::disarm_cancel_hotkey();
-            emit_dictation_session(&app, false);
-            let _ = overlay::hide_recording_overlay(&app);
-        }
-        DictationSession::Transcribing { id } | DictationSession::Processing { id } => {
-            *session = DictationSession::Cancelled { id };
-            shortcut_hook::disarm_cancel_hotkey();
-            emit_dictation_session(&app, false);
-            let _ = overlay::hide_recording_overlay(&app);
-        }
+    if expected_session_id
+        .is_some_and(|expected_id| current_session_id(&session) != Some(expected_id))
+    {
+        return Ok(());
     }
+
+    let cancelled_task_id = match std::mem::replace(&mut *session, DictationSession::Idle) {
+        DictationSession::Idle => None,
+        DictationSession::Recording { .. } => None,
+        DictationSession::Transcribing { id } | DictationSession::Processing { id } => Some(id),
+    };
+    drop(session);
+
+    if let Some(id) = cancelled_task_id {
+        abort_active_task(&app, id);
+    }
+
+    clear_active_hold_activation_id(&app);
+    shortcut_hook::disarm_cancel_hotkey();
+    emit_dictation_session(&app, false, None);
+    let _ = overlay::hide_recording_overlay(&app);
 
     Ok(())
 }
@@ -707,8 +782,71 @@ fn emit_dictation_error(app: &tauri::AppHandle, message: String) {
     let _ = app.emit("dictation-error", DictationErrorPayload { message });
 }
 
-fn emit_dictation_session(app: &tauri::AppHandle, active: bool) {
-    let _ = app.emit("dictation-session", DictationSessionPayload { active });
+fn emit_dictation_session(app: &tauri::AppHandle, active: bool, session_id: Option<u64>) {
+    let _ = app.emit(
+        "dictation-session",
+        DictationSessionPayload { active, session_id },
+    );
+}
+
+fn current_session_id(session: &DictationSession) -> Option<u64> {
+    match session {
+        DictationSession::Idle => None,
+        DictationSession::Recording { id, .. }
+        | DictationSession::Transcribing { id }
+        | DictationSession::Processing { id } => Some(*id),
+    }
+}
+
+fn set_active_hold_activation_id(app: &tauri::AppHandle, activation_id: Option<u64>) {
+    if let Ok(mut active_hold_activation_id) = app
+        .state::<DictationRuntime>()
+        .active_hold_activation_id
+        .lock()
+    {
+        *active_hold_activation_id = activation_id;
+    }
+}
+
+fn clear_active_hold_activation_id(app: &tauri::AppHandle) {
+    set_active_hold_activation_id(app, None);
+}
+
+fn register_active_task(
+    app: &tauri::AppHandle,
+    session_id: u64,
+    handle: tauri::async_runtime::JoinHandle<()>,
+) {
+    if let Ok(mut active_task) = app.state::<DictationRuntime>().active_task.lock() {
+        if let Some(previous_task) = active_task.replace(ActiveDictationTask { session_id, handle })
+        {
+            previous_task.handle.abort();
+        }
+    }
+}
+
+fn clear_active_task(app: &tauri::AppHandle, session_id: u64) {
+    if let Ok(mut active_task) = app.state::<DictationRuntime>().active_task.lock() {
+        if active_task
+            .as_ref()
+            .is_some_and(|task| task.session_id == session_id)
+        {
+            active_task.take();
+        }
+    }
+}
+
+fn abort_active_task(app: &tauri::AppHandle, session_id: u64) {
+    if let Ok(mut active_task) = app.state::<DictationRuntime>().active_task.lock() {
+        if active_task
+            .as_ref()
+            .is_some_and(|task| task.session_id == session_id)
+        {
+            if let Some(task) = active_task.take() {
+                task.handle.abort();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -721,14 +859,6 @@ mod tests {
 
         assert!(try_enter_processing(&mut session, 7));
         assert!(matches!(session, DictationSession::Processing { id: 7 }));
-    }
-
-    #[test]
-    fn try_enter_processing_ignores_cancelled_session() {
-        let mut session = DictationSession::Cancelled { id: 7 };
-
-        assert!(!try_enter_processing(&mut session, 7));
-        assert!(matches!(session, DictationSession::Cancelled { id: 7 }));
     }
 
     #[test]
