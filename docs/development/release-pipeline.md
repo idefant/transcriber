@@ -34,7 +34,8 @@ Steps:
 6. `npm ci` installs frontend dependencies.
 7. `tauri-apps/tauri-action@v0` builds the NSIS installer, signs the update artifact, creates the GitHub Release, and attaches `latest.json` (the Tauri updater manifest).
 8. `gh release download` fetches the built `latest.json`.
-9. The manifest is copied to `unstable.json` unconditionally, and to `stable.json` only for non-pre-release tags, then pushed to the `gh-pages` branch.
+9. The manifest is copied to `unstable.json` unconditionally, and to `stable.json` only for non-pre-release tags, then committed to the `gh-pages` branch.
+10. The workflow uploads those JSON files as a GitHub Pages artifact and deploys them with `actions/deploy-pages`.
 
 Required secrets: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 
@@ -47,7 +48,7 @@ Two JSON files on GitHub Pages serve as update manifests:
 | `stable.json`   | Non-pre-release tags only | Default; `isOfferUnstableVersionsEnabled` is false |
 | `unstable.json` | Every tag                 | `isOfferUnstableVersionsEnabled` is true           |
 
-Both files live on the `gh-pages` branch of the repository. GitHub Pages must be enabled for the repository (source: `gh-pages` branch, root directory).
+Both files live on the `gh-pages` branch of the repository and are also deployed to GitHub Pages by the release workflow. GitHub Pages must be enabled for the repository with source set to `GitHub Actions` rather than `Deploy from a branch`.
 
 ## Signing Keys
 

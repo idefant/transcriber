@@ -101,6 +101,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          PAGES_DIR=/tmp/pages-site
 
           # The version-sync and build steps leave the working tree dirty
           # (package.json, Cargo.toml, Cargo.lock, tauri.conf.json). Discard those
@@ -124,7 +125,34 @@ jobs:
             cp /tmp/updater-manifest/latest.json stable.json
           fi
 
+          rm -rf "$PAGES_DIR"
+          mkdir -p "$PAGES_DIR"
+          cp unstable.json "$PAGES_DIR/unstable.json"
+          if [ -f stable.json ]; then
+            cp stable.json "$PAGES_DIR/stable.json"
+          fi
+          touch "$PAGES_DIR/.nojekyll"
+
           git add unstable.json
           git add stable.json 2>/dev/null || true  # stable.json may not exist yet for first prerelease
           git diff --cached --quiet || git commit -m "Update channel manifests for ${{ steps.version.outputs.tag }}"
           git push origin gh-pages
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: /tmp/pages-site
+
+  deploy-pages:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
