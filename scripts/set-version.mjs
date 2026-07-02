@@ -52,15 +52,16 @@ const packageSection =
   packageSectionEnd === -1 ? cargoContent : cargoContent.slice(0, packageSectionEnd);
 const rest = packageSectionEnd === -1 ? '' : cargoContent.slice(packageSectionEnd);
 
-const updatedPackageSection = packageSection.replace(
-  /^version\s*=\s*"[^"]*"/m,
-  `version = "${version}"`,
-);
-
-if (updatedPackageSection === packageSection) {
+const packageVersionPattern = /^version\s*=\s*"[^"]*"/m;
+if (!packageVersionPattern.test(packageSection)) {
   console.error('Cargo.toml: could not find `version = "..."` in [package] section.');
   process.exit(1);
 }
+
+const updatedPackageSection = packageSection.replace(
+  packageVersionPattern,
+  `version = "${version}"`,
+);
 
 fs.writeFileSync(cargoPath, updatedPackageSection + rest, 'utf8');
 console.log(`Cargo.toml            → ${version}`);
