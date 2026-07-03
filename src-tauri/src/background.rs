@@ -13,9 +13,7 @@ use crate::{
     autostart::HIDDEN_START_ARG,
     dictation,
     error::{AppError, AppResult},
-    history,
-    settings::{self, EffectiveUiLanguage},
-    shortcut_hook,
+    history, i18n, shortcut_hook,
 };
 
 const MAIN_WINDOW_LABEL: &str = "main";
@@ -82,12 +80,14 @@ fn setup_main_window_event_handlers(app: &tauri::AppHandle) -> AppResult<()> {
 }
 
 fn setup_tray(app: &tauri::AppHandle) -> AppResult<()> {
-    let labels = tray_labels(settings::get_effective_ui_language(app)?);
-    let open_item = MenuItemBuilder::with_id(MENU_OPEN_ID, labels.open).build(app)?;
-    let copy_latest_item = MenuItemBuilder::with_id(MENU_COPY_LATEST_ID, labels.copy_latest)
-        .enabled(false)
-        .build(app)?;
-    let exit_item = MenuItemBuilder::with_id(MENU_EXIT_ID, labels.exit).build(app)?;
+    let open_item =
+        MenuItemBuilder::with_id(MENU_OPEN_ID, i18n::text(app, "tray-open")).build(app)?;
+    let copy_latest_item =
+        MenuItemBuilder::with_id(MENU_COPY_LATEST_ID, i18n::text(app, "tray-copy-latest"))
+            .enabled(false)
+            .build(app)?;
+    let exit_item =
+        MenuItemBuilder::with_id(MENU_EXIT_ID, i18n::text(app, "tray-exit")).build(app)?;
     let menu = MenuBuilder::new(app)
         .items(&[&open_item, &copy_latest_item])
         .separator()
@@ -97,7 +97,7 @@ fn setup_tray(app: &tauri::AppHandle) -> AppResult<()> {
     app.state::<BackgroundRuntime>()
         .copy_latest_item
         .lock()
-        .map_err(|_| AppError::from("Could not lock tray state"))?
+        .map_err(|_| AppError::from(i18n::text(app, "tray-state-lock-failed")))?
         .replace(copy_latest_item);
 
     let app_handle = app.clone();
@@ -107,7 +107,7 @@ fn setup_tray(app: &tauri::AppHandle) -> AppResult<()> {
         .icon(
             app.default_window_icon()
                 .cloned()
-                .ok_or("Tray icon was not found")?,
+                .ok_or_else(|| i18n::text(app, "tray-icon-not-found"))?,
         )
         .menu(&menu)
         .show_menu_on_left_click(false)
@@ -175,26 +175,5 @@ pub(crate) fn show_main_window(app: &tauri::AppHandle) -> AppResult<()> {
 
 fn main_window(app: &tauri::AppHandle) -> AppResult<WebviewWindow> {
     app.get_webview_window(MAIN_WINDOW_LABEL)
-        .ok_or_else(|| "Main window was not found".into())
-}
-
-struct TrayLabels {
-    open: &'static str,
-    copy_latest: &'static str,
-    exit: &'static str,
-}
-
-fn tray_labels(language: EffectiveUiLanguage) -> TrayLabels {
-    match language {
-        EffectiveUiLanguage::Ru => TrayLabels {
-            open: "Открыть приложение",
-            copy_latest: "Скопировать последнюю расшифровку",
-            exit: "Выход",
-        },
-        EffectiveUiLanguage::En => TrayLabels {
-            open: "Open application",
-            copy_latest: "Copy latest transcription",
-            exit: "Exit",
-        },
-    }
+        .ok_or_else(|| i18n::text(app, "main-window-not-found").into())
 }

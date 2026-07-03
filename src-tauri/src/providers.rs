@@ -10,7 +10,8 @@ use uuid::Uuid;
 
 use crate::{
     error::{AppError, AppResult},
-    i18n::{self, ConfigErrorText},
+    i18n,
+    settings::EffectiveUiLanguage,
     storage,
 };
 
@@ -173,7 +174,11 @@ pub async fn validate_provider_config(
     match request_provider_models(&app, input).await {
         Ok(models) => Ok(ProviderValidationResult {
             ok: true,
-            message: format!("Configuration is valid. Models found: {}.", models.len()),
+            message: i18n::text_with(
+                &app,
+                "provider-validation-success",
+                &[("count", models.len().to_string())],
+            ),
         }),
         Err(error) => Ok(ProviderValidationResult {
             ok: false,
@@ -205,7 +210,7 @@ fn create_provider_inner(
 ) -> AppResult<ProviderConfig> {
     let mut providers = load_providers(app)?;
     let now = Utc::now().to_rfc3339();
-    let api_key = normalize_required_string(input.api_key, "API key")?;
+    let api_key = normalize_required_string(app, input.api_key, "API key")?;
     let provider = StoredProvider {
         id: Uuid::new_v4().to_string(),
         name: normalize_optional_string(input.name)
@@ -235,7 +240,7 @@ fn update_provider_inner(
     let provider = providers
         .iter_mut()
         .find(|provider| provider.id == provider_id)
-        .ok_or("Provider was not found")?;
+        .ok_or_else(|| i18n::text(app, "config-error-provider-not-found"))?;
 
     provider.name = normalize_optional_string(input.name)
         .unwrap_or_else(|| input.provider.default_name().to_string());
@@ -266,6 +271,7 @@ async fn request_provider_models(
     app: &tauri::AppHandle,
     input: ProviderConnectionInput,
 ) -> AppResult<Vec<ModelInfo>> {
+    let language = crate::settings::get_effective_ui_language(app).unwrap_or_default();
     let stored_provider = match &input.provider_id {
         Some(provider_id) => load_providers(app)?
             .into_iter()
@@ -278,7 +284,7 @@ async fn request_provider_models(
                 .as_ref()
                 .map(|provider| provider.api_key.clone())
         })
-        .ok_or("API key is required")?;
+        .ok_or_else(|| i18n::text_for_language(language, "validation-api-key-required", &[]))?;
     let should_use_advanced_settings = matches!(input.provider, ProviderKind::Custom)
         || input
             .use_advanced_settings
@@ -292,11 +298,13 @@ async fn request_provider_models(
         &input,
         stored_provider.as_ref(),
         should_use_advanced_settings,
+        language,
     )?;
     let headers = resolve_headers(
         &input,
         stored_provider.as_ref(),
         should_use_advanced_settings,
+        language,
     )?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
@@ -312,14 +320,18 @@ async fn request_provider_models(
     let status = response.status();
 
     if !status.is_success() {
-        return Err(format_request_error(status, response).await.into());
+        return Err(format_request_error(language, status, response)
+            .await
+            .into());
     }
 
     let value = response.json::<serde_json::Value>().await?;
     let data = value
         .get("data")
         .and_then(serde_json::Value::as_array)
-        .ok_or("Provider returned an unsupported models response.")?;
+        .ok_or_else(|| {
+            i18n::text_for_language(language, "provider-response-unsupported-models", &[])
+        })?;
     let models = data
         .iter()
         .filter_map(|item| {
@@ -343,45 +355,66 @@ async fn request_provider_models(
     Ok(models)
 }
 
-async fn format_request_error(status: StatusCode, response: reqwest::Response) -> String {
+async fn format_request_error(
+    language: EffectiveUiLanguage,
+    status: StatusCode,
+    response: reqwest::Response,
+) -> String {
     let body = response.text().await.unwrap_or_default();
 
     if body.trim().is_empty() {
-        return format!("Provider request failed with status {status}.");
+        return i18n::text_for_language(
+            language,
+            "provider-request-failed",
+            &[("status", status.to_string())],
+        );
     }
 
-    format!("Provider request failed with status {status}: {body}")
+    i18n::text_for_language(
+        language,
+        "provider-request-failed-with-body",
+        &[("status", status.to_string()), ("body", body)],
+    )
 }
 
 fn resolve_base_url(
     input: &ProviderConnectionInput,
     stored_provider: Option<&StoredProvider>,
     should_use_advanced_settings: bool,
+    language: EffectiveUiLanguage,
 ) -> AppResult<String> {
     if matches!(input.provider, ProviderKind::Custom) {
         return normalize_optional_string(input.base_url.clone())
             .or_else(|| stored_provider.and_then(|provider| provider.base_url.clone()))
-            .ok_or_else(|| "URL is required for custom provider".into());
+            .ok_or_else(|| {
+                i18n::text_for_language(language, "config-error-custom-provider-url-required", &[])
+                    .into()
+            });
     }
 
     if should_use_advanced_settings {
         return normalize_optional_string(input.base_url.clone())
             .or_else(|| stored_provider.and_then(|provider| provider.base_url.clone()))
             .or_else(|| input.provider.default_base_url().map(ToString::to_string))
-            .ok_or_else(|| "Provider URL was not found".into());
+            .ok_or_else(|| {
+                i18n::text_for_language(language, "config-error-provider-url-not-found", &[]).into()
+            });
     }
 
     input
         .provider
         .default_base_url()
         .map(ToString::to_string)
-        .ok_or_else(|| "Provider URL was not found".into())
+        .ok_or_else(|| {
+            i18n::text_for_language(language, "config-error-provider-url-not-found", &[]).into()
+        })
 }
 
 fn resolve_headers(
     input: &ProviderConnectionInput,
     stored_provider: Option<&StoredProvider>,
     should_use_advanced_settings: bool,
+    language: EffectiveUiLanguage,
 ) -> AppResult<HeaderMap> {
     if !should_use_advanced_settings {
         return Ok(HeaderMap::new());
@@ -390,10 +423,10 @@ fn resolve_headers(
     let headers = normalize_optional_string(input.headers.clone())
         .or_else(|| stored_provider.and_then(|provider| provider.headers.clone()));
 
-    parse_headers(&headers)
+    parse_headers(language, &headers)
 }
 
-fn parse_headers(headers: &Option<String>) -> AppResult<HeaderMap> {
+fn parse_headers(language: EffectiveUiLanguage, headers: &Option<String>) -> AppResult<HeaderMap> {
     let mut header_map = HeaderMap::new();
 
     for line in headers.as_deref().unwrap_or("").lines() {
@@ -403,13 +436,33 @@ fn parse_headers(headers: &Option<String>) -> AppResult<HeaderMap> {
             continue;
         }
 
-        let (name, value) = line
-            .split_once(':')
-            .ok_or_else(|| format!("Header must use `Name: value` format: {line}"))?;
-        let header_name = HeaderName::from_bytes(name.trim().as_bytes())
-            .map_err(|error| format!("Invalid header name `{}`: {}", name.trim(), error))?;
-        let header_value = HeaderValue::from_str(value.trim())
-            .map_err(|error| format!("Invalid header value for `{}`: {}", name.trim(), error))?;
+        let (name, value) = line.split_once(':').ok_or_else(|| {
+            i18n::text_for_language(
+                language,
+                "header-format-invalid",
+                &[("line", line.to_string())],
+            )
+        })?;
+        let header_name = HeaderName::from_bytes(name.trim().as_bytes()).map_err(|error| {
+            i18n::text_for_language(
+                language,
+                "header-name-invalid",
+                &[
+                    ("name", name.trim().to_string()),
+                    ("error", error.to_string()),
+                ],
+            )
+        })?;
+        let header_value = HeaderValue::from_str(value.trim()).map_err(|error| {
+            i18n::text_for_language(
+                language,
+                "header-value-invalid",
+                &[
+                    ("name", name.trim().to_string()),
+                    ("error", error.to_string()),
+                ],
+            )
+        })?;
 
         header_map.insert(header_name, header_value);
     }
@@ -433,13 +486,13 @@ pub fn resolve_provider_credentials(
     let provider = providers
         .into_iter()
         .find(|p| p.id == provider_id)
-        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ProviderNotFound))?;
+        .ok_or_else(|| i18n::text(app, "config-error-provider-not-found"))?;
 
     let use_advanced = provider.effective_use_advanced_settings();
 
     let base_url = if matches!(provider.provider, ProviderKind::Custom) {
         normalize_optional_string(provider.base_url.clone())
-            .ok_or_else(|| i18n::config_error(app, ConfigErrorText::CustomProviderUrlRequired))?
+            .ok_or_else(|| i18n::text(app, "config-error-custom-provider-url-required"))?
     } else if use_advanced {
         normalize_optional_string(provider.base_url.clone())
             .or_else(|| {
@@ -448,17 +501,20 @@ pub fn resolve_provider_credentials(
                     .default_base_url()
                     .map(ToString::to_string)
             })
-            .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ProviderUrlNotFound))?
+            .ok_or_else(|| i18n::text(app, "config-error-provider-url-not-found"))?
     } else {
         provider
             .provider
             .default_base_url()
             .map(ToString::to_string)
-            .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ProviderUrlNotFound))?
+            .ok_or_else(|| i18n::text(app, "config-error-provider-url-not-found"))?
     };
 
     let headers = if use_advanced {
-        parse_headers(&provider.headers)?
+        parse_headers(
+            crate::settings::get_effective_ui_language(app).unwrap_or_default(),
+            &provider.headers,
+        )?
     } else {
         reqwest::header::HeaderMap::new()
     };
@@ -478,7 +534,7 @@ pub fn resolve_provider_api_key(app: &tauri::AppHandle, provider_id: &str) -> Ap
         .find(|provider| provider.id == provider_id)
         .map(|provider| provider.api_key)
         .filter(|api_key| !api_key.trim().is_empty())
-        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ProviderApiKeyNotFound).into())
+        .ok_or_else(|| i18n::text(app, "config-error-provider-api-key-not-found").into())
 }
 
 pub fn find_provider_kind(
@@ -499,8 +555,19 @@ fn save_providers(app: &tauri::AppHandle, providers: &[StoredProvider]) -> AppRe
     storage::save_json(app, PROVIDERS_FILE_NAME, providers)
 }
 
-fn normalize_required_string(value: Option<String>, field_name: &str) -> AppResult<String> {
-    normalize_optional_string(value).ok_or_else(|| format!("{field_name} is required").into())
+fn normalize_required_string(
+    app: &tauri::AppHandle,
+    value: Option<String>,
+    field_name: &str,
+) -> AppResult<String> {
+    normalize_optional_string(value).ok_or_else(|| {
+        i18n::text_with(
+            app,
+            "validation-field-required",
+            &[("field", field_name.to_string())],
+        )
+        .into()
+    })
 }
 
 fn normalize_optional_string(value: Option<String>) -> Option<String> {
@@ -543,9 +610,10 @@ mod tests {
 
     #[test]
     fn parses_headers() {
-        let headers = parse_headers(&Some(
-            "X-Title: Transcriber\n\nHTTP-Referer: https://example.com".to_string(),
-        ))
+        let headers = parse_headers(
+            EffectiveUiLanguage::En,
+            &Some("X-Title: Transcriber\n\nHTTP-Referer: https://example.com".to_string()),
+        )
         .expect("headers should parse");
 
         assert_eq!(
@@ -560,7 +628,7 @@ mod tests {
 
     #[test]
     fn rejects_headers_without_colon() {
-        let error = parse_headers(&Some("Broken".to_string()))
+        let error = parse_headers(EffectiveUiLanguage::En, &Some("Broken".to_string()))
             .expect_err("header without colon should fail");
 
         assert_eq!(
@@ -574,7 +642,8 @@ mod tests {
         let input = provider_connection_input(ProviderKind::Openai);
 
         assert_eq!(
-            resolve_base_url(&input, None, false).expect("base url should resolve"),
+            resolve_base_url(&input, None, false, EffectiveUiLanguage::En)
+                .expect("base url should resolve"),
             "https://api.openai.com/v1"
         );
     }
@@ -585,7 +654,8 @@ mod tests {
         input.base_url = Some(" https://example.com/v1 ".to_string());
 
         assert_eq!(
-            resolve_base_url(&input, None, true).expect("base url should resolve"),
+            resolve_base_url(&input, None, true, EffectiveUiLanguage::En)
+                .expect("base url should resolve"),
             "https://example.com/v1"
         );
     }
@@ -596,8 +666,13 @@ mod tests {
         let stored_provider = stored_provider_with_base_url("https://proxy.example.com/v1");
 
         assert_eq!(
-            resolve_base_url(&input, Some(&stored_provider), true)
-                .expect("base url should resolve"),
+            resolve_base_url(
+                &input,
+                Some(&stored_provider),
+                true,
+                EffectiveUiLanguage::En
+            )
+            .expect("base url should resolve"),
             "https://proxy.example.com/v1"
         );
     }

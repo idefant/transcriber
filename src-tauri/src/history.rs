@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::{
     debug_log::{self, ModelRunLogContext, ModelRunSource},
     error::{AppError, AppResult},
+    i18n,
     processing::load_processing_config,
     recording::RecordedAudio,
     runner::{
@@ -389,7 +390,7 @@ fn delete_history_record_inner(app: &tauri::AppHandle, record_id: &str) -> AppRe
         .iter()
         .find(|record| record.id == record_id)
         .cloned()
-        .ok_or("History record was not found")?;
+        .ok_or_else(|| i18n::text(app, "history-record-not-found"))?;
 
     store.records.retain(|record| record.id != record_id);
     save_history_store(app, &store)?;
@@ -410,7 +411,7 @@ fn open_history_audio_inner(app: &tauri::AppHandle, record_id: &str) -> AppResul
     let path = PathBuf::from(record.audio.path);
 
     if !path.exists() {
-        return Err("Audio file was not found".into());
+        return Err(i18n::text(app, "history-audio-file-not-found").into());
     }
 
     #[cfg(target_os = "windows")]
@@ -422,7 +423,13 @@ fn open_history_audio_inner(app: &tauri::AppHandle, record_id: &str) -> AppResul
         Command::new("explorer.exe")
             .raw_arg(format!("/select,\"{}\"", absolute_path.to_string_lossy()))
             .spawn()
-            .map_err(|error| AppError::from(format!("Could not open File Explorer: {error}")))?;
+            .map_err(|error| {
+                AppError::from(i18n::text_with(
+                    app,
+                    "history-open-file-explorer-failed",
+                    &[("error", error.to_string())],
+                ))
+            })?;
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -430,7 +437,13 @@ fn open_history_audio_inner(app: &tauri::AppHandle, record_id: &str) -> AppResul
         Command::new("xdg-open")
             .arg(path.parent().unwrap_or(&path))
             .spawn()
-            .map_err(|error| AppError::from(format!("Could not open audio location: {error}")))?;
+            .map_err(|error| {
+                AppError::from(i18n::text_with(
+                    app,
+                    "history-open-audio-location-failed",
+                    &[("error", error.to_string())],
+                ))
+            })?;
     }
 
     Ok(())
@@ -441,7 +454,7 @@ async fn repeat_history_transcription_inner(
     record_id: &str,
 ) -> AppResult<HistoryRecord> {
     let mut store = load_history_store(app)?;
-    let index = find_record_index(&store.records, record_id)?;
+    let index = find_record_index(app, &store.records, record_id)?;
     let audio_path = store.records[index].audio.path.clone();
     let audio_duration_ms = store.records[index].audio.duration_ms;
     let created_at = store.records[index].created_at.clone();
@@ -483,7 +496,7 @@ async fn repeat_history_transcription_inner(
     .await;
 
     let mut store = load_history_store(app)?;
-    let index = find_record_index(&store.records, record_id)?;
+    let index = find_record_index(app, &store.records, record_id)?;
 
     match result {
         Ok(output) => {
@@ -525,7 +538,7 @@ async fn repeat_history_record_inner(
 
 fn prepare_history_record_repeat(app: &tauri::AppHandle, record_id: &str) -> AppResult<()> {
     let mut store = load_history_store(app)?;
-    let index = find_record_index(&store.records, record_id)?;
+    let index = find_record_index(app, &store.records, record_id)?;
 
     store.records[index].postprocessing = skipped_result(None);
     store.records[index].final_text = String::new();
@@ -540,17 +553,19 @@ async fn repeat_history_post_processing_inner(
     record_id: &str,
 ) -> AppResult<HistoryRecord> {
     let mut store = load_history_store(app)?;
-    let index = find_record_index(&store.records, record_id)?;
+    let index = find_record_index(app, &store.records, record_id)?;
 
     if !matches!(
         store.records[index].transcription.status,
         HistoryResultStatus::Success
     ) {
-        return Err("Transcription result is required before post-processing".into());
+        return Err(
+            i18n::text(app, "history-transcription-required-before-post-processing").into(),
+        );
     }
 
     if !load_processing_config(app)?.post_process.enabled {
-        return Err("Post-processing is disabled".into());
+        return Err(i18n::text(app, "history-post-processing-disabled").into());
     }
 
     let input_text = store.records[index].transcription.text.clone();
@@ -600,7 +615,7 @@ async fn repeat_history_post_processing_inner(
     let result =
         runner::run_post_process_with_snapshot(app, &snapshot, input_text, Some(log_context)).await;
     let mut store = load_history_store(app)?;
-    let index = find_record_index(&store.records, record_id)?;
+    let index = find_record_index(app, &store.records, record_id)?;
 
     match result {
         Ok(output) => {
@@ -782,7 +797,7 @@ fn save_repeated_stt_error(
     error: AppError,
 ) -> AppResult<HistoryRecord> {
     let mut store = load_history_store(app)?;
-    let index = find_record_index(&store.records, record_id)?;
+    let index = find_record_index(app, &store.records, record_id)?;
 
     store.records[index].transcription = match snapshot {
         Some(snapshot) => result_from_stt_error(snapshot, error),
@@ -834,14 +849,18 @@ fn find_history_record(app: &tauri::AppHandle, record_id: &str) -> AppResult<His
         .records
         .into_iter()
         .find(|record| record.id == record_id)
-        .ok_or_else(|| "History record was not found".into())
+        .ok_or_else(|| i18n::text(app, "history-record-not-found").into())
 }
 
-fn find_record_index(records: &[HistoryRecord], record_id: &str) -> AppResult<usize> {
+fn find_record_index(
+    app: &tauri::AppHandle,
+    records: &[HistoryRecord],
+    record_id: &str,
+) -> AppResult<usize> {
     records
         .iter()
         .position(|record| record.id == record_id)
-        .ok_or_else(|| "History record was not found".into())
+        .ok_or_else(|| i18n::text(app, "history-record-not-found").into())
 }
 
 fn load_history_store(app: &tauri::AppHandle) -> AppResult<HistoryStore> {

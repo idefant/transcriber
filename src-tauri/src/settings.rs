@@ -34,7 +34,7 @@ enum UiLanguage {
     System,
 }
 
-#[derive(Clone, Default, Deserialize, Serialize)]
+#[derive(Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum EffectiveUiLanguage {
     #[default]
@@ -240,15 +240,17 @@ fn update_app_settings_inner(
         settings.is_update_notifications_enabled = is_update_notifications_enabled;
     }
 
+    let current_language = resolve_effective_ui_language(&settings.ui_language);
+
     if let Some(hotkey) = input.hotkey {
-        settings.hotkey = shortcut_hook::normalize_hotkey(&hotkey)?;
+        settings.hotkey = shortcut_hook::normalize_hotkey_for_language(current_language, &hotkey)?;
     }
 
     if let Some(cancel_hotkey) = input.cancel_hotkey {
         settings.cancel_hotkey = if cancel_hotkey.trim().is_empty() {
             String::new()
         } else {
-            shortcut_hook::normalize_hotkey(&cancel_hotkey)?
+            shortcut_hook::normalize_hotkey_for_language(current_language, &cancel_hotkey)?
         };
     }
 
@@ -256,7 +258,7 @@ fn update_app_settings_inner(
         settings.paste_latest_hotkey = if paste_latest_hotkey.trim().is_empty() {
             String::new()
         } else {
-            shortcut_hook::normalize_hotkey(&paste_latest_hotkey)?
+            shortcut_hook::normalize_hotkey_for_language(current_language, &paste_latest_hotkey)?
         };
     }
 
@@ -264,7 +266,7 @@ fn update_app_settings_inner(
         settings.copy_latest_hotkey = if copy_latest_hotkey.trim().is_empty() {
             String::new()
         } else {
-            shortcut_hook::normalize_hotkey(&copy_latest_hotkey)?
+            shortcut_hook::normalize_hotkey_for_language(current_language, &copy_latest_hotkey)?
         };
     }
 
@@ -272,7 +274,7 @@ fn update_app_settings_inner(
         settings.repeat_latest_hotkey = if repeat_latest_hotkey.trim().is_empty() {
             String::new()
         } else {
-            shortcut_hook::normalize_hotkey(&repeat_latest_hotkey)?
+            shortcut_hook::normalize_hotkey_for_language(current_language, &repeat_latest_hotkey)?
         };
     }
 
@@ -315,26 +317,37 @@ fn get_app_settings_inner(app: &tauri::AppHandle) -> AppResult<AppSettings> {
 
 pub fn load_app_settings(app: &tauri::AppHandle) -> AppResult<AppSettings> {
     let mut settings: AppSettings = storage::load_json_or_default(app, SETTINGS_FILE_NAME)?;
+    let current_language = resolve_effective_ui_language(&settings.ui_language);
 
-    settings.hotkey = shortcut_hook::normalize_hotkey(&settings.hotkey)?;
+    settings.hotkey =
+        shortcut_hook::normalize_hotkey_for_language(current_language, &settings.hotkey)?;
 
     if !settings.cancel_hotkey.trim().is_empty() {
-        settings.cancel_hotkey = shortcut_hook::normalize_hotkey(&settings.cancel_hotkey)?;
+        settings.cancel_hotkey = shortcut_hook::normalize_hotkey_for_language(
+            current_language,
+            &settings.cancel_hotkey,
+        )?;
     }
 
     if !settings.paste_latest_hotkey.trim().is_empty() {
-        settings.paste_latest_hotkey =
-            shortcut_hook::normalize_hotkey(&settings.paste_latest_hotkey)?;
+        settings.paste_latest_hotkey = shortcut_hook::normalize_hotkey_for_language(
+            current_language,
+            &settings.paste_latest_hotkey,
+        )?;
     }
 
     if !settings.copy_latest_hotkey.trim().is_empty() {
-        settings.copy_latest_hotkey =
-            shortcut_hook::normalize_hotkey(&settings.copy_latest_hotkey)?;
+        settings.copy_latest_hotkey = shortcut_hook::normalize_hotkey_for_language(
+            current_language,
+            &settings.copy_latest_hotkey,
+        )?;
     }
 
     if !settings.repeat_latest_hotkey.trim().is_empty() {
-        settings.repeat_latest_hotkey =
-            shortcut_hook::normalize_hotkey(&settings.repeat_latest_hotkey)?;
+        settings.repeat_latest_hotkey = shortcut_hook::normalize_hotkey_for_language(
+            current_language,
+            &settings.repeat_latest_hotkey,
+        )?;
     }
 
     Ok(settings)

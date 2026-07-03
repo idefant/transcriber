@@ -1,35 +1,40 @@
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{AppError, AppResult},
+    i18n,
+};
 
 #[cfg(target_os = "windows")]
-pub async fn paste_text(text: &str) -> AppResult<()> {
+pub async fn paste_text(app: &tauri::AppHandle, text: &str) -> AppResult<()> {
     let previous = read_clipboard_text();
-    copy_text_hidden(text)?;
-    let send_result = send_ctrl_v();
+    copy_text_hidden(app, text)?;
+    let send_result = send_ctrl_v(app);
     // Give the target application time to process the paste before the
     // clipboard is restored. SendInput is asynchronous from the recipient's
     // perspective, so a brief pause is required.
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    restore_clipboard(previous);
+    restore_clipboard(app, previous);
     send_result
 }
 
 #[cfg(not(target_os = "windows"))]
-pub async fn paste_text(_text: &str) -> AppResult<()> {
-    Err(AppError::from(
-        "Dictation paste is only implemented on Windows in this version",
-    ))
+pub async fn paste_text(app: &tauri::AppHandle, _text: &str) -> AppResult<()> {
+    Err(AppError::from(i18n::text(
+        app,
+        "clipboard-paste-windows-only",
+    )))
 }
 
 #[cfg(target_os = "windows")]
-pub fn copy_text(text: &str) -> AppResult<()> {
-    write_clipboard_text(text, ClipboardHistoryMode::Visible)
+pub fn copy_text(app: &tauri::AppHandle, text: &str) -> AppResult<()> {
+    write_clipboard_text(app, text, ClipboardHistoryMode::Visible)
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn copy_text(_text: &str) -> AppResult<()> {
-    Err(AppError::from(
-        "Clipboard copy is only implemented on Windows in this version",
-    ))
+pub fn copy_text(app: &tauri::AppHandle, _text: &str) -> AppResult<()> {
+    Err(AppError::from(i18n::text(
+        app,
+        "clipboard-copy-windows-only",
+    )))
 }
 
 #[cfg(target_os = "windows")]
@@ -39,12 +44,16 @@ enum ClipboardHistoryMode {
 }
 
 #[cfg(target_os = "windows")]
-fn copy_text_hidden(text: &str) -> AppResult<()> {
-    write_clipboard_text(text, ClipboardHistoryMode::Hidden)
+fn copy_text_hidden(app: &tauri::AppHandle, text: &str) -> AppResult<()> {
+    write_clipboard_text(app, text, ClipboardHistoryMode::Hidden)
 }
 
 #[cfg(target_os = "windows")]
-fn write_clipboard_text(text: &str, history_mode: ClipboardHistoryMode) -> AppResult<()> {
+fn write_clipboard_text(
+    app: &tauri::AppHandle,
+    text: &str,
+    history_mode: ClipboardHistoryMode,
+) -> AppResult<()> {
     use std::ptr;
 
     use windows_sys::Win32::System::{
@@ -64,23 +73,27 @@ fn write_clipboard_text(text: &str, history_mode: ClipboardHistoryMode) -> AppRe
 
     unsafe {
         if OpenClipboard(ptr::null_mut()) == 0 {
-            return Err(AppError::from("Could not open Windows clipboard"));
+            return Err(AppError::from(i18n::text(app, "clipboard-open-failed")));
         }
 
         let handle = GlobalAlloc(GMEM_MOVEABLE, bytes_len);
 
         if handle.is_null() {
             CloseClipboard();
-            return Err(AppError::from(
-                "Could not allocate Windows clipboard memory",
-            ));
+            return Err(AppError::from(i18n::text(
+                app,
+                "clipboard-memory-allocate-failed",
+            )));
         }
 
         let target = GlobalLock(handle) as *mut u8;
 
         if target.is_null() {
             CloseClipboard();
-            return Err(AppError::from("Could not lock Windows clipboard memory"));
+            return Err(AppError::from(i18n::text(
+                app,
+                "clipboard-memory-lock-failed",
+            )));
         }
 
         ptr::copy_nonoverlapping(utf16.as_ptr() as *const u8, target, bytes_len);
@@ -89,7 +102,7 @@ fn write_clipboard_text(text: &str, history_mode: ClipboardHistoryMode) -> AppRe
 
         if SetClipboardData(CF_UNICODETEXT, handle).is_null() {
             CloseClipboard();
-            return Err(AppError::from("Could not set Windows clipboard data"));
+            return Err(AppError::from(i18n::text(app, "clipboard-set-data-failed")));
         }
 
         if matches!(history_mode, ClipboardHistoryMode::Hidden) {
@@ -191,13 +204,13 @@ fn read_clipboard_text() -> Option<String> {
 /// open briefly while processing the Ctrl+V paste, causing OpenClipboard to
 /// fail transiently.
 #[cfg(target_os = "windows")]
-fn restore_clipboard(previous: Option<String>) {
+fn restore_clipboard(app: &tauri::AppHandle, previous: Option<String>) {
     for attempt in 0..5u32 {
         if attempt > 0 {
             std::thread::sleep(std::time::Duration::from_millis(30));
         }
         let ok = match &previous {
-            Some(text) => copy_text_hidden(text).is_ok(),
+            Some(text) => copy_text_hidden(app, text).is_ok(),
             None => try_clear_clipboard(),
         };
         if ok {
@@ -224,7 +237,7 @@ fn try_clear_clipboard() -> bool {
 }
 
 #[cfg(target_os = "windows")]
-fn send_ctrl_v() -> AppResult<()> {
+fn send_ctrl_v(app: &tauri::AppHandle) -> AppResult<()> {
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         SendInput, INPUT, KEYEVENTF_KEYUP, VK_CONTROL, VK_V,
     };
@@ -245,7 +258,10 @@ fn send_ctrl_v() -> AppResult<()> {
     };
 
     if sent != inputs.len() as u32 {
-        return Err(AppError::from("Could not send Ctrl+V input"));
+        return Err(AppError::from(i18n::text(
+            app,
+            "clipboard-send-ctrl-v-failed",
+        )));
     }
 
     Ok(())

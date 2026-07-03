@@ -14,7 +14,7 @@ Important subtlety: `build_stt_snapshot` does **not** validate the API key. Key 
 
 The function returns `Result<(), ConfigError>`, where `ConfigError { section, message }` identifies which settings tab the notification should open (`speechToText` or `postProcessing`) and carries the underlying error message.
 
-The underlying configuration messages come from a tiny shared backend catalog (`i18n.rs`) keyed by `EffectiveUiLanguage`. `runner.rs` and `providers.rs` ask that helper for user-facing config-validation errors instead of hardcoding English strings inline. That keeps the pre-flight notification, the settings test panels, and any other caller of the same snapshot/provider helpers on the same app-language copy without duplicating the `match` logic in each call site.
+The underlying configuration messages now come from the shared backend runtime i18n layer in `src-tauri/src/i18n.rs`, built on `i18n-embed` with Fluent assets under `src-tauri/i18n/`. The helper resolves the current app language from settings, loads the matching Fluent bundle with an English fallback, and formats messages by key (optionally with arguments). `runner.rs`, `providers.rs`, `notification.rs`, and other user-facing backend call sites reuse that single helper instead of scattering `match`-based copy or ad hoc English strings.
 
 ## Where it hooks
 

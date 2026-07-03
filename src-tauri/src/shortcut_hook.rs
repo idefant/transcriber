@@ -1,6 +1,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::error::{AppError, AppResult};
+use crate::{
+    error::{AppError, AppResult},
+    i18n,
+    settings::EffectiveUiLanguage,
+};
 
 static IS_HOTKEY_CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
 
@@ -15,8 +19,11 @@ pub enum ShortcutState {
     Released,
 }
 
-pub fn normalize_hotkey(value: &str) -> AppResult<String> {
-    Hotkey::parse(value).map(|hotkey| hotkey.to_normalized_string())
+pub fn normalize_hotkey_for_language(
+    language: EffectiveUiLanguage,
+    value: &str,
+) -> AppResult<String> {
+    Hotkey::parse(language, value).map(|hotkey| hotkey.to_normalized_string())
 }
 
 #[cfg(target_os = "windows")]
@@ -26,9 +33,11 @@ pub fn install_dictation_shortcut(app: tauri::AppHandle, hotkey: &str) -> AppRes
 
 #[cfg(not(target_os = "windows"))]
 pub fn install_dictation_shortcut(_app: tauri::AppHandle, _hotkey: &str) -> AppResult<()> {
-    Err(AppError::from(
-        "Suppressing dictation shortcuts is only implemented on Windows in this version",
-    ))
+    Err(AppError::from(i18n::text_for_language(
+        EffectiveUiLanguage::En,
+        "shortcut-windows-only",
+        &[],
+    )))
 }
 
 #[cfg(target_os = "windows")]
@@ -131,7 +140,7 @@ struct MainKey {
 }
 
 impl Hotkey {
-    fn parse(value: &str) -> AppResult<Self> {
+    fn parse(language: EffectiveUiLanguage, value: &str) -> AppResult<Self> {
         let mut ctrl = ModifierSide::None;
         let mut alt = ModifierSide::None;
         let mut shift = ModifierSide::None;
@@ -160,16 +169,24 @@ impl Hotkey {
                 "rwin" => win = ModifierSide::Right,
                 _ => {
                     if main_key.is_some() {
-                        return Err(AppError::from("Shortcut can contain only one main key"));
+                        return Err(AppError::from(i18n::text_for_language(
+                            language,
+                            "shortcut-single-main-key-required",
+                            &[],
+                        )));
                     }
 
-                    main_key = Some(parse_main_key(part)?);
+                    main_key = Some(parse_main_key(language, part)?);
                 }
             }
         }
 
         let Some(main_key) = main_key else {
-            return Err(AppError::from("Shortcut must contain a non-modifier key"));
+            return Err(AppError::from(i18n::text_for_language(
+                language,
+                "shortcut-non-modifier-key-required",
+                &[],
+            )));
         };
 
         Ok(Self {
@@ -217,13 +234,17 @@ impl Hotkey {
     }
 }
 
-fn parse_main_key(value: &str) -> AppResult<MainKey> {
+fn parse_main_key(language: EffectiveUiLanguage, value: &str) -> AppResult<MainKey> {
     let upper = value.trim().to_ascii_uppercase();
 
     if let Some(number) = upper.strip_prefix('F') {
-        let number = number
-            .parse::<u32>()
-            .map_err(|_| AppError::from(format!("Unsupported shortcut key: {value}")))?;
+        let number = number.parse::<u32>().map_err(|_| {
+            AppError::from(i18n::text_for_language(
+                language,
+                "shortcut-key-unsupported",
+                &[("value", value.to_string())],
+            ))
+        })?;
 
         if (1..=24).contains(&number) {
             return Ok(MainKey {
@@ -305,7 +326,11 @@ fn parse_main_key(value: &str) -> AppResult<MainKey> {
             name: "ArrowRight",
             vk: 0x27,
         }),
-        _ => Err(AppError::from(format!("Unsupported shortcut key: {value}"))),
+        _ => Err(AppError::from(i18n::text_for_language(
+            language,
+            "shortcut-key-unsupported",
+            &[("value", value.to_string())],
+        ))),
     }
 }
 
@@ -456,7 +481,7 @@ mod windows_hook {
     }
 
     pub fn set_hotkey(value: &str) -> AppResult<()> {
-        let hotkey = Hotkey::parse(value)?;
+        let hotkey = Hotkey::parse(super::EffectiveUiLanguage::En, value)?;
         let mutex = HOTKEY.get_or_init(|| {
             Mutex::new(HookHotkey {
                 hotkey,
@@ -501,7 +526,7 @@ mod windows_hook {
             return Ok(());
         }
 
-        match Hotkey::parse(value) {
+        match Hotkey::parse(super::EffectiveUiLanguage::En, value) {
             Ok(parsed) => {
                 *hotkey = Some(HookHotkey {
                     hotkey: parsed,
@@ -567,7 +592,7 @@ mod windows_hook {
             return Ok(());
         }
 
-        let hotkey = Hotkey::parse(value)?;
+        let hotkey = Hotkey::parse(super::EffectiveUiLanguage::En, value)?;
 
         for _ in 0..50 {
             if !is_hotkey_still_pressed(hotkey) {

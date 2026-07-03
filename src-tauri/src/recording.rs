@@ -13,7 +13,8 @@ use cpal::{
 use crate::{
     audio_mute::OutputMuteGuard,
     error::{AppError, AppResult},
-    overlay, settings,
+    i18n, overlay,
+    settings::{self, EffectiveUiLanguage},
 };
 
 const LEVEL_EMIT_INTERVAL: Duration = Duration::from_millis(50);
@@ -24,6 +25,7 @@ pub struct AudioRecording {
     sample_rate: u32,
     channels: u16,
     started_at: DateTime<Utc>,
+    ui_language: EffectiveUiLanguage,
     // Held for its Drop side-effect: unmutes the default output device.
     _mute_guard: Option<OutputMuteGuard>,
 }
@@ -36,6 +38,7 @@ pub struct RecordedAudio {
 }
 
 pub fn start_recording(app: tauri::AppHandle) -> AppResult<AudioRecording> {
+    let ui_language = settings::get_effective_ui_language(&app).unwrap_or_default();
     let is_mute_enabled = settings::load_app_settings(&app)
         .map(|s| s.is_mute_while_recording_enabled())
         .unwrap_or(false);
@@ -55,10 +58,14 @@ pub fn start_recording(app: tauri::AppHandle) -> AppResult<AudioRecording> {
     let host = cpal::default_host();
     let device = host
         .default_input_device()
-        .ok_or("No default input device is available")?;
-    let supported_config = device
-        .default_input_config()
-        .map_err(|error| AppError::from(format!("Could not read input device config: {error}")))?;
+        .ok_or_else(|| i18n::text(&app, "recording-no-default-input-device"))?;
+    let supported_config = device.default_input_config().map_err(|error| {
+        AppError::from(i18n::text_with(
+            &app,
+            "recording-input-device-config-read-failed",
+            &[("error", error.to_string())],
+        ))
+    })?;
 
     let sample_format = supported_config.sample_format();
     let config = supported_config.config();
@@ -73,32 +80,38 @@ pub fn start_recording(app: tauri::AppHandle) -> AppResult<AudioRecording> {
             &config,
             Arc::clone(&samples),
             Arc::clone(&last_level_emit),
-            app,
+            &app,
         )?,
         SampleFormat::I16 => build_stream::<i16>(
             &device,
             &config,
             Arc::clone(&samples),
             Arc::clone(&last_level_emit),
-            app,
+            &app,
         )?,
         SampleFormat::U16 => build_stream::<u16>(
             &device,
             &config,
             Arc::clone(&samples),
             Arc::clone(&last_level_emit),
-            app,
+            &app,
         )?,
         _ => {
-            return Err(AppError::from(format!(
-                "Unsupported input sample format: {sample_format:?}"
+            return Err(AppError::from(i18n::text_with(
+                &app,
+                "recording-unsupported-input-sample-format",
+                &[("format", format!("{sample_format:?}"))],
             )));
         }
     };
 
-    stream
-        .play()
-        .map_err(|error| AppError::from(format!("Could not start recording: {error}")))?;
+    stream.play().map_err(|error| {
+        AppError::from(i18n::text_with(
+            &app,
+            "recording-start-failed",
+            &[("error", error.to_string())],
+        ))
+    })?;
 
     Ok(AudioRecording {
         stream: Some(stream),
@@ -106,6 +119,7 @@ pub fn start_recording(app: tauri::AppHandle) -> AppResult<AudioRecording> {
         sample_rate,
         channels,
         started_at: Utc::now(),
+        ui_language,
         _mute_guard: mute_guard,
     })
 }
@@ -122,11 +136,21 @@ impl AudioRecording {
         let samples = self
             .samples
             .lock()
-            .map_err(|_| AppError::from("Could not read recorded audio samples"))?
+            .map_err(|_| {
+                AppError::from(i18n::text_for_language(
+                    self.ui_language,
+                    "recording-read-samples-failed",
+                    &[],
+                ))
+            })?
             .clone();
 
         if samples.is_empty() {
-            return Err(AppError::from("Recording did not capture any audio"));
+            return Err(AppError::from(i18n::text_for_language(
+                self.ui_language,
+                "recording-no-audio-captured",
+                &[],
+            )));
         }
 
         let duration_ms = if self.channels == 0 || self.sample_rate == 0 {
@@ -137,7 +161,7 @@ impl AudioRecording {
         };
 
         Ok(RecordedAudio {
-            bytes: encode_wav_pcm16(&samples, self.sample_rate, self.channels)?,
+            bytes: encode_wav_pcm16(&samples, self.sample_rate, self.channels, self.ui_language)?,
             duration_ms,
             file_name: "dictation.wav".to_string(),
             started_at: self.started_at,
@@ -150,11 +174,12 @@ fn build_stream<T>(
     config: &StreamConfig,
     samples: Arc<Mutex<Vec<f32>>>,
     last_level_emit: Arc<Mutex<Instant>>,
-    app: tauri::AppHandle,
+    app: &tauri::AppHandle,
 ) -> AppResult<Stream>
 where
     T: AudioSample + cpal::SizedSample,
 {
+    let app_handle = app.clone();
     let channels = config.channels as usize;
 
     device
@@ -167,14 +192,20 @@ where
                     target.extend_from_slice(&converted);
                 }
 
-                emit_levels_if_due(&app, &converted, channels, &last_level_emit);
+                emit_levels_if_due(&app_handle, &converted, channels, &last_level_emit);
             },
             move |error| {
                 eprintln!("Recording input stream error: {error}");
             },
             None,
         )
-        .map_err(|error| AppError::from(format!("Could not build input stream: {error}")))
+        .map_err(|error| {
+            AppError::from(i18n::text_with(
+                app,
+                "recording-build-input-stream-failed",
+                &[("error", error.to_string())],
+            ))
+        })
 }
 
 fn emit_levels_if_due(
@@ -211,7 +242,12 @@ fn calculate_input_level(samples: &[f32], channels: usize) -> f32 {
     (sum_squares / samples.len() as f32).sqrt().clamp(0.0, 1.0)
 }
 
-fn encode_wav_pcm16(samples: &[f32], sample_rate: u32, channels: u16) -> AppResult<Vec<u8>> {
+fn encode_wav_pcm16(
+    samples: &[f32],
+    sample_rate: u32,
+    channels: u16,
+    language: EffectiveUiLanguage,
+) -> AppResult<Vec<u8>> {
     let spec = hound::WavSpec {
         bits_per_sample: 16,
         channels,
@@ -221,19 +257,32 @@ fn encode_wav_pcm16(samples: &[f32], sample_rate: u32, channels: u16) -> AppResu
     let mut buffer = Cursor::new(Vec::new());
 
     {
-        let mut writer = hound::WavWriter::new(&mut buffer, spec)
-            .map_err(|error| AppError::from(format!("Could not create WAV writer: {error}")))?;
+        let mut writer = hound::WavWriter::new(&mut buffer, spec).map_err(|error| {
+            AppError::from(i18n::text_for_language(
+                language,
+                "recording-create-wav-writer-failed",
+                &[("error", error.to_string())],
+            ))
+        })?;
 
         for sample in samples {
             let pcm = (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
 
-            writer
-                .write_sample(pcm)
-                .map_err(|error| AppError::from(format!("Could not write WAV sample: {error}")))?;
+            writer.write_sample(pcm).map_err(|error| {
+                AppError::from(i18n::text_for_language(
+                    language,
+                    "recording-write-wav-sample-failed",
+                    &[("error", error.to_string())],
+                ))
+            })?;
         }
 
         writer.finalize().map_err(|error| {
-            AppError::from(format!("Could not finalize WAV recording: {error}"))
+            AppError::from(i18n::text_for_language(
+                language,
+                "recording-finalize-wav-failed",
+                &[("error", error.to_string())],
+            ))
         })?;
     }
 

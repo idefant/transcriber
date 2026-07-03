@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::{
     debug_log::{ModelRunLogContext, ModelRunSource},
     error::{AppError, AppResult},
-    history, keyboard,
+    history, i18n, keyboard,
     notification::{self, ConfigError, ConfigErrorSection},
     overlay,
     processing::load_processing_config,
@@ -243,7 +243,7 @@ async fn paste_latest_history_text_inner(app: &tauri::AppHandle) -> AppResult<()
         return Ok(());
     }
 
-    keyboard::paste_text(&text).await
+    keyboard::paste_text(app, &text).await
 }
 
 pub fn copy_latest_history_text_to_clipboard(app: &tauri::AppHandle) -> AppResult<()> {
@@ -253,7 +253,7 @@ pub fn copy_latest_history_text_to_clipboard(app: &tauri::AppHandle) -> AppResul
         return Ok(());
     }
 
-    keyboard::copy_text(&text)
+    keyboard::copy_text(app, &text)
 }
 
 fn start_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
@@ -268,7 +268,7 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
     let mut session = runtime
         .session
         .lock()
-        .map_err(|_| AppError::from("Could not lock dictation state"))?;
+        .map_err(|_| AppError::from(i18n::text(app, "dictation-state-lock-failed")))?;
 
     if !matches!(*session, DictationSession::Idle) {
         return Ok(());
@@ -372,7 +372,7 @@ fn begin_repeat_latest_history_record(app: &tauri::AppHandle) -> AppResult<Optio
     let mut session = runtime
         .session
         .lock()
-        .map_err(|_| AppError::from("Could not lock dictation state"))?;
+        .map_err(|_| AppError::from(i18n::text(app, "dictation-state-lock-failed")))?;
 
     if !matches!(*session, DictationSession::Idle) {
         return Ok(None);
@@ -437,11 +437,13 @@ fn take_recording(
     let mut session = runtime
         .session
         .lock()
-        .map_err(|_| AppError::from("Could not lock dictation state"))?;
-    let mut active_hold_activation_id = runtime
-        .active_hold_activation_id
-        .lock()
-        .map_err(|_| AppError::from("Could not lock active hold shortcut state"))?;
+        .map_err(|_| AppError::from(i18n::text(app, "dictation-state-lock-failed")))?;
+    let mut active_hold_activation_id = runtime.active_hold_activation_id.lock().map_err(|_| {
+        AppError::from(i18n::text(
+            app,
+            "dictation-active-hold-shortcut-state-lock-failed",
+        ))
+    })?;
 
     if activation_id.is_some() && *active_hold_activation_id != activation_id {
         return Ok(None);
@@ -543,9 +545,10 @@ async fn process_recording_inner(
     let config = load_processing_config(app)?;
 
     if config.stt.provider_id.is_none() || config.stt.model_key.is_none() {
-        return Err(AppError::from(
-            "Speech-to-text provider and model are not selected",
-        ));
+        return Err(AppError::from(i18n::text(
+            app,
+            "dictation-stt-provider-and-model-not-selected",
+        )));
     }
 
     let history_record_id = Uuid::new_v4().to_string();
@@ -645,7 +648,7 @@ async fn process_recording_inner(
                 // Post-processing failed, but the speech-to-text text is valid —
                 // still insert it so the user does not lose their dictation.
                 if is_current_session(app, id) {
-                    keyboard::paste_text(&stt_text).await?;
+                    keyboard::paste_text(app, &stt_text).await?;
                 }
 
                 return Ok(DictationOutcome::PostProcessError { record_id });
@@ -666,7 +669,7 @@ async fn process_recording_inner(
                 transcription: Ok(transcription),
             },
         );
-        keyboard::paste_text(&final_text).await?;
+        keyboard::paste_text(app, &final_text).await?;
     }
 
     Ok(DictationOutcome::Completed)
@@ -697,7 +700,7 @@ async fn process_repeat_latest_history_record_inner(
             }
 
             if is_current_session(app, id) {
-                keyboard::paste_text(&final_text).await?;
+                keyboard::paste_text(app, &final_text).await?;
             }
 
             Ok(DictationOutcome::Completed)
@@ -712,7 +715,7 @@ async fn process_repeat_latest_history_record_inner(
             final_text,
         } => {
             if !final_text.trim().is_empty() && is_current_session(app, id) {
-                keyboard::paste_text(&final_text).await?;
+                keyboard::paste_text(app, &final_text).await?;
             }
 
             Ok(DictationOutcome::PostProcessError { record_id })
@@ -725,7 +728,7 @@ fn begin_processing_phase(app: &tauri::AppHandle, id: u64) -> AppResult<bool> {
     let mut session = runtime
         .session
         .lock()
-        .map_err(|_| AppError::from("Could not lock dictation state"))?;
+        .map_err(|_| AppError::from(i18n::text(app, "dictation-state-lock-failed")))?;
 
     if !try_enter_processing(&mut session, id) {
         return Ok(false);
@@ -813,7 +816,7 @@ fn cancel_dictation_inner(
     let mut session = runtime
         .session
         .lock()
-        .map_err(|_| AppError::from("Could not lock dictation state"))?;
+        .map_err(|_| AppError::from(i18n::text(&app, "dictation-state-lock-failed")))?;
 
     if expected_session_id
         .is_some_and(|expected_id| current_session_id(&session) != Some(expected_id))

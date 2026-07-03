@@ -10,13 +10,15 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 chrono = { version = "0.4", features = ["clock", "serde"] }
+cpal = "0.16"
+hound = "3"
+i18n-embed = { version = "0.16", features = ["fluent-system"] }
+raw-window-handle = "0.6"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+rust-embed = "8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sys-locale = "0.3"
-cpal = "0.16"
-hound = "3"
-raw-window-handle = "0.6"
 tauri = { version = "2", default-features = false, features = [
     "common-controls-v6",
     "dbus",

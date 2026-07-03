@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     catalog::{model_by_key, ModelTask},
     error::{AppError, AppResult},
+    i18n,
     providers::find_provider_kind,
     settings::{get_effective_ui_language, EffectiveUiLanguage},
     storage,
@@ -367,6 +368,12 @@ fn localized_prompt(
 }
 
 fn load_prompt_defaults() -> AppResult<PromptDefaults> {
-    serde_json::from_str(PROMPTS_JSON)
-        .map_err(|error| format!("Invalid prompt defaults: {error}").into())
+    serde_json::from_str(PROMPTS_JSON).map_err(|error| {
+        i18n::text_for_language(
+            EffectiveUiLanguage::En,
+            "prompt-defaults-invalid",
+            &[("error", error.to_string())],
+        )
+        .into()
+    })
 }

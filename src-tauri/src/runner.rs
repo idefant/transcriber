@@ -8,10 +8,10 @@ use crate::{
     debug_log::{self, ModelRunLogContext, ModelRunStage},
     dictionary,
     error::{AppError, AppResult},
-    i18n::{self, ConfigErrorText},
+    i18n,
     processing::load_processing_config,
     providers::{resolve_provider_api_key, resolve_provider_credentials, ProviderKind},
-    settings::get_effective_ui_language,
+    settings::{get_effective_ui_language, EffectiveUiLanguage},
 };
 
 const AGENT_NAME: &str = "Transcriber";
@@ -214,7 +214,9 @@ pub async fn run_stt_with_snapshot(
     let file_part = reqwest::multipart::Part::bytes(audio)
         .file_name(file_name.clone())
         .mime_str(mime)
-        .map_err(|e| format!("Invalid MIME type: {e}"))?;
+        .map_err(|error| {
+            i18n::text_with(app, "mime-type-invalid", &[("error", error.to_string())])
+        })?;
 
     let form = reqwest::multipart::Form::new()
         .part("file", file_part)
@@ -272,7 +274,10 @@ pub async fn run_stt_with_snapshot(
         .header(AUTHORIZATION, format!("Bearer {api_key}"))
         .multipart(form);
 
-    let headers = header_map_from_snapshot(&snapshot.provider.headers)?;
+    let headers = header_map_from_snapshot(
+        get_effective_ui_language(app).unwrap_or_default(),
+        &snapshot.provider.headers,
+    )?;
 
     if !headers.is_empty() {
         request = request.headers(headers);
@@ -311,7 +316,7 @@ pub async fn run_stt_with_snapshot(
             }),
         );
         return Err(AppError::api(
-            format!("STT request failed with status {status}"),
+            i18n::text_with(app, "stt-request-failed", &[("status", status.to_string())]),
             &body,
         ));
     }
@@ -448,7 +453,10 @@ pub async fn run_post_process_with_snapshot(
         .header(AUTHORIZATION, format!("Bearer {api_key}"))
         .json(&body);
 
-    let headers = header_map_from_snapshot(&snapshot.provider.headers)?;
+    let headers = header_map_from_snapshot(
+        get_effective_ui_language(app).unwrap_or_default(),
+        &snapshot.provider.headers,
+    )?;
 
     if !headers.is_empty() {
         request = request.headers(headers);
@@ -487,7 +495,11 @@ pub async fn run_post_process_with_snapshot(
             }),
         );
         return Err(AppError::api(
-            format!("Post-process request failed with status {status}"),
+            i18n::text_with(
+                app,
+                "post-process-request-failed",
+                &[("status", status.to_string())],
+            ),
             &body,
         ));
     }
@@ -560,21 +572,19 @@ pub fn build_stt_snapshot(app: &tauri::AppHandle) -> AppResult<SttSettingsSnapsh
     let provider_id = stt
         .provider_id
         .clone()
-        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ProviderNotSelected))?;
+        .ok_or_else(|| i18n::text(app, "config-error-provider-not-selected"))?;
     let model_key = stt
         .model_key
         .clone()
-        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ModelNotSelected))?;
+        .ok_or_else(|| i18n::text(app, "config-error-model-not-selected"))?;
     let credentials = resolve_provider_credentials(app, &provider_id)?;
     let model = model_by_key(&model_key)
-        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ModelNotFoundInCatalog))?;
+        .ok_or_else(|| i18n::text(app, "config-error-model-not-found-in-catalog"))?;
     let provider_entry = model
         .entry_for(credentials.kind)
-        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ModelNotAvailableForProvider))?;
+        .ok_or_else(|| i18n::text(app, "config-error-model-not-available-for-provider"))?;
     let ModelParams::Stt(params) = &model.params else {
-        return Err(
-            i18n::config_error(app, ConfigErrorText::SelectedModelIsNotSpeechToText).into(),
-        );
+        return Err(i18n::text(app, "config-error-selected-model-is-not-speech-to-text").into());
     };
     let dictionary = dictionary::load_dictionary_words(app)?.join(", ");
     let system_prompt = stt.effective_system_prompt()?;
@@ -607,21 +617,19 @@ pub fn build_post_process_snapshot(
     let provider_id = post_process
         .provider_id
         .clone()
-        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ProviderNotSelected))?;
+        .ok_or_else(|| i18n::text(app, "config-error-provider-not-selected"))?;
     let model_key = post_process
         .model_key
         .clone()
-        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ModelNotSelected))?;
+        .ok_or_else(|| i18n::text(app, "config-error-model-not-selected"))?;
     let credentials = resolve_provider_credentials(app, &provider_id)?;
     let model = model_by_key(&model_key)
-        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ModelNotFoundInCatalog))?;
+        .ok_or_else(|| i18n::text(app, "config-error-model-not-found-in-catalog"))?;
     let provider_entry = model
         .entry_for(credentials.kind)
-        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ModelNotAvailableForProvider))?;
+        .ok_or_else(|| i18n::text(app, "config-error-model-not-available-for-provider"))?;
     let ModelParams::PostProcess(params) = &model.params else {
-        return Err(
-            i18n::config_error(app, ConfigErrorText::SelectedModelIsNotPostProcessing).into(),
-        );
+        return Err(i18n::text(app, "config-error-selected-model-is-not-post-processing").into());
     };
 
     Ok(PostProcessSettingsSnapshot {
@@ -693,14 +701,27 @@ fn optional_prompt(prompt: &str) -> Option<&str> {
     }
 }
 
-fn header_map_from_snapshot(headers: &[HeaderSnapshot]) -> AppResult<HeaderMap> {
+fn header_map_from_snapshot(
+    language: EffectiveUiLanguage,
+    headers: &[HeaderSnapshot],
+) -> AppResult<HeaderMap> {
     let mut header_map = HeaderMap::new();
 
     for header in headers {
-        let name = HeaderName::from_bytes(header.name.as_bytes())
-            .map_err(|error| format!("Invalid header name `{}`: {}", header.name, error))?;
-        let value = HeaderValue::from_str(&header.value)
-            .map_err(|error| format!("Invalid header value for `{}`: {}", header.name, error))?;
+        let name = HeaderName::from_bytes(header.name.as_bytes()).map_err(|error| {
+            i18n::text_for_language(
+                language,
+                "header-name-invalid",
+                &[("name", header.name.clone()), ("error", error.to_string())],
+            )
+        })?;
+        let value = HeaderValue::from_str(&header.value).map_err(|error| {
+            i18n::text_for_language(
+                language,
+                "header-value-invalid",
+                &[("name", header.name.clone()), ("error", error.to_string())],
+            )
+        })?;
 
         header_map.insert(name, value);
     }

@@ -16,6 +16,7 @@ use tauri::{
 
 use crate::{
     error::{AppError, AppResult},
+    i18n,
     settings::{self, OverlayScreenMode, OverlayVariant},
 };
 
@@ -326,9 +327,10 @@ fn show_overlay_state(
     let monitors = target_monitors(app, &base, &screen_mode)?;
 
     if monitors.is_empty() {
-        return Err(AppError::from(
-            "No monitor is available for recording overlay",
-        ));
+        return Err(AppError::from(i18n::text(
+            app,
+            "overlay-no-monitor-available",
+        )));
     }
 
     let payload = OverlayShowPayload {

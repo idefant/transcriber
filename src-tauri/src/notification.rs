@@ -21,6 +21,13 @@ impl ConfigErrorSection {
             Self::PostProcessing => "postProcessing",
         }
     }
+
+    fn i18n_key(self) -> &'static str {
+        match self {
+            Self::SpeechToText => "config-section-speech-to-text",
+            Self::PostProcessing => "config-section-post-processing",
+        }
+    }
 }
 
 /// Проблема конфигурации, из-за которой диктовку нельзя начать.
@@ -44,7 +51,18 @@ pub fn show_config_error(app: &tauri::AppHandle, error: &ConfigError) {
     use tauri_winrt_notification::Toast;
 
     let language = crate::settings::get_effective_ui_language(app).unwrap_or_default();
-    let (title, body) = localized_text(language, error);
+    let title = crate::i18n::text_for_language(language, "notification-config-error-title", &[]);
+    let body = crate::i18n::text_for_language(
+        language,
+        "notification-config-error-body",
+        &[
+            (
+                "section",
+                crate::i18n::text_for_language(language, error.section.i18n_key(), &[]),
+            ),
+            ("message", error.message.clone()),
+        ],
+    );
     let app_id = toast_app_id(app);
 
     let handle = app.clone();
@@ -93,42 +111,5 @@ fn toast_app_id(app: &tauri::AppHandle) -> Cow<'static, str> {
         Cow::Borrowed(Toast::POWERSHELL_APP_ID)
     } else {
         Cow::Owned(app_id)
-    }
-}
-
-#[cfg(windows)]
-fn localized_text(
-    language: crate::settings::EffectiveUiLanguage,
-    error: &ConfigError,
-) -> (String, String) {
-    use crate::settings::EffectiveUiLanguage;
-
-    match language {
-        EffectiveUiLanguage::Ru => {
-            let area = match error.section {
-                ConfigErrorSection::SpeechToText => "распознавания речи",
-                ConfigErrorSection::PostProcessing => "постобработки",
-            };
-            (
-                "Не удалось начать распознавание".to_string(),
-                format!(
-                    "Проверьте настройки {area}: {}. Нажмите, чтобы открыть настройки.",
-                    error.message
-                ),
-            )
-        }
-        EffectiveUiLanguage::En => {
-            let area = match error.section {
-                ConfigErrorSection::SpeechToText => "speech-to-text",
-                ConfigErrorSection::PostProcessing => "post-processing",
-            };
-            (
-                "Couldn't start dictation".to_string(),
-                format!(
-                    "Check the {area} settings: {}. Click to open settings.",
-                    error.message
-                ),
-            )
-        }
     }
 }
