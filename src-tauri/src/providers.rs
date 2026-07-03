@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     error::{AppError, AppResult},
+    i18n::{self, ConfigErrorText},
     storage,
 };
 
@@ -432,13 +433,13 @@ pub fn resolve_provider_credentials(
     let provider = providers
         .into_iter()
         .find(|p| p.id == provider_id)
-        .ok_or("Provider was not found")?;
+        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ProviderNotFound))?;
 
     let use_advanced = provider.effective_use_advanced_settings();
 
     let base_url = if matches!(provider.provider, ProviderKind::Custom) {
         normalize_optional_string(provider.base_url.clone())
-            .ok_or("URL is required for custom provider")?
+            .ok_or_else(|| i18n::config_error(app, ConfigErrorText::CustomProviderUrlRequired))?
     } else if use_advanced {
         normalize_optional_string(provider.base_url.clone())
             .or_else(|| {
@@ -447,13 +448,13 @@ pub fn resolve_provider_credentials(
                     .default_base_url()
                     .map(ToString::to_string)
             })
-            .ok_or("Provider URL was not found")?
+            .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ProviderUrlNotFound))?
     } else {
         provider
             .provider
             .default_base_url()
             .map(ToString::to_string)
-            .ok_or("Provider URL was not found")?
+            .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ProviderUrlNotFound))?
     };
 
     let headers = if use_advanced {
@@ -477,7 +478,7 @@ pub fn resolve_provider_api_key(app: &tauri::AppHandle, provider_id: &str) -> Ap
         .find(|provider| provider.id == provider_id)
         .map(|provider| provider.api_key)
         .filter(|api_key| !api_key.trim().is_empty())
-        .ok_or_else(|| "Provider API key was not found".into())
+        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ProviderApiKeyNotFound).into())
 }
 
 pub fn find_provider_kind(

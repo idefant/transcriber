@@ -14,6 +14,7 @@ import { i18n } from '#/app/I18nProvider/i18n';
 import { router } from '#/app/router';
 import { routes } from '#/shared/routes';
 
+import type { SettingsSectionKey } from '#/models/Settings';
 import {
   initHistoryEventSubscription,
   useCatalogStore,
@@ -75,6 +76,28 @@ const OpenRecordSubscription: FC = () => {
       useUiStore.getState().closeSettings();
       void router.navigate(routes.history);
       useHistoryStore.getState().openRecord(event.payload);
+    }).then((fn) => {
+      unlisten = fn;
+      return null;
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  return null;
+};
+
+// Opens the settings modal on the relevant tab when the user clicks the system
+// notification about a configuration error. The backend shows the main window
+// before emitting this event.
+const OpenSettingsSubscription: FC = () => {
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    void listen<{ section: SettingsSectionKey }>('open-settings', (event) => {
+      useUiStore.getState().openSettings(event.payload.section);
     }).then((fn) => {
       unlisten = fn;
       return null;
@@ -153,6 +176,7 @@ const App: FC = () => {
         <StoreLoader />
         <HistorySubscription />
         <OpenRecordSubscription />
+        <OpenSettingsSubscription />
         <DictationHotkeyFallback />
         <UpdateChecker />
         <RouterProvider router={router} />

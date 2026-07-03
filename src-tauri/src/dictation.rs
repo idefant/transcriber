@@ -11,8 +11,11 @@ use uuid::Uuid;
 use crate::{
     debug_log::{ModelRunLogContext, ModelRunSource},
     error::{AppError, AppResult},
-    history, keyboard, overlay,
+    history, keyboard,
+    notification::{self, ConfigError, ConfigErrorSection},
+    overlay,
     processing::load_processing_config,
+    providers,
     recording::{self, AudioRecording, RecordedAudio},
     runner,
     settings::{self, TriggerMode},
@@ -271,6 +274,18 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
         return Ok(());
     }
 
+    // Проверяем готовность конфигурации ДО записи. Если обработать аудио нельзя
+    // (не выбран провайдер/модель, модель несовместима с провайдером, нет
+    // API-ключа), запись не начинаем: сессия остаётся Idle, оверлей записи не
+    // показывается, а пользователь получает системное уведомление. Возвращаем
+    // Ok, чтобы не сработала ветка ошибки в start_dictation (она бы показала
+    // dictation-error и попыталась скрыть несуществующий оверлей).
+    if let Err(config_error) = validate_processing_ready(app) {
+        drop(session);
+        notification::show_config_error(app, &config_error);
+        return Ok(());
+    }
+
     overlay::show_recording_overlay(app)?;
 
     let recording = recording::start_recording(app.clone())?;
@@ -291,6 +306,44 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
 
     // Notify the frontend that a session is now active (used to gate in-app cancel hotkey).
     emit_dictation_session(app, true, Some(id));
+
+    Ok(())
+}
+
+/// Проверяет, что аудио можно будет обработать: выбраны провайдер и модель STT,
+/// модель есть в каталоге и совместима с провайдером, у провайдера задан
+/// API-ключ. Если включена постобработка, те же проверки выполняются для неё.
+/// Переиспользует `build_stt_snapshot` / `build_post_process_snapshot` (чистая
+/// проверка конфигурации без сетевых запросов) и `resolve_provider_api_key`.
+fn validate_processing_ready(app: &tauri::AppHandle) -> Result<(), ConfigError> {
+    let stt = runner::build_stt_snapshot(app).map_err(|error| ConfigError {
+        section: ConfigErrorSection::SpeechToText,
+        message: error.into_message(),
+    })?;
+    providers::resolve_provider_api_key(app, &stt.provider.provider_id).map_err(|error| {
+        ConfigError {
+            section: ConfigErrorSection::SpeechToText,
+            message: error.into_message(),
+        }
+    })?;
+
+    let config = load_processing_config(app).map_err(|error| ConfigError {
+        section: ConfigErrorSection::SpeechToText,
+        message: error.into_message(),
+    })?;
+
+    if config.post_process.enabled {
+        let post = runner::build_post_process_snapshot(app).map_err(|error| ConfigError {
+            section: ConfigErrorSection::PostProcessing,
+            message: error.into_message(),
+        })?;
+        providers::resolve_provider_api_key(app, &post.provider.provider_id).map_err(|error| {
+            ConfigError {
+                section: ConfigErrorSection::PostProcessing,
+                message: error.into_message(),
+            }
+        })?;
+    }
 
     Ok(())
 }
@@ -322,6 +375,15 @@ fn begin_repeat_latest_history_record(app: &tauri::AppHandle) -> AppResult<Optio
         .map_err(|_| AppError::from("Could not lock dictation state"))?;
 
     if !matches!(*session, DictationSession::Idle) {
+        return Ok(None);
+    }
+
+    // Как и при обычной диктовке, проверяем готовность конфигурации до показа
+    // оверлея. Если обработать аудио нельзя, повтор не запускаем: оверлей не
+    // показывается, а пользователь получает системное уведомление.
+    if let Err(config_error) = validate_processing_ready(app) {
+        drop(session);
+        notification::show_config_error(app, &config_error);
         return Ok(None);
     }
 

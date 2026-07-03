@@ -8,6 +8,7 @@ use crate::{
     debug_log::{self, ModelRunLogContext, ModelRunStage},
     dictionary,
     error::{AppError, AppResult},
+    i18n::{self, ConfigErrorText},
     processing::load_processing_config,
     providers::{resolve_provider_api_key, resolve_provider_credentials, ProviderKind},
     settings::get_effective_ui_language,
@@ -556,15 +557,24 @@ pub async fn run_post_process_with_snapshot(
 pub fn build_stt_snapshot(app: &tauri::AppHandle) -> AppResult<SttSettingsSnapshot> {
     let config = load_processing_config(app)?;
     let stt = &config.stt;
-    let provider_id = stt.provider_id.clone().ok_or("Provider is not selected")?;
-    let model_key = stt.model_key.clone().ok_or("Model is not selected")?;
+    let provider_id = stt
+        .provider_id
+        .clone()
+        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ProviderNotSelected))?;
+    let model_key = stt
+        .model_key
+        .clone()
+        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ModelNotSelected))?;
     let credentials = resolve_provider_credentials(app, &provider_id)?;
-    let model = model_by_key(&model_key).ok_or("Model not found in catalog")?;
+    let model = model_by_key(&model_key)
+        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ModelNotFoundInCatalog))?;
     let provider_entry = model
         .entry_for(credentials.kind)
-        .ok_or("Model is not available for this provider")?;
+        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ModelNotAvailableForProvider))?;
     let ModelParams::Stt(params) = &model.params else {
-        return Err("Expected STT model params".into());
+        return Err(
+            i18n::config_error(app, ConfigErrorText::SelectedModelIsNotSpeechToText).into(),
+        );
     };
     let dictionary = dictionary::load_dictionary_words(app)?.join(", ");
     let system_prompt = stt.effective_system_prompt()?;
@@ -597,18 +607,21 @@ pub fn build_post_process_snapshot(
     let provider_id = post_process
         .provider_id
         .clone()
-        .ok_or("Provider is not selected")?;
+        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ProviderNotSelected))?;
     let model_key = post_process
         .model_key
         .clone()
-        .ok_or("Model is not selected")?;
+        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ModelNotSelected))?;
     let credentials = resolve_provider_credentials(app, &provider_id)?;
-    let model = model_by_key(&model_key).ok_or("Model not found in catalog")?;
+    let model = model_by_key(&model_key)
+        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ModelNotFoundInCatalog))?;
     let provider_entry = model
         .entry_for(credentials.kind)
-        .ok_or("Model is not available for this provider")?;
+        .ok_or_else(|| i18n::config_error(app, ConfigErrorText::ModelNotAvailableForProvider))?;
     let ModelParams::PostProcess(params) = &model.params else {
-        return Err("Expected PostProcess model params".into());
+        return Err(
+            i18n::config_error(app, ConfigErrorText::SelectedModelIsNotPostProcessing).into(),
+        );
     };
 
     Ok(PostProcessSettingsSnapshot {
