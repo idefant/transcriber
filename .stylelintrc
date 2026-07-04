@@ -11,7 +11,7 @@
     ],
     "custom-property-pattern": null,
     "selector-class-pattern": [
-      "^[a-z][a-zA-Z0-9]+$",
+      "^(?:ant-[a-z0-9-]+|[a-z][a-zA-Z0-9]+)$",
       {
         "message": "Expected CSS module class names to be camelCase"
       }

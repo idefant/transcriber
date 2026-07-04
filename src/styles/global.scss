@@ -48,7 +48,6 @@ textarea {
   user-select: text;
 }
 
-/* stylelint-disable selector-class-pattern */
 .ant-menu-item,
 .ant-menu-submenu-title {
   padding-inline: 16px 12px !important;
@@ -61,7 +60,6 @@ textarea {
 .ant-modal-centered .ant-modal {
   padding-bottom: 0;
 }
-/* stylelint-enable selector-class-pattern */
 
 ::-webkit-scrollbar {
   width: 10px;
