@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
     catalog::{model_by_key, ModelTask},
@@ -25,9 +25,9 @@ pub struct SttConfig {
     pub language: String,
     #[serde(default)]
     pub use_custom_prompt: bool,
-    /// Custom system prompt override. Empty string sends no prompt to the API.
+    /// Custom system prompt override. `None` uses the default prompt.
     #[serde(default, alias = "prompt")]
-    pub system_prompt: String,
+    pub system_prompt: Option<String>,
 }
 
 impl Default for SttConfig {
@@ -37,7 +37,7 @@ impl Default for SttConfig {
             model_key: None,
             language: default_language(),
             use_custom_prompt: false,
-            system_prompt: String::new(),
+            system_prompt: None,
         }
     }
 }
@@ -46,7 +46,10 @@ impl SttConfig {
     /// Effective system prompt template (still contains `{{...}}` placeholders).
     pub fn effective_system_prompt(&self) -> AppResult<String> {
         if self.use_custom_prompt {
-            Ok(self.system_prompt.clone())
+            match &self.system_prompt {
+                Some(system_prompt) => Ok(system_prompt.clone()),
+                None => default_stt_system_prompt(&self.language),
+            }
         } else {
             default_stt_system_prompt(&self.language)
         }
@@ -64,19 +67,22 @@ pub struct PostProcessConfig {
     pub model_key: Option<String>,
     #[serde(default)]
     pub use_custom_prompts: bool,
-    /// Custom system prompt override. Empty string sends no system message.
+    /// Custom system prompt override. `None` uses the default prompt.
     #[serde(default, alias = "prompt")]
-    pub system_prompt: String,
-    /// Custom user prompt template override. Empty means "use the default".
+    pub system_prompt: Option<String>,
+    /// Custom user prompt template override. `None` uses the default template.
     #[serde(default)]
-    pub user_prompt_template: String,
+    pub user_prompt_template: Option<String>,
 }
 
 impl PostProcessConfig {
     /// Effective system prompt template (still contains `{{...}}` placeholders).
     pub fn effective_system_prompt(&self, language: &EffectiveUiLanguage) -> AppResult<String> {
         if self.use_custom_prompts {
-            Ok(self.system_prompt.clone())
+            match &self.system_prompt {
+                Some(system_prompt) => Ok(system_prompt.clone()),
+                None => default_post_process_system_prompt(language),
+            }
         } else {
             default_post_process_system_prompt(language)
         }
@@ -84,8 +90,11 @@ impl PostProcessConfig {
 
     /// Effective user prompt template (still contains `{{...}}` placeholders).
     pub fn effective_user_template(&self) -> AppResult<String> {
-        if self.use_custom_prompts && !self.user_prompt_template.trim().is_empty() {
-            Ok(self.user_prompt_template.clone())
+        if self.use_custom_prompts {
+            match &self.user_prompt_template {
+                Some(user_prompt_template) => Ok(user_prompt_template.clone()),
+                None => default_post_process_user_template(),
+            }
         } else {
             default_post_process_user_template()
         }
@@ -129,27 +138,57 @@ struct LocalizedPrompts {
     ru: String,
 }
 
+#[derive(Default)]
+enum NullableInput<T> {
+    #[default]
+    Missing,
+    Null,
+    Value(T),
+}
+
+impl<'de, T> Deserialize<'de> for NullableInput<T>
+where
+    T: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        match Option::<T>::deserialize(deserializer)? {
+            Some(value) => Ok(Self::Value(value)),
+            None => Ok(Self::Null),
+        }
+    }
+}
+
 // ── Input structs (partial updates) ──────────────────────────────────────────
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SttConfigInput {
-    provider_id: Option<Option<String>>,
-    model_key: Option<Option<String>>,
+    #[serde(default)]
+    provider_id: NullableInput<String>,
+    #[serde(default)]
+    model_key: NullableInput<String>,
     language: Option<String>,
     use_custom_prompt: Option<bool>,
-    system_prompt: Option<String>,
+    #[serde(default)]
+    system_prompt: NullableInput<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PostProcessConfigInput {
     enabled: Option<bool>,
-    provider_id: Option<Option<String>>,
-    model_key: Option<Option<String>>,
+    #[serde(default)]
+    provider_id: NullableInput<String>,
+    #[serde(default)]
+    model_key: NullableInput<String>,
     use_custom_prompts: Option<bool>,
-    system_prompt: Option<String>,
-    user_prompt_template: Option<String>,
+    #[serde(default)]
+    system_prompt: NullableInput<String>,
+    #[serde(default)]
+    user_prompt_template: NullableInput<String>,
 }
 
 // ── Tauri commands ────────────────────────────────────────────────────────────
@@ -213,9 +252,7 @@ fn update_stt_config_inner(
         config.stt.use_custom_prompt = use_custom_prompt;
     }
 
-    if let Some(system_prompt) = input.system_prompt {
-        config.stt.system_prompt = system_prompt;
-    }
+    apply_nullable_input_patch(&mut config.stt.system_prompt, input.system_prompt);
 
     normalize_processing_config(app, &mut config)?;
     save_processing_config(app, &config)?;
@@ -240,13 +277,12 @@ fn update_post_process_config_inner(
         config.post_process.use_custom_prompts = use_custom_prompts;
     }
 
-    if let Some(system_prompt) = input.system_prompt {
-        config.post_process.system_prompt = system_prompt;
-    }
+    apply_nullable_input_patch(&mut config.post_process.system_prompt, input.system_prompt);
 
-    if let Some(user_prompt_template) = input.user_prompt_template {
-        config.post_process.user_prompt_template = user_prompt_template;
-    }
+    apply_nullable_input_patch(
+        &mut config.post_process.user_prompt_template,
+        input.user_prompt_template,
+    );
 
     normalize_processing_config(app, &mut config)?;
     save_processing_config(app, &config)?;
@@ -278,9 +314,21 @@ fn normalize_optional_string(value: String) -> Option<String> {
     }
 }
 
-fn apply_optional_string_patch(target: &mut Option<String>, patch: Option<Option<String>>) {
-    if let Some(value) = patch {
-        *target = value.and_then(normalize_optional_string);
+fn apply_optional_string_patch(target: &mut Option<String>, patch: NullableInput<String>) {
+    match patch {
+        NullableInput::Missing => {}
+        NullableInput::Null => *target = None,
+        NullableInput::Value(value) => {
+            *target = normalize_optional_string(value);
+        }
+    }
+}
+
+fn apply_nullable_input_patch(target: &mut Option<String>, patch: NullableInput<String>) {
+    match patch {
+        NullableInput::Missing => {}
+        NullableInput::Null => *target = None,
+        NullableInput::Value(value) => *target = Some(value),
     }
 }
 

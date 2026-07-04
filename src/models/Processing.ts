@@ -2,7 +2,7 @@ export interface SttConfig {
   language: string;
   modelKey: string | null;
   providerId: string | null;
-  systemPrompt: string;
+  systemPrompt: string | null;
   useCustomPrompt: boolean;
 }
 
@@ -10,9 +10,9 @@ export interface PostProcessConfig {
   enabled: boolean;
   modelKey: string | null;
   providerId: string | null;
-  systemPrompt: string;
+  systemPrompt: string | null;
   useCustomPrompts: boolean;
-  userPromptTemplate: string;
+  userPromptTemplate: string | null;
 }
 
 export interface ProcessingConfig {
@@ -20,9 +20,16 @@ export interface ProcessingConfig {
   stt: SttConfig;
 }
 
-export type SttConfigInput = Partial<SttConfig>;
+export interface SttConfigInput extends Partial<Omit<SttConfig, 'systemPrompt'>> {
+  systemPrompt?: string | null;
+}
 
-export type PostProcessConfigInput = Partial<PostProcessConfig>;
+export interface PostProcessConfigInput extends Partial<
+  Omit<PostProcessConfig, 'systemPrompt' | 'userPromptTemplate'>
+> {
+  systemPrompt?: string | null;
+  userPromptTemplate?: string | null;
+}
 
 export interface DefaultPrompts {
   postProcessSystem: string;

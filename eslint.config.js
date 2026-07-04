@@ -203,6 +203,7 @@ export default tseslint.config(
       'src-tauri/extensions',
       'coverage',
       'node_modules',
+      '.venv',
       '.codex',
       'ui-audit-artifacts',
     ],

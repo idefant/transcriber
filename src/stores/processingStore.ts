@@ -15,15 +15,15 @@ const DEFAULT_CONFIG: ProcessingConfig = {
     enabled: false,
     modelKey: null,
     providerId: null,
-    systemPrompt: '',
+    systemPrompt: null,
     useCustomPrompts: false,
-    userPromptTemplate: '',
+    userPromptTemplate: null,
   } satisfies PostProcessConfig,
   stt: {
     language: 'auto',
     modelKey: null,
     providerId: null,
-    systemPrompt: '',
+    systemPrompt: null,
     useCustomPrompt: false,
   },
 };

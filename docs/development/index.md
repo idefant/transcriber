@@ -217,6 +217,10 @@ The arm/disarm pattern, in-app DOM cancel path, and session gating are documente
 
 The Zustand store architecture, canonical sort order rule, history event subscription, and component-local vs. store state decisions are documented in [state-management.md](state-management.md).
 
+## Resettable Default-Backed Fields
+
+The shared contract for settings fields that store `string | null`, show a built-in default when unset, and support reset-to-default behavior is documented in [resettable-default-fields.md](resettable-default-fields.md).
+
 ## Configuration Error Notifications
 
 The pre-flight readiness check before recording and hotkey repeat, why it reuses the snapshot builders plus `resolve_provider_api_key`, the native WinRT toast (and why the official notification plugin was rejected), and the `open-settings` click flow are documented in [config-error-notifications.md](config-error-notifications.md).

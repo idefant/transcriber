@@ -29,8 +29,12 @@ const PostProcessingSettingsTab: FC = () => {
         />
       </SettingRow>
 
-      <ProcessingSettingsForm disabled={!config.postProcess.enabled} task="postProcess" />
-      <PostProcessTestPanel />
+      {config.postProcess.enabled && (
+        <>
+          <ProcessingSettingsForm task="postProcess" />
+          <PostProcessTestPanel />
+        </>
+      )}
     </div>
   );
 };

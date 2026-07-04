@@ -1,4 +1,4 @@
-/* stylelint-disable selector-class-pattern, selector-pseudo-class-no-unknown */
+/* stylelint-disable selector-class-pattern */
 .settingsModal {
   :global {
     .ant-modal-container {
@@ -16,7 +16,7 @@
     }
   }
 }
-/* stylelint-enable selector-class-pattern, selector-pseudo-class-no-unknown */
+/* stylelint-enable selector-class-pattern */
 
 .modalBody {
   display: grid;

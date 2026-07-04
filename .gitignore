@@ -5,6 +5,7 @@ src-tauri/target
 coverage
 reports
 .codex
+.venv
 ui-audit-artifacts
 *.tsbuildinfo
 .env

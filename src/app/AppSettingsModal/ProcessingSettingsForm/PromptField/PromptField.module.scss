@@ -1,3 +1,16 @@
+.field {
+  margin-bottom: 24px;
+}
+
+.headerRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
 .textArea {
   font-family: var(--font-mono, monospace);
 }

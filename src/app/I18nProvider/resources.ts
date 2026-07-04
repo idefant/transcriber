@@ -159,9 +159,12 @@ const en = {
       useCustomPrompts: 'Use custom prompts',
       systemPrompt: 'System prompt',
       systemPromptPlaceholder: 'Enter system prompt',
+      resetPrompt: 'Reset',
       userPromptTemplate: 'User prompt template',
       userPromptTemplatePlaceholder: 'Enter user prompt template',
       userPromptTemplateHint: 'Leave empty if you do not want to use a custom template.',
+      providerRequired: 'Choose a provider',
+      modelRequired: 'Choose a model',
       selectProviderAndModel: 'Choose a provider and model above',
     },
     postProcessing: {
@@ -406,10 +409,13 @@ const ru: typeof en = {
       useCustomPrompts: 'Использовать кастомные промпты',
       systemPrompt: 'Системный промпт',
       systemPromptPlaceholder: 'Введите системный промпт',
+      resetPrompt: 'Сбросить',
       userPromptTemplate: 'Шаблон пользовательского промпта',
       userPromptTemplatePlaceholder: 'Введите шаблон пользовательского промпта',
       userPromptTemplateHint:
         'Оставьте пустым, если не хотите использовать пользовательский шаблон.',
+      providerRequired: 'Выберите провайдера',
+      modelRequired: 'Выберите модель',
       selectProviderAndModel: 'Выберите провайдера и модель выше',
     },
     postProcessing: {

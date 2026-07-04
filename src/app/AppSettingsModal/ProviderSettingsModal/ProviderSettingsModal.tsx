@@ -238,6 +238,7 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
   return (
     <Modal
       confirmLoading={isSaving}
+      destroyOnHidden
       okText={okText}
       open={open}
       title={title}

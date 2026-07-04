@@ -5,4 +5,5 @@ src-tauri/target
 src-tauri/extensions
 coverage
 node_modules
+.venv
 package-lock.json

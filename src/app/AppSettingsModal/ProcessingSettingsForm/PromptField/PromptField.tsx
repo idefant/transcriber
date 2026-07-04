@@ -1,5 +1,6 @@
 import { type FC, useEffect, useRef, useState } from 'react';
-import { Form, Input, Typography } from 'antd';
+import { Button, Form, Input, Typography } from 'antd';
+import { RotateCcwIcon } from 'lucide-react';
 
 import styles from './PromptField.module.scss';
 
@@ -10,11 +11,25 @@ interface PromptFieldProps {
   hint?: string;
   label: string;
   placeholder: string;
-  storedValue: string;
+  resetLabel?: string;
+  storedValue: string | null;
   onPersist: (value: string) => void;
+  onReset?: () => void;
 }
 
 const PERSIST_DELAY_MS = 500;
+
+const getSeedValue = ({
+  defaultValue,
+  enabled,
+  storedValue,
+}: Pick<PromptFieldProps, 'defaultValue' | 'enabled' | 'storedValue'>) => {
+  if (!enabled) {
+    return defaultValue;
+  }
+
+  return storedValue ?? defaultValue;
+};
 
 const PromptField: FC<PromptFieldProps> = ({
   defaultValue,
@@ -23,23 +38,18 @@ const PromptField: FC<PromptFieldProps> = ({
   hint,
   label,
   placeholder,
+  resetLabel,
   storedValue,
   onPersist,
+  onReset,
 }) => {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState(() => getSeedValue({ defaultValue, enabled, storedValue }));
   const storedRef = useRef(storedValue);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     storedRef.current = storedValue;
   }, [storedValue]);
-
-  // Seed the editable value when the switch flips or the default loads. The stored
-  // value is read through a ref (not a dependency) so our own debounced saves never
-  // reset the caret while the user is typing.
-  useEffect(() => {
-    setValue(enabled ? storedRef.current : defaultValue);
-  }, [enabled, defaultValue]);
 
   useEffect(
     () => () => {
@@ -59,11 +69,38 @@ const PromptField: FC<PromptFieldProps> = ({
 
   const handleBlur = () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    onPersist(value);
+
+    const persistedValue = storedRef.current ?? defaultValue;
+
+    if (value !== persistedValue) {
+      onPersist(value);
+    }
+  };
+
+  const handleReset = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setValue(defaultValue);
+    onReset?.();
   };
 
   return (
-    <Form.Item label={label}>
+    <Form.Item className={styles.field}>
+      <div className={styles.headerRow}>
+        <Typography.Text>{label}</Typography.Text>
+        {enabled && onReset && resetLabel && (
+          <Button
+            color="primary"
+            disabled={disabled || storedValue === null}
+            icon={<RotateCcwIcon size={16} strokeWidth={2} />}
+            size="small"
+            variant="text"
+            onClick={handleReset}
+          >
+            {resetLabel}
+          </Button>
+        )}
+      </div>
+
       <Input.TextArea
         autoSize={{ maxRows: 16, minRows: 3 }}
         className={styles.textArea}

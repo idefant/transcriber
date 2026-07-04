@@ -1,13 +1,17 @@
+use std::fs;
+
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tauri::Manager;
 
 use crate::{error::AppResult, storage};
 
 const META_FILE_NAME: &str = "_meta.json";
+const PROCESSING_FILE_NAME: &str = "processing.json";
 
 // Increment this constant when a breaking storage schema change is made,
 // and add a corresponding arm to run_migration_step.
-const CURRENT_SCHEMA_VERSION: u32 = 1;
+const CURRENT_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,11 +67,84 @@ pub fn run(app: &tauri::AppHandle) -> AppResult<()> {
 }
 
 fn run_migration_step(app: &tauri::AppHandle, to_version: u32) -> AppResult<()> {
-    // Add future migration steps here, e.g.:
-    // match to_version {
-    //     2 => migrate_to_v2(app),
-    //     _ => Ok(()),
-    // }
-    let _ = (app, to_version);
+    match to_version {
+        2 => migrate_to_v2(app),
+        _ => Ok(()),
+    }
+}
+
+fn migrate_to_v2(app: &tauri::AppHandle) -> AppResult<()> {
+    let path = app.path().app_data_dir()?.join(PROCESSING_FILE_NAME);
+
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let content = fs::read_to_string(&path)?;
+
+    if content.trim().is_empty() {
+        return Ok(());
+    }
+
+    let mut root: Value = match serde_json::from_str(&content) {
+        Ok(value) => value,
+        Err(_) => return Ok(()),
+    };
+
+    let mut changed = false;
+
+    changed |= ensure_object_key(&mut root, &["stt"], "systemPrompt");
+    changed |= ensure_object_key(&mut root, &["postProcess"], "systemPrompt");
+    changed |= ensure_object_key(&mut root, &["postProcess"], "userPromptTemplate");
+    changed |= remove_object_key(&mut root, &["stt"], "systemPromptTouched");
+    changed |= remove_object_key(&mut root, &["postProcess"], "systemPromptTouched");
+    changed |= remove_object_key(&mut root, &["postProcess"], "userPromptTemplateTouched");
+
+    if changed {
+        storage::save_json(app, PROCESSING_FILE_NAME, &root)?;
+    }
+
     Ok(())
+}
+
+fn remove_object_key(root: &mut Value, path: &[&str], key: &str) -> bool {
+    let mut current = root;
+
+    for segment in path {
+        let Some(next) = current.get_mut(*segment) else {
+            return false;
+        };
+
+        current = next;
+    }
+
+    let Some(object) = current.as_object_mut() else {
+        return false;
+    };
+
+    object.remove(key).is_some()
+}
+
+fn ensure_object_key(root: &mut Value, path: &[&str], key: &str) -> bool {
+    let mut current = root;
+
+    for segment in path {
+        let Some(next) = current.get_mut(*segment) else {
+            return false;
+        };
+
+        current = next;
+    }
+
+    let Some(object) = current.as_object_mut() else {
+        return false;
+    };
+
+    if object.contains_key(key) {
+        return false;
+    }
+
+    object.insert(key.to_string(), Value::Null);
+
+    true
 }

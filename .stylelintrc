@@ -15,6 +15,7 @@
       {
         "message": "Expected CSS module class names to be camelCase"
       }
-    ]
+    ],
+    "selector-pseudo-class-no-unknown": [true, { "ignorePseudoClasses": ["global"] }]
   }
 }
