@@ -7,6 +7,24 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-04
+
+### Added
+
+- On Windows, if speech-to-text or post-processing is not fully configured, starting dictation now shows a native system notification before recording begins. Clicking the notification opens the relevant settings tab.
+- Backend-generated error messages now follow the selected app language, including configuration errors shown before recording starts.
+
+### Changed
+
+- Custom prompt fields now show and use the built-in default prompt/template until the user saves an override, even when custom prompts are enabled.
+- Post-processing provider/model fields, prompt fields, and the post-processing test panel stay hidden until post-processing is enabled.
+
+### Fixed
+
+- Required provider and model fields in speech-to-text and post-processing settings are now highlighted immediately when the selection is incomplete.
+- Custom prompt fields can now be reset back to their default values without disabling the custom prompt toggle.
+- Closing the provider settings modal now clears stale validation errors, and existing processing settings are migrated automatically to the updated prompt storage format.
+
 ## [0.1.0] - 2026-07-02
 
 ### Added
