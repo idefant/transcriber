@@ -1,6 +1,9 @@
 use std::{
     io::Cursor,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     time::{Duration, Instant},
 };
 
@@ -11,23 +14,33 @@ use cpal::{
 };
 
 use crate::{
-    audio_mute::OutputMuteGuard,
     error::{AppError, AppResult},
-    i18n, overlay,
+    i18n,
     settings::{self, EffectiveUiLanguage},
 };
 
 const LEVEL_EMIT_INTERVAL: Duration = Duration::from_millis(50);
 
-pub struct AudioRecording {
-    stream: Option<Stream>,
-    samples: Arc<Mutex<Vec<f32>>>,
+/// A microphone capture stream that is built ahead of time and kept paused so a
+/// dictation can start with only a cheap `stream.play()` instead of paying the
+/// expensive WASAPI `build_input_stream` cost (hundreds of ms) on the hot path.
+///
+/// The same prepared recorder is reused across sessions: `start` re-arms it,
+/// `stop_to_audio` / `abort` return it to the paused, empty state.
+pub struct PreparedRecorder {
+    stream: Stream,
+    shared: Arc<RecorderShared>,
     sample_rate: u32,
     channels: u16,
-    started_at: DateTime<Utc>,
-    ui_language: EffectiveUiLanguage,
-    // Held for its Drop side-effect: unmutes the default output device.
-    _mute_guard: Option<OutputMuteGuard>,
+    device_name: String,
+}
+
+/// State shared with the audio callback. The callback only accumulates samples
+/// while `active` is set, so a paused-but-alive stream keeps no data.
+struct RecorderShared {
+    samples: Mutex<Vec<f32>>,
+    active: AtomicBool,
+    last_level_emit: Mutex<Instant>,
 }
 
 pub struct RecordedAudio {
@@ -37,31 +50,18 @@ pub struct RecordedAudio {
     pub started_at: DateTime<Utc>,
 }
 
-pub fn start_recording(app: tauri::AppHandle) -> AppResult<AudioRecording> {
-    let ui_language = settings::get_effective_ui_language(&app).unwrap_or_default();
-    let is_mute_enabled = settings::load_app_settings(&app)
-        .map(|s| s.is_mute_while_recording_enabled())
-        .unwrap_or(false);
-
-    let mute_guard = if is_mute_enabled {
-        match OutputMuteGuard::new() {
-            Ok(guard) => Some(guard),
-            Err(e) => {
-                eprintln!("Failed to mute system audio: {e}");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
+/// Build (but do not start) a capture stream for the current default input
+/// device. This performs all the expensive work — device enumeration, config
+/// negotiation and `build_input_stream` — so `PreparedRecorder::start` stays fast.
+pub fn prepare_recorder(app: &tauri::AppHandle) -> AppResult<PreparedRecorder> {
     let host = cpal::default_host();
     let device = host
         .default_input_device()
-        .ok_or_else(|| i18n::text(&app, "recording-no-default-input-device"))?;
+        .ok_or_else(|| i18n::text(app, "recording-no-default-input-device"))?;
+    let device_name = device.name().unwrap_or_default();
     let supported_config = device.default_input_config().map_err(|error| {
         AppError::from(i18n::text_with(
-            &app,
+            app,
             "recording-input-device-config-read-failed",
             &[("error", error.to_string())],
         ))
@@ -71,83 +71,102 @@ pub fn start_recording(app: tauri::AppHandle) -> AppResult<AudioRecording> {
     let config = supported_config.config();
     let sample_rate = config.sample_rate.0;
     let channels = config.channels;
-    let samples = Arc::new(Mutex::new(Vec::new()));
-    let last_level_emit = Arc::new(Mutex::new(Instant::now() - LEVEL_EMIT_INTERVAL));
+    let shared = Arc::new(RecorderShared {
+        samples: Mutex::new(Vec::new()),
+        active: AtomicBool::new(false),
+        last_level_emit: Mutex::new(Instant::now() - LEVEL_EMIT_INTERVAL),
+    });
 
     let stream = match sample_format {
-        SampleFormat::F32 => build_stream::<f32>(
-            &device,
-            &config,
-            Arc::clone(&samples),
-            Arc::clone(&last_level_emit),
-            &app,
-        )?,
-        SampleFormat::I16 => build_stream::<i16>(
-            &device,
-            &config,
-            Arc::clone(&samples),
-            Arc::clone(&last_level_emit),
-            &app,
-        )?,
-        SampleFormat::U16 => build_stream::<u16>(
-            &device,
-            &config,
-            Arc::clone(&samples),
-            Arc::clone(&last_level_emit),
-            &app,
-        )?,
+        SampleFormat::F32 => build_stream::<f32>(&device, &config, Arc::clone(&shared), app)?,
+        SampleFormat::I16 => build_stream::<i16>(&device, &config, Arc::clone(&shared), app)?,
+        SampleFormat::U16 => build_stream::<u16>(&device, &config, Arc::clone(&shared), app)?,
         _ => {
             return Err(AppError::from(i18n::text_with(
-                &app,
+                app,
                 "recording-unsupported-input-sample-format",
                 &[("format", format!("{sample_format:?}"))],
             )));
         }
     };
 
-    stream.play().map_err(|error| {
-        AppError::from(i18n::text_with(
-            &app,
-            "recording-start-failed",
-            &[("error", error.to_string())],
-        ))
-    })?;
-
-    Ok(AudioRecording {
-        stream: Some(stream),
-        samples,
+    Ok(PreparedRecorder {
+        stream,
+        shared,
         sample_rate,
         channels,
-        started_at: Utc::now(),
-        ui_language,
-        _mute_guard: mute_guard,
+        device_name,
     })
 }
 
-impl AudioRecording {
-    pub fn stop(mut self) -> AppResult<RecordedAudio> {
-        // Explicitly pause before drop so the WASAPI capture client stops
-        // immediately, releasing the OS microphone indicator without delay.
-        if let Some(stream) = &self.stream {
-            let _ = stream.pause();
+impl PreparedRecorder {
+    /// True when this recorder was built for the device the OS currently reports
+    /// as the default input. When it returns false the caller rebuilds so a
+    /// device change (e.g. plugging in a headset) is honored.
+    pub fn is_for_current_default_device(&self) -> bool {
+        let host = cpal::default_host();
+        match host.default_input_device() {
+            Some(device) => device
+                .name()
+                .map(|name| name == self.device_name)
+                .unwrap_or(false),
+            None => false,
         }
-        self.stream.take();
+    }
+
+    /// Re-arm and start capturing. Clears any leftover samples and resumes the
+    /// paused stream — the only work on the dictation-start hot path.
+    pub fn start(&self, app: &tauri::AppHandle) -> AppResult<()> {
+        if let Ok(mut samples) = self.shared.samples.lock() {
+            samples.clear();
+        }
+        if let Ok(mut last_emit) = self.shared.last_level_emit.lock() {
+            *last_emit = Instant::now() - LEVEL_EMIT_INTERVAL;
+        }
+
+        // Arm before play so the very first callbacks are recorded.
+        self.shared.active.store(true, Ordering::SeqCst);
+
+        self.stream.play().map_err(|error| {
+            self.shared.active.store(false, Ordering::SeqCst);
+            AppError::from(i18n::text_with(
+                app,
+                "recording-start-failed",
+                &[("error", error.to_string())],
+            ))
+        })?;
+
+        Ok(())
+    }
+
+    /// Stop capturing and encode what was recorded to WAV. Leaves the recorder
+    /// paused and empty so it can be reused for the next session.
+    pub fn stop_to_audio(
+        &self,
+        app: &tauri::AppHandle,
+        started_at: DateTime<Utc>,
+    ) -> AppResult<RecordedAudio> {
+        let ui_language = settings::get_effective_ui_language(app).unwrap_or_default();
+
+        // Pause first so the OS microphone indicator turns off immediately.
+        self.pause_and_deactivate();
 
         let samples = self
+            .shared
             .samples
             .lock()
+            .map(|mut guard| std::mem::take(&mut *guard))
             .map_err(|_| {
                 AppError::from(i18n::text_for_language(
-                    self.ui_language,
+                    ui_language,
                     "recording-read-samples-failed",
                     &[],
                 ))
-            })?
-            .clone();
+            })?;
 
         if samples.is_empty() {
             return Err(AppError::from(i18n::text_for_language(
-                self.ui_language,
+                ui_language,
                 "recording-no-audio-captured",
                 &[],
             )));
@@ -161,19 +180,33 @@ impl AudioRecording {
         };
 
         Ok(RecordedAudio {
-            bytes: encode_wav_pcm16(&samples, self.sample_rate, self.channels, self.ui_language)?,
+            bytes: encode_wav_pcm16(&samples, self.sample_rate, self.channels, ui_language)?,
             duration_ms,
             file_name: "dictation.wav".to_string(),
-            started_at: self.started_at,
+            started_at,
         })
+    }
+
+    /// Cancel capturing without producing audio and discard any samples. Leaves
+    /// the recorder paused and empty so it can be reused for the next session.
+    pub fn abort(&self) {
+        self.pause_and_deactivate();
+        if let Ok(mut samples) = self.shared.samples.lock() {
+            samples.clear();
+        }
+    }
+
+    fn pause_and_deactivate(&self) {
+        // Stop accumulating before pausing so no late callback appends samples.
+        self.shared.active.store(false, Ordering::SeqCst);
+        let _ = self.stream.pause();
     }
 }
 
 fn build_stream<T>(
     device: &cpal::Device,
     config: &StreamConfig,
-    samples: Arc<Mutex<Vec<f32>>>,
-    last_level_emit: Arc<Mutex<Instant>>,
+    shared: Arc<RecorderShared>,
     app: &tauri::AppHandle,
 ) -> AppResult<Stream>
 where
@@ -186,13 +219,17 @@ where
         .build_input_stream(
             config,
             move |data: &[T], _| {
+                if !shared.active.load(Ordering::Relaxed) {
+                    return;
+                }
+
                 let converted: Vec<f32> = data.iter().map(AudioSample::to_f32).collect();
 
-                if let Ok(mut target) = samples.lock() {
+                if let Ok(mut target) = shared.samples.lock() {
                     target.extend_from_slice(&converted);
                 }
 
-                emit_levels_if_due(&app_handle, &converted, channels, &last_level_emit);
+                emit_levels_if_due(&app_handle, &converted, channels, &shared.last_level_emit);
             },
             move |error| {
                 eprintln!("Recording input stream error: {error}");
@@ -212,7 +249,7 @@ fn emit_levels_if_due(
     app: &tauri::AppHandle,
     samples: &[f32],
     channels: usize,
-    last_level_emit: &Arc<Mutex<Instant>>,
+    last_level_emit: &Mutex<Instant>,
 ) {
     let Ok(mut last_emit) = last_level_emit.lock() else {
         return;
@@ -223,7 +260,7 @@ fn emit_levels_if_due(
     }
 
     *last_emit = Instant::now();
-    overlay::emit_mic_level(app, calculate_input_level(samples, channels));
+    crate::overlay::emit_mic_level(app, calculate_input_level(samples, channels));
 }
 
 fn calculate_input_level(samples: &[f32], channels: usize) -> f32 {

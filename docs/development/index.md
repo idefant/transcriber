@@ -225,6 +225,10 @@ The shared contract for settings fields that store `string | null`, show a built
 
 The pre-flight readiness check before recording and hotkey repeat, why it reuses the snapshot builders plus `resolve_provider_api_key`, the native WinRT toast (and why the official notification plugin was rejected), and the `open-settings` click flow are documented in [config-error-notifications.md](config-error-notifications.md).
 
+## Recording Prewarm
+
+Why the capture stream is built once at startup and reused (paused) across sessions, how this removes the `build_input_stream` latency from the dictation-start hot path, the mute/settings-read moves off that path, default-device rebuilds, why the microphone indicator stays honest, and the mutex lock ordering are documented in [recording-prewarm.md](recording-prewarm.md).
+
 ## Git Hooks
 
 Husky runs two layers before commits:

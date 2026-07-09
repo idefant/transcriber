@@ -42,6 +42,7 @@ pub fn run() {
             migrations::run(&app_handle)?;
             overlay::create_recording_overlay(&app_handle)?;
             dictation::register_dictation_shortcut(&app_handle)?;
+            dictation::prewarm_recorder(&app_handle);
             background::setup_background_mode(&app_handle)?;
 
             Ok(())

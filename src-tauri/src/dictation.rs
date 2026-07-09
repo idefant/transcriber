@@ -3,12 +3,14 @@ use std::sync::{
     Mutex,
 };
 
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde::Serialize;
 use tauri::{Emitter, Manager};
 use uuid::Uuid;
 
 use crate::{
+    audio_mute::OutputMuteGuard,
     debug_log::{ModelRunLogContext, ModelRunSource},
     error::{AppError, AppResult},
     history, i18n, keyboard,
@@ -16,7 +18,7 @@ use crate::{
     overlay,
     processing::load_processing_config,
     providers,
-    recording::{self, AudioRecording, RecordedAudio},
+    recording::{self, PreparedRecorder, RecordedAudio},
     runner,
     settings::{self, TriggerMode},
     shortcut_hook::{self, ShortcutState},
@@ -28,11 +30,23 @@ pub struct DictationRuntime {
     active_hold_activation_id: Mutex<Option<u64>>,
     active_task: Mutex<Option<ActiveDictationTask>>,
     next_session_id: AtomicU64,
+    /// Pre-built, paused capture stream reused across sessions so dictation
+    /// starts without paying the WASAPI stream-build cost on the hot path.
+    prepared_recorder: Mutex<Option<PreparedRecorder>>,
 }
 
 struct ActiveDictationTask {
     session_id: u64,
     handle: tauri::async_runtime::JoinHandle<()>,
+}
+
+/// Lightweight state of an in-progress recording. The capture stream itself
+/// lives in `DictationRuntime::prepared_recorder`; this only tracks per-session
+/// data and holds the output-mute guard so it un-mutes when the session ends.
+struct RecordingHandle {
+    started_at: DateTime<Utc>,
+    // Held for its Drop side-effect: un-mutes the default output device.
+    _mute_guard: Option<OutputMuteGuard>,
 }
 
 #[derive(Default)]
@@ -41,7 +55,7 @@ enum DictationSession {
     Idle,
     Recording {
         id: u64,
-        recording: AudioRecording,
+        handle: RecordingHandle,
     },
     Transcribing {
         id: u64,
@@ -288,17 +302,40 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
 
     overlay::show_recording_overlay(app)?;
 
-    let recording = recording::start_recording(app.clone())?;
+    // Start capture on the pre-warmed stream. Building the stream — the
+    // expensive WASAPI step — happened ahead of time, so this is just a cheap
+    // `play()` and audio starts flowing almost immediately.
+    let started_at = begin_recording(app)?;
+
+    // Variant C: read app settings once here and reuse them for both the mute
+    // flag and the cancel hotkey, instead of loading them from disk twice.
+    let app_settings = settings::load_app_settings(app).ok();
+
+    // Variant B: mute the default output AFTER capture has started, keeping the
+    // COM/mute cost off the pre-capture path. The spec allows recording to
+    // proceed even if muting fails, so a best-effort guard here is fine.
+    let mute_guard = acquire_output_mute(
+        app_settings
+            .as_ref()
+            .is_some_and(|settings| settings.is_mute_while_recording_enabled()),
+    );
+
     let id = runtime.next_session_id.fetch_add(1, Ordering::Relaxed) + 1;
 
-    *session = DictationSession::Recording { id, recording };
+    *session = DictationSession::Recording {
+        id,
+        handle: RecordingHandle {
+            started_at,
+            _mute_guard: mute_guard,
+        },
+    };
     drop(session);
 
     set_active_hold_activation_id(app, activation_id);
 
     // Arm the cancel hotkey for the duration of this session. A missing or
     // empty cancel hotkey silently disarms the hook (no key is consumed).
-    if let Ok(app_settings) = settings::load_app_settings(app) {
+    if let Some(app_settings) = app_settings.as_ref() {
         if let Err(error) = shortcut_hook::arm_cancel_hotkey(app_settings.cancel_hotkey()) {
             emit_dictation_error(app, error.into_message());
         }
@@ -308,6 +345,105 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
     emit_dictation_session(app, true, Some(id));
 
     Ok(())
+}
+
+/// Ensure a prepared capture stream exists for the current default input device
+/// and start it. Returns the recording start timestamp. The expensive stream
+/// build only runs here if no warm stream is available or the default input
+/// device changed since it was built.
+fn begin_recording(app: &tauri::AppHandle) -> AppResult<DateTime<Utc>> {
+    let runtime = app.state::<DictationRuntime>();
+    let mut prepared = runtime
+        .prepared_recorder
+        .lock()
+        .map_err(|_| AppError::from(i18n::text(app, "dictation-state-lock-failed")))?;
+
+    let needs_build = match prepared.as_ref() {
+        Some(recorder) => !recorder.is_for_current_default_device(),
+        None => true,
+    };
+
+    if needs_build {
+        *prepared = Some(recording::prepare_recorder(app)?);
+    }
+
+    prepared
+        .as_ref()
+        .expect("prepared recorder was just ensured")
+        .start(app)?;
+
+    Ok(Utc::now())
+}
+
+/// Best-effort mute of the default output device. Returns a guard that un-mutes
+/// on drop, or `None` when muting is disabled or failed.
+fn acquire_output_mute(is_enabled: bool) -> Option<OutputMuteGuard> {
+    if !is_enabled {
+        return None;
+    }
+
+    match OutputMuteGuard::new() {
+        Ok(guard) => Some(guard),
+        Err(error) => {
+            eprintln!("Failed to mute system audio: {error}");
+            None
+        }
+    }
+}
+
+/// Build the reusable capture stream ahead of the first dictation so the WASAPI
+/// build cost is paid at startup, not on the first hotkey press. Runs on a
+/// background thread; failure is non-fatal — the stream is built on demand.
+pub fn prewarm_recorder(app: &tauri::AppHandle) {
+    let app = app.clone();
+
+    std::thread::spawn(move || match recording::prepare_recorder(&app) {
+        Ok(recorder) => {
+            if let Ok(mut prepared) = app.state::<DictationRuntime>().prepared_recorder.lock() {
+                // Don't clobber a recorder a very early dictation already built.
+                if prepared.is_none() {
+                    *prepared = Some(recorder);
+                }
+            }
+        }
+        Err(error) => {
+            eprintln!("Recorder prewarm failed: {}", error.into_message());
+        }
+    });
+}
+
+/// Pause and clear the prepared recorder without producing audio (used on cancel
+/// while recording). The recorder stays ready for reuse.
+fn release_recording(app: &tauri::AppHandle) {
+    if let Ok(prepared) = app.state::<DictationRuntime>().prepared_recorder.lock() {
+        if let Some(recorder) = prepared.as_ref() {
+            recorder.abort();
+        }
+    }
+}
+
+/// Stop the prepared recorder and encode the captured audio. Dropping `handle`
+/// un-mutes the output device after the microphone has been released.
+fn finish_recording(app: &tauri::AppHandle, handle: RecordingHandle) -> AppResult<RecordedAudio> {
+    let runtime = app.state::<DictationRuntime>();
+    let audio = {
+        let prepared = runtime
+            .prepared_recorder
+            .lock()
+            .map_err(|_| AppError::from(i18n::text(app, "dictation-state-lock-failed")))?;
+
+        let Some(recorder) = prepared.as_ref() else {
+            return Err(AppError::from(i18n::text(
+                app,
+                "recording-no-audio-captured",
+            )));
+        };
+
+        recorder.stop_to_audio(app, handle.started_at)?
+    };
+
+    drop(handle); // un-mute now that the microphone is released
+    Ok(audio)
 }
 
 /// Проверяет, что аудио можно будет обработать: выбраны провайдер и модель STT,
@@ -405,8 +541,8 @@ fn begin_repeat_latest_history_record(app: &tauri::AppHandle) -> AppResult<Optio
 }
 
 fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
-    let (id, recording) = match take_recording(&app, activation_id) {
-        Ok(Some((id, recording))) => (id, recording),
+    let (id, recording_handle) = match take_recording(&app, activation_id) {
+        Ok(Some((id, recording_handle))) => (id, recording_handle),
         Ok(None) => return,
         Err(error) => {
             emit_dictation_error(&app, error.into_message());
@@ -416,7 +552,7 @@ fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
 
     // Stop the audio stream synchronously so the OS microphone indicator turns
     // off and system audio un-mutes before STT/post-processing begins.
-    let audio = match recording.stop() {
+    let audio = match finish_recording(&app, recording_handle) {
         Ok(audio) => audio,
         Err(error) => {
             let _ = reset_session(&app, id, true);
@@ -432,7 +568,7 @@ fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
 fn take_recording(
     app: &tauri::AppHandle,
     activation_id: Option<u64>,
-) -> AppResult<Option<(u64, AudioRecording)>> {
+) -> AppResult<Option<(u64, RecordingHandle)>> {
     let runtime = app.state::<DictationRuntime>();
     let mut session = runtime
         .session
@@ -457,7 +593,7 @@ fn take_recording(
         return Ok(None);
     }
 
-    let DictationSession::Recording { id, recording } =
+    let DictationSession::Recording { id, handle } =
         std::mem::replace(&mut *session, DictationSession::Idle)
     else {
         unreachable!()
@@ -466,7 +602,7 @@ fn take_recording(
     *session = DictationSession::Transcribing { id };
     *active_hold_activation_id = None;
 
-    Ok(Some((id, recording)))
+    Ok(Some((id, handle)))
 }
 
 async fn process_recording(app: tauri::AppHandle, id: u64, audio: RecordedAudio) {
@@ -826,7 +962,13 @@ fn cancel_dictation_inner(
 
     let cancelled_task_id = match std::mem::replace(&mut *session, DictationSession::Idle) {
         DictationSession::Idle => None,
-        DictationSession::Recording { .. } => None,
+        DictationSession::Recording { handle, .. } => {
+            // Stop capturing and discard the audio; dropping `handle` un-mutes
+            // the output device after the microphone is released.
+            release_recording(&app);
+            drop(handle);
+            None
+        }
         DictationSession::Transcribing { id } | DictationSession::Processing { id } => Some(id),
     };
     drop(session);
