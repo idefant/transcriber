@@ -1,6 +1,7 @@
 use std::sync::{
     atomic::{AtomicU64, Ordering},
-    Mutex,
+    mpsc::{self, Sender},
+    Mutex, OnceLock,
 };
 
 use chrono::{DateTime, Utc};
@@ -97,6 +98,8 @@ enum DictationOutcome {
 }
 
 pub fn register_dictation_shortcut(app: &tauri::AppHandle) -> AppResult<()> {
+    ensure_dictation_dispatch_thread(app);
+
     let settings = settings::load_app_settings(app)?;
 
     shortcut_hook::install_dictation_shortcut(app.clone(), settings.hotkey())?;
@@ -105,6 +108,68 @@ pub fn register_dictation_shortcut(app: &tauri::AppHandle) -> AppResult<()> {
     shortcut_hook::set_repeat_latest_hotkey(settings.repeat_latest_hotkey())?;
 
     Ok(())
+}
+
+/// Job handed off from a DOM-triggered command (main thread) to the dedicated
+/// dictation dispatch thread. Mirrors `shortcut_hook::HookEvent`: the native
+/// hook path already runs this same work off the main thread, this gives the
+/// focused-window DOM path the same guarantee.
+enum DictationJob {
+    DomPressed { activation_id: u64 },
+    DomReleased { activation_id: u64 },
+    Cancel { session_id: Option<u64> },
+}
+
+static DICTATION_JOB_SENDER: OnceLock<Sender<DictationJob>> = OnceLock::new();
+
+/// Serialized worker that runs DOM-triggered dictation actions off the main
+/// thread. `#[tauri::command] pub fn` (non-async) handlers run on the main
+/// event-loop thread, and starting/stopping dictation does slow, blocking work
+/// (overlay window creation, WASAPI stream build, COM audio-endpoint calls) —
+/// running it there freezes window dragging/buttons and can deadlock the
+/// STA-threaded WebView2 event loop against COM marshaling. A single thread
+/// draining an mpsc channel keeps `pressed` strictly ordered before
+/// `released`, same as `shortcut_hook::ensure_event_dispatch_thread` does for
+/// the native hook path.
+fn ensure_dictation_dispatch_thread(app: &tauri::AppHandle) {
+    if DICTATION_JOB_SENDER.get().is_some() {
+        return;
+    }
+
+    let (sender, receiver) = mpsc::channel::<DictationJob>();
+
+    if DICTATION_JOB_SENDER.set(sender).is_err() {
+        // Another thread won the race to initialize; its worker is running.
+        return;
+    }
+
+    let app = app.clone();
+
+    std::thread::spawn(move || {
+        for job in receiver {
+            match job {
+                DictationJob::DomPressed { activation_id } => {
+                    handle_dom_shortcut_pressed(&app, DictationShortcutPayload { activation_id });
+                }
+                DictationJob::DomReleased { activation_id } => {
+                    handle_dom_shortcut_released(&app, DictationShortcutPayload { activation_id });
+                }
+                DictationJob::Cancel { session_id } => {
+                    if let Err(error) = cancel_dictation_inner(app.clone(), session_id) {
+                        emit_dictation_error(&app, error.into_message());
+                    }
+                }
+            }
+        }
+    });
+}
+
+fn enqueue_dictation_job(app: &tauri::AppHandle, job: DictationJob) {
+    ensure_dictation_dispatch_thread(app);
+
+    if let Some(sender) = DICTATION_JOB_SENDER.get() {
+        let _ = sender.send(job);
+    }
 }
 
 pub fn update_dictation_shortcut(app: &tauri::AppHandle) -> AppResult<()> {
@@ -167,19 +232,23 @@ pub fn handle_repeat_latest_shortcut(app: &tauri::AppHandle) {
     });
 }
 
+// These three DOM-triggered commands are intentionally synchronous but only
+// enqueue a job — see `ensure_dictation_dispatch_thread` for why the actual
+// work must not run on the main thread.
+
 #[tauri::command]
-pub fn cancel_dictation(app: tauri::AppHandle, session_id: Option<u64>) -> Result<(), String> {
-    cancel_dictation_inner(app, session_id).map_err(AppError::into_message)
+pub fn cancel_dictation(app: tauri::AppHandle, session_id: Option<u64>) {
+    enqueue_dictation_job(&app, DictationJob::Cancel { session_id });
 }
 
 #[tauri::command]
 pub fn dictation_shortcut_pressed(app: tauri::AppHandle, activation_id: u64) {
-    handle_dom_shortcut_pressed(&app, DictationShortcutPayload { activation_id });
+    enqueue_dictation_job(&app, DictationJob::DomPressed { activation_id });
 }
 
 #[tauri::command]
 pub fn dictation_shortcut_released(app: tauri::AppHandle, activation_id: u64) {
-    handle_dom_shortcut_released(&app, DictationShortcutPayload { activation_id });
+    enqueue_dictation_job(&app, DictationJob::DomReleased { activation_id });
 }
 
 #[tauri::command]

@@ -151,7 +151,7 @@ impl PreparedRecorder {
         // Pause first so the OS microphone indicator turns off immediately.
         self.pause_and_deactivate();
 
-        let samples = self
+        let mut samples = self
             .shared
             .samples
             .lock()
@@ -171,6 +171,8 @@ impl PreparedRecorder {
                 &[],
             )));
         }
+
+        normalize_peak(&mut samples);
 
         let duration_ms = if self.channels == 0 || self.sample_rate == 0 {
             0
@@ -277,6 +279,36 @@ fn calculate_input_level(samples: &[f32], channels: usize) -> f32 {
     let sum_squares = samples.iter().map(|sample| sample * sample).sum::<f32>();
 
     (sum_squares / samples.len() as f32).sqrt().clamp(0.0, 1.0)
+}
+
+/// Target peak after normalization, expressed as a linear amplitude (-1 dBFS).
+/// Leaves a little headroom below full scale instead of normalizing to exactly 1.0.
+const NORMALIZE_TARGET_PEAK: f32 = 0.891_251;
+
+/// Upper bound on the applied gain (~24 dB). Without this cap a near-silent
+/// buffer (mic muted, no speech captured) would normalize its noise floor up
+/// to full volume instead of being left alone.
+const NORMALIZE_MAX_GAIN: f32 = 16.0;
+
+/// Scales the whole buffer by a single factor so its peak amplitude reaches
+/// `NORMALIZE_TARGET_PEAK`. Boosts quiet recordings (e.g. low mic input level)
+/// and gently pulls down recordings that are already close to clipping,
+/// without introducing distortion since the factor is derived from the
+/// recording's own peak.
+fn normalize_peak(samples: &mut [f32]) {
+    let peak = samples
+        .iter()
+        .fold(0.0_f32, |max, &sample| max.max(sample.abs()));
+
+    if peak <= f32::EPSILON {
+        return;
+    }
+
+    let gain = (NORMALIZE_TARGET_PEAK / peak).min(NORMALIZE_MAX_GAIN);
+
+    for sample in samples.iter_mut() {
+        *sample *= gain;
+    }
 }
 
 fn encode_wav_pcm16(

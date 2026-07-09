@@ -42,6 +42,14 @@ The focus switch is driven by Tauri window events in `src-tauri/src/background.r
 
 Because of that split, there is no longer any intentional overlap between native and DOM handling in the focused-window case. The DOM handler still skips non-cancel processing when the hotkey capture lock is active (during hotkey recording in settings).
 
+## DOM dispatch thread
+
+The DOM-triggered commands (`dictation_shortcut_pressed`, `dictation_shortcut_released`, `cancel_dictation`) are declared as synchronous `#[tauri::command] pub fn`, which Tauri runs on the main event-loop thread. Starting or stopping dictation does slow, blocking work — overlay window creation, a WASAPI stream build, and COM audio-endpoint calls for "mute while recording" — and running that directly on the main thread used to freeze window dragging and title-bar buttons (the event loop stops pumping messages) and could deadlock the STA-threaded WebView2 event loop against COM marshaling, since the main thread blocked instead of pumping the messages that marshaling needs. This only affected the focused-window DOM path; the unfocused native hook path already ran the equivalent work on its own thread.
+
+To fix this, the three commands in `dictation.rs` only enqueue a `DictationJob` onto an `mpsc` channel and return immediately. A single dedicated thread (`ensure_dictation_dispatch_thread`, started lazily and also eagerly from `register_dictation_shortcut`) drains the channel and calls the same `handle_dom_shortcut_pressed`/`handle_dom_shortcut_released`/`cancel_dictation_inner` functions the command handlers used to call directly. Because it is a single thread reading a FIFO channel, `pressed` is still guaranteed to be processed before a later `released` — the ordering the hold-mode `activation_id` invariant depends on (see "Hold-mode activation identity" below) is preserved. This mirrors `shortcut_hook::ensure_event_dispatch_thread`, which already does the same thing for the native hook path.
+
+If you add a new DOM-triggered dictation command, route it through this dispatch thread rather than doing session/overlay/recording work directly in the command handler.
+
 ## Repeat-cancel boundary
 
 The "repeat latest transcription" flow has the same cancel invariant as ordinary dictation: once the session is cancelled, the overlay must stay hidden and the pipeline must not enter a new visible phase.
