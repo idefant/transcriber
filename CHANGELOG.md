@@ -7,6 +7,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Dictation paste no longer wipes non-text clipboard contents. Images, file lists, HTML, and other memory-backed clipboard formats are now restored after the transcription is pasted, instead of only text.
+
 ## [0.1.1] - 2026-07-04
 
 ### Added

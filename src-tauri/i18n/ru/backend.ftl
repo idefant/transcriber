@@ -65,8 +65,6 @@ shortcut-install-windows-keyboard-hook-failed = Не удалось устано
 clipboard-paste-windows-only = Вставка текста диктовки в этой версии реализована только для Windows
 clipboard-copy-windows-only = Копирование в буфер обмена в этой версии реализовано только для Windows
 clipboard-open-failed = Не удалось открыть буфер обмена Windows
-clipboard-memory-allocate-failed = Не удалось выделить память для буфера обмена Windows
-clipboard-memory-lock-failed = Не удалось заблокировать память буфера обмена Windows
 clipboard-set-data-failed = Не удалось записать данные в буфер обмена Windows
 clipboard-send-ctrl-v-failed = Не удалось отправить сочетание Ctrl+V
 

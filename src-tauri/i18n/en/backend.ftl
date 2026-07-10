@@ -65,8 +65,6 @@ shortcut-install-windows-keyboard-hook-failed = Could not install Windows keyboa
 clipboard-paste-windows-only = Dictation paste is only implemented on Windows in this version
 clipboard-copy-windows-only = Clipboard copy is only implemented on Windows in this version
 clipboard-open-failed = Could not open Windows clipboard
-clipboard-memory-allocate-failed = Could not allocate Windows clipboard memory
-clipboard-memory-lock-failed = Could not lock Windows clipboard memory
 clipboard-set-data-failed = Could not set Windows clipboard data
 clipboard-send-ctrl-v-failed = Could not send Ctrl+V input
 

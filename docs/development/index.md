@@ -213,6 +213,10 @@ The two-path hotkey system (native hook + in-app DOM handler), left/right modifi
 
 The arm/disarm pattern, in-app DOM cancel path, and session gating are documented in [cancel-hotkey.md](cancel-hotkey.md).
 
+## Clipboard Snapshot and Restore
+
+Why dictation paste snapshots every clipboard format, which formats cannot be copied, why only `CF_DIB` is kept out of the DIB pair, why `CF_BITMAP` synthesis is forced after a restore, and what `clipboard-win` does not cover are documented in [clipboard-restore.md](clipboard-restore.md).
+
 ## State Management
 
 The Zustand store architecture, canonical sort order rule, history event subscription, and component-local vs. store state decisions are documented in [state-management.md](state-management.md).

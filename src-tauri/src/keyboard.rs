@@ -5,14 +5,15 @@ use crate::{
 
 #[cfg(target_os = "windows")]
 pub async fn paste_text(app: &tauri::AppHandle, text: &str) -> AppResult<()> {
-    let previous = read_clipboard_text();
-    copy_text_hidden(app, text)?;
+    let previous = read_clipboard_snapshot();
+    write_clipboard(&[text_entry(text)], ClipboardHistoryMode::Hidden)
+        .map_err(|error| error.into_app_error(app))?;
     let send_result = send_ctrl_v(app);
     // Give the target application time to process the paste before the
     // clipboard is restored. SendInput is asynchronous from the recipient's
     // perspective, so a brief pause is required.
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    restore_clipboard(app, previous);
+    restore_clipboard(previous);
     send_result
 }
 
@@ -26,7 +27,8 @@ pub async fn paste_text(app: &tauri::AppHandle, _text: &str) -> AppResult<()> {
 
 #[cfg(target_os = "windows")]
 pub fn copy_text(app: &tauri::AppHandle, text: &str) -> AppResult<()> {
-    write_clipboard_text(app, text, ClipboardHistoryMode::Visible)
+    write_clipboard(&[text_entry(text)], ClipboardHistoryMode::Visible)
+        .map_err(|error| error.into_app_error(app))
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -37,202 +39,289 @@ pub fn copy_text(app: &tauri::AppHandle, _text: &str) -> AppResult<()> {
     )))
 }
 
+/// Windows clipboard formats that tell the clipboard monitor (Win+V history,
+/// cloud sync) to ignore the current entry.
+#[cfg(target_os = "windows")]
+const EXCLUDE_FROM_MONITOR_FORMAT: &str = "ExcludeClipboardContentFromMonitorProcessing";
+
+#[cfg(target_os = "windows")]
+const CAN_INCLUDE_IN_HISTORY_FORMAT: &str = "CanIncludeInClipboardHistory";
+
 #[cfg(target_os = "windows")]
 enum ClipboardHistoryMode {
     Hidden,
     Visible,
 }
 
+/// One clipboard format and its raw bytes. `data` is `None` when the format was
+/// present with a null handle, which is how marker formats carry meaning through
+/// their presence alone.
 #[cfg(target_os = "windows")]
-fn copy_text_hidden(app: &tauri::AppHandle, text: &str) -> AppResult<()> {
-    write_clipboard_text(app, text, ClipboardHistoryMode::Hidden)
+struct ClipboardEntry {
+    format: u32,
+    data: Option<Vec<u8>>,
 }
 
 #[cfg(target_os = "windows")]
-fn write_clipboard_text(
-    app: &tauri::AppHandle,
-    text: &str,
-    history_mode: ClipboardHistoryMode,
-) -> AppResult<()> {
-    use std::ptr;
+enum ClipboardError {
+    Open,
+    Write,
+}
 
-    use windows_sys::Win32::System::{
-        DataExchange::{
-            CloseClipboard, EmptyClipboard, OpenClipboard, RegisterClipboardFormatW,
-            SetClipboardData,
-        },
-        Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE},
+#[cfg(target_os = "windows")]
+impl ClipboardError {
+    fn into_app_error(self, app: &tauri::AppHandle) -> AppError {
+        let key = match self {
+            Self::Open => "clipboard-open-failed",
+            Self::Write => "clipboard-set-data-failed",
+        };
+
+        AppError::from(i18n::text(app, key))
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn text_entry(text: &str) -> ClipboardEntry {
+    let mut data = Vec::with_capacity((text.len() + 1) * size_of::<u16>());
+
+    for unit in text.encode_utf16().chain(std::iter::once(0)) {
+        data.extend_from_slice(&unit.to_ne_bytes());
+    }
+
+    ClipboardEntry {
+        format: clipboard_win::formats::CF_UNICODETEXT,
+        data: Some(data),
+    }
+}
+
+/// Opens the clipboard, retrying because another application can hold it open
+/// while it processes a paste.
+///
+/// `Clipboard::new_attempts` only yields the scheduler slice between tries, which
+/// is too short to outlast a busy paste target, so the waiting is done here.
+#[cfg(target_os = "windows")]
+fn open_clipboard() -> Option<clipboard_win::Clipboard> {
+    for attempt in 0..5u32 {
+        if attempt > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(30));
+        }
+
+        if let Ok(clipboard) = clipboard_win::Clipboard::new() {
+            return Some(clipboard);
+        }
+    }
+
+    None
+}
+
+/// Copies every restorable clipboard format into memory so the clipboard can be
+/// put back exactly as it was. Returns `None` when the clipboard could not be
+/// opened at all; the caller must then leave the clipboard untouched rather than
+/// destroy contents it failed to read.
+#[cfg(target_os = "windows")]
+fn read_clipboard_snapshot() -> Option<Vec<ClipboardEntry>> {
+    use clipboard_win::{formats, raw};
+
+    let _clipboard = open_clipboard()?;
+
+    // Enumerate every format first and read the data afterwards. `GetClipboardData`
+    // can trigger delayed rendering in the owning application, which writes to the
+    // clipboard and would invalidate an in-flight enumeration.
+    let available: Vec<u32> = raw::EnumFormats::new().collect();
+
+    // The markers are re-applied on restore, so carrying them through the snapshot
+    // would only set the same formats twice.
+    let markers = [
+        registered_format(EXCLUDE_FROM_MONITOR_FORMAT),
+        registered_format(CAN_INCLUDE_IN_HISTORY_FORMAT),
+    ];
+
+    // An image is always enumerated as both CF_DIB and CF_DIBV5, whichever one the
+    // source placed, and reading either costs a full-size conversion in Windows —
+    // around 50 ms apiece for a 4K screenshot. Keep CF_DIB and let Windows
+    // synthesize the rest of the image formats back from it.
+    //
+    // CF_DIB is the safe half of the pair. Its BITMAPINFOHEADER is always followed
+    // by the three BI_BITFIELDS masks, so the pixel offset is unambiguous. A
+    // BITMAPV5HEADER already carries those masks inside the header, yet the buffer
+    // Windows synthesizes still appends them; writing those bytes back as a native
+    // CF_DIBV5 makes readers treat the 12 mask bytes as pixel data and shifts the
+    // whole image three pixels sideways.
+    let has_dib = available.contains(&formats::CF_DIB);
+
+    let entries = available
+        .into_iter()
+        .filter(|format| {
+            is_restorable_format(*format)
+                && !markers.contains(format)
+                && !(has_dib && *format == formats::CF_DIBV5)
+        })
+        .map(|format| ClipboardEntry {
+            format,
+            data: read_clipboard_format(format),
+        })
+        .collect();
+
+    Some(entries)
+}
+
+/// Restores a snapshot taken by [`read_clipboard_snapshot`]. An empty snapshot
+/// restores an empty clipboard. The restored entry is marked as hidden so it does
+/// not create a duplicate Win+V history entry next to the one the original copy
+/// already produced.
+#[cfg(target_os = "windows")]
+fn restore_clipboard(previous: Option<Vec<ClipboardEntry>>) {
+    let Some(entries) = previous else {
+        return;
     };
 
-    const CF_UNICODETEXT: u32 = 13;
+    let has_image = entries
+        .iter()
+        .any(|entry| entry.format == clipboard_win::formats::CF_DIB);
 
-    // Encode text as UTF-16 with null terminator.
-    let mut utf16: Vec<u16> = text.encode_utf16().collect();
-    utf16.push(0);
-    let bytes_len = utf16.len() * size_of::<u16>();
+    if write_clipboard(&entries, ClipboardHistoryMode::Hidden).is_err() {
+        return;
+    }
 
-    unsafe {
-        if OpenClipboard(ptr::null_mut()) == 0 {
-            return Err(AppError::from(i18n::text(app, "clipboard-open-failed")));
-        }
+    if has_image {
+        force_bitmap_synthesis();
+    }
+}
 
-        let handle = GlobalAlloc(GMEM_MOVEABLE, bytes_len);
+/// Reads one format as a raw memory block. Returns `None` for formats with a null
+/// handle and for handles the memory manager does not recognise as an `HGLOBAL`.
+///
+/// The clipboard must be open.
+#[cfg(target_os = "windows")]
+fn read_clipboard_format(format: u32) -> Option<Vec<u8>> {
+    let mut data = Vec::new();
 
-        if handle.is_null() {
-            CloseClipboard();
-            return Err(AppError::from(i18n::text(
-                app,
-                "clipboard-memory-allocate-failed",
-            )));
-        }
+    match clipboard_win::raw::get_vec(format, &mut data) {
+        Ok(_) if !data.is_empty() => Some(data),
+        _ => None,
+    }
+}
 
-        let target = GlobalLock(handle) as *mut u8;
+/// Formats that cannot be copied byte for byte: GDI handles, metafiles,
+/// owner-drawn display formats, and the private ranges whose memory the system
+/// does not manage.
+///
+/// Images still survive a snapshot. Windows enumerates `CF_DIB`/`CF_DIBV5`
+/// alongside `CF_BITMAP` and synthesizes the bitmap and palette handles back from
+/// the DIB block that is restored here.
+#[cfg(target_os = "windows")]
+fn is_restorable_format(format: u32) -> bool {
+    use clipboard_win::formats::{
+        CF_BITMAP, CF_DSPBITMAP, CF_DSPENHMETAFILE, CF_DSPMETAFILEPICT, CF_ENHMETAFILE,
+        CF_GDIOBJFIRST, CF_GDIOBJLAST, CF_METAFILEPICT, CF_OWNERDISPLAY, CF_PALETTE,
+        CF_PRIVATEFIRST, CF_PRIVATELAST,
+    };
 
-        if target.is_null() {
-            CloseClipboard();
-            return Err(AppError::from(i18n::text(
-                app,
-                "clipboard-memory-lock-failed",
-            )));
-        }
+    let handle_based = matches!(
+        format,
+        CF_BITMAP
+            | CF_METAFILEPICT
+            | CF_PALETTE
+            | CF_ENHMETAFILE
+            | CF_OWNERDISPLAY
+            | CF_DSPBITMAP
+            | CF_DSPMETAFILEPICT
+            | CF_DSPENHMETAFILE
+    );
 
-        ptr::copy_nonoverlapping(utf16.as_ptr() as *const u8, target, bytes_len);
-        GlobalUnlock(handle);
-        EmptyClipboard();
+    !handle_based
+        && !(CF_PRIVATEFIRST..=CF_PRIVATELAST).contains(&format)
+        && !(CF_GDIOBJFIRST..=CF_GDIOBJLAST).contains(&format)
+}
 
-        if SetClipboardData(CF_UNICODETEXT, handle).is_null() {
-            CloseClipboard();
-            return Err(AppError::from(i18n::text(app, "clipboard-set-data-failed")));
-        }
+#[cfg(target_os = "windows")]
+fn write_clipboard(
+    entries: &[ClipboardEntry],
+    history_mode: ClipboardHistoryMode,
+) -> Result<(), ClipboardError> {
+    use clipboard_win::raw;
 
-        if matches!(history_mode, ClipboardHistoryMode::Hidden) {
-            // These Windows clipboard formats instruct the clipboard monitor
-            // (Win+V history, cloud sync) to ignore this entry.
-            let mut exclude_format_name: Vec<u16> = "ExcludeClipboardContentFromMonitorProcessing"
-                .encode_utf16()
-                .collect();
-            exclude_format_name.push(0);
+    let _clipboard = open_clipboard().ok_or(ClipboardError::Open)?;
 
-            let mut no_history_format_name: Vec<u16> =
-                "CanIncludeInClipboardHistory".encode_utf16().collect();
-            no_history_format_name.push(0);
+    raw::empty().map_err(|_| ClipboardError::Write)?;
 
-            // "ExcludeClipboardContentFromMonitorProcessing": presence of the
-            // format is enough, no data payload is required.
-            let exclude_fmt = RegisterClipboardFormatW(exclude_format_name.as_ptr());
-            if exclude_fmt != 0 {
-                SetClipboardData(exclude_fmt, ptr::null_mut());
+    for entry in entries {
+        match &entry.data {
+            Some(data) => {
+                raw::set_without_clear(entry.format, data).map_err(|_| ClipboardError::Write)?
             }
-
-            // "CanIncludeInClipboardHistory": set DWORD 0 to opt out.
-            let no_history_fmt = RegisterClipboardFormatW(no_history_format_name.as_ptr());
-            if no_history_fmt != 0 {
-                let dword_handle = GlobalAlloc(GMEM_MOVEABLE, size_of::<u32>());
-                if !dword_handle.is_null() {
-                    let dword_ptr = GlobalLock(dword_handle) as *mut u32;
-                    if !dword_ptr.is_null() {
-                        *dword_ptr = 0;
-                        GlobalUnlock(dword_handle);
-                        SetClipboardData(no_history_fmt, dword_handle);
-                    }
-                }
-            }
+            None => set_empty_format(entry.format),
         }
+    }
 
-        CloseClipboard();
+    if matches!(history_mode, ClipboardHistoryMode::Hidden) && !entries.is_empty() {
+        exclude_from_clipboard_history();
     }
 
     Ok(())
 }
 
-/// Reads the current clipboard text (CF_UNICODETEXT). Returns `None` if the
-/// clipboard is empty, has no text, or cannot be opened.
+/// Opts the current clipboard entry out of the Windows clipboard monitor.
+///
+/// The clipboard must be open.
 #[cfg(target_os = "windows")]
-fn read_clipboard_text() -> Option<String> {
-    use std::ptr;
+fn exclude_from_clipboard_history() {
+    use clipboard_win::raw;
 
-    use windows_sys::Win32::System::{
-        DataExchange::{CloseClipboard, GetClipboardData, OpenClipboard},
-        Memory::{GlobalLock, GlobalUnlock},
+    // "ExcludeClipboardContentFromMonitorProcessing": presence of the format is
+    // enough, no data payload is required.
+    let exclude_format = registered_format(EXCLUDE_FROM_MONITOR_FORMAT);
+
+    if exclude_format != 0 {
+        set_empty_format(exclude_format);
+    }
+
+    // "CanIncludeInClipboardHistory": set DWORD 0 to opt out.
+    let no_history_format = registered_format(CAN_INCLUDE_IN_HISTORY_FORMAT);
+
+    if no_history_format != 0 {
+        let _ = raw::set_without_clear(no_history_format, &0u32.to_ne_bytes());
+    }
+}
+
+/// Materializes CF_BITMAP from the CF_DIB that was just restored.
+///
+/// The original clipboard usually carried a real `HBITMAP`, which cannot be copied
+/// into a snapshot, so CF_BITMAP now has to be synthesized. Windows derives it from
+/// whichever DIB format is present, and its CF_DIBV5 path treats the three
+/// BI_BITFIELDS masks as pixel data, which shifts the image three pixels sideways.
+/// Reading CF_BITMAP here forces the correct CF_DIB-derived handle and caches it,
+/// before a paste target can materialize CF_DIBV5 and poison the conversion.
+#[cfg(target_os = "windows")]
+fn force_bitmap_synthesis() {
+    use clipboard_win::{formats, raw};
+
+    let Some(_clipboard) = open_clipboard() else {
+        return;
     };
 
-    const CF_UNICODETEXT: u32 = 13;
-
-    unsafe {
-        if OpenClipboard(ptr::null_mut()) == 0 {
-            return None;
-        }
-
-        let handle = GetClipboardData(CF_UNICODETEXT);
-        if handle.is_null() {
-            CloseClipboard();
-            return None;
-        }
-
-        let ptr = GlobalLock(handle) as *const u16;
-        if ptr.is_null() {
-            CloseClipboard();
-            return None;
-        }
-
-        // Read null-terminated UTF-16 string.
-        let mut len = 0;
-        while *ptr.add(len) != 0 {
-            len += 1;
-        }
-
-        let text = if len > 0 {
-            let slice = std::slice::from_raw_parts(ptr, len);
-            Some(String::from_utf16_lossy(slice).to_owned())
-        } else {
-            None
-        };
-
-        GlobalUnlock(handle);
-        CloseClipboard();
-
-        text
-    }
+    let _ = raw::get_clipboard_data(formats::CF_BITMAP);
 }
 
-/// Restores the clipboard to its pre-paste state. When the previous contents
-/// were text, they are written back as hidden to avoid a duplicate clipboard
-/// history entry. When the previous contents were non-text or the clipboard was
-/// empty, the clipboard is cleared.
+/// Returns the id of a registered clipboard format, or `0` when registration fails.
+#[cfg(target_os = "windows")]
+fn registered_format(name: &str) -> u32 {
+    clipboard_win::raw::register_format(name).map_or(0, |format| format.get())
+}
+
+/// Places a format on the clipboard with a null handle, marking it as present with
+/// no payload.
 ///
-/// Retries several times because the target application may hold the clipboard
-/// open briefly while processing the Ctrl+V paste, causing OpenClipboard to
-/// fail transiently.
+/// This stays on the raw Win32 call because `clipboard_win::raw::set_without_clear`
+/// silently succeeds without writing anything when the data slice is empty.
+///
+/// The clipboard must be open.
 #[cfg(target_os = "windows")]
-fn restore_clipboard(app: &tauri::AppHandle, previous: Option<String>) {
-    for attempt in 0..5u32 {
-        if attempt > 0 {
-            std::thread::sleep(std::time::Duration::from_millis(30));
-        }
-        let ok = match &previous {
-            Some(text) => copy_text_hidden(app, text).is_ok(),
-            None => try_clear_clipboard(),
-        };
-        if ok {
-            return;
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn try_clear_clipboard() -> bool {
-    use std::ptr;
-
-    use windows_sys::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard};
+fn set_empty_format(format: u32) {
+    use windows_sys::Win32::System::DataExchange::SetClipboardData;
 
     unsafe {
-        if OpenClipboard(ptr::null_mut()) != 0 {
-            EmptyClipboard();
-            CloseClipboard();
-            true
-        } else {
-            false
-        }
+        SetClipboardData(format, std::ptr::null_mut());
     }
 }
 
