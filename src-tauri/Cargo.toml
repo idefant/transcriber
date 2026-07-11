@@ -35,6 +35,7 @@ windows = { version = "0.61", features = [
     "Win32_Media_Audio",
     "Win32_Media_Audio_Endpoints",
     "Win32_System_Com",
+    "Win32_UI_Shell",
 ] }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",

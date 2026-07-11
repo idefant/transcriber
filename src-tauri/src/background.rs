@@ -120,7 +120,7 @@ fn setup_tray(app: &tauri::AppHandle) -> AppResult<()> {
                     ..
                 }
             ) {
-                let _ = show_main_window(&app_handle);
+                let _ = toggle_main_window(&app_handle);
             }
         })
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -171,6 +171,85 @@ pub(crate) fn show_main_window(app: &tauri::AppHandle) -> AppResult<()> {
     window.set_focus()?;
 
     Ok(())
+}
+
+/// Tray left-click behavior: hide the window only when the user can actually see it,
+/// otherwise bring it back. Every failed check falls back to the "bring it back" side.
+fn toggle_main_window(app: &tauri::AppHandle) -> AppResult<()> {
+    let window = main_window(app)?;
+
+    // `is_visible` maps to `IsWindowVisible`, which stays true for a minimized window and for
+    // a window parked on another virtual desktop. Only `hide()` turns it false, so being
+    // minimized has to be tested separately.
+    let is_hidden = !window.is_visible().unwrap_or(false);
+    let is_minimized = window.is_minimized().unwrap_or(false);
+
+    if is_hidden || is_minimized {
+        return show_main_window(app);
+    }
+
+    // A window on another virtual desktop is invisible to the user, so hiding it would look
+    // like the click did nothing. Focus it instead: `SetForegroundWindow` makes Windows switch
+    // to that desktop. When the query fails, assume the current desktop and keep the toggle.
+    if !is_on_current_virtual_desktop(&window).unwrap_or(true) {
+        window.set_focus()?;
+
+        return Ok(());
+    }
+
+    window.hide()?;
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn is_on_current_virtual_desktop(window: &WebviewWindow) -> AppResult<bool> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows::Win32::{
+        Foundation::HWND,
+        System::Com::{
+            CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
+        },
+        UI::Shell::{IVirtualDesktopManager, VirtualDesktopManager},
+    };
+
+    let handle = window
+        .window_handle()
+        .map_err(|error| AppError::from(format!("Window handle error: {error}")))?;
+
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        return Err(AppError::from("Unsupported window handle".to_string()));
+    };
+
+    let hwnd = HWND(handle.hwnd.get() as *mut core::ffi::c_void);
+
+    unsafe {
+        // The tray handler runs on the main thread, which tao already put into a COM STA.
+        // should_uninit is true only when this call entered an apartment (S_OK or S_FALSE).
+        // On RPC_E_CHANGED_MODE COM stays usable but CoUninitialize must not run, otherwise it
+        // would drop tao's OleInitialize reference. Apartment-threaded on purpose: a cold thread
+        // must not become MTA, that would break OLE drag-and-drop.
+        let com_hr = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let should_uninit = com_hr.is_ok();
+
+        let result = (|| -> windows::core::Result<bool> {
+            let manager: IVirtualDesktopManager =
+                CoCreateInstance(&VirtualDesktopManager, None, CLSCTX_ALL)?;
+
+            Ok(manager.IsWindowOnCurrentVirtualDesktop(hwnd)?.as_bool())
+        })();
+
+        if should_uninit {
+            CoUninitialize();
+        }
+
+        result.map_err(|error| AppError::from(format!("Virtual desktop query error: {error}")))
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn is_on_current_virtual_desktop(_window: &WebviewWindow) -> AppResult<bool> {
+    Ok(true)
 }
 
 fn main_window(app: &tauri::AppHandle) -> AppResult<WebviewWindow> {

@@ -233,6 +233,10 @@ The pre-flight readiness check before recording and hotkey repeat, why it reuses
 
 Why the capture stream is built once at startup and reused (paused) across sessions, how this removes the `build_input_stream` latency from the dictation-start hot path, the mute/settings-read moves off that path, default-device rebuilds, why the microphone indicator stays honest, and the mutex lock ordering are documented in [recording-prewarm.md](recording-prewarm.md).
 
+## Tray Window Toggle
+
+Why the tray left-click cannot rely on `is_visible()` or `is_focused()` alone, why monitors are not compared while virtual desktops are, how `set_focus()` switches a virtual desktop, and the COM apartment rules for `IVirtualDesktopManager` are documented in [tray-window-toggle.md](tray-window-toggle.md).
+
 ## Git Hooks
 
 Husky runs two layers before commits:
