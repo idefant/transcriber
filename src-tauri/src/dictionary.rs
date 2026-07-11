@@ -28,12 +28,8 @@ fn add_dictionary_word_inner(app: &tauri::AppHandle, word: String) -> AppResult<
     }
 
     let mut words = load_dictionary_words(app)?;
-    let normalized_key = dictionary_word_key(normalized_word);
 
-    if !words
-        .iter()
-        .any(|word| dictionary_word_key(word) == normalized_key)
-    {
+    if !words.iter().any(|word| word == normalized_word) {
         words.push(normalized_word.to_string());
     }
 
@@ -44,10 +40,10 @@ fn add_dictionary_word_inner(app: &tauri::AppHandle, word: String) -> AppResult<
 }
 
 fn delete_dictionary_word_inner(app: &tauri::AppHandle, word: String) -> AppResult<Vec<String>> {
-    let normalized_key = dictionary_word_key(&word);
+    let normalized_word = word.trim();
     let mut words = load_dictionary_words(app)?;
 
-    words.retain(|stored_word| dictionary_word_key(stored_word) != normalized_key);
+    words.retain(|stored_word| stored_word != normalized_word);
     words = normalize_dictionary_words(words);
     save_dictionary_words(app, &words)?;
 
@@ -74,11 +70,9 @@ fn normalize_dictionary_words(words: Vec<String>) -> Vec<String> {
             continue;
         }
 
-        let normalized_key = dictionary_word_key(normalized_word);
-
         if normalized_words
             .iter()
-            .any(|stored_word| dictionary_word_key(stored_word) == normalized_key)
+            .any(|stored_word| stored_word == normalized_word)
         {
             continue;
         }
@@ -86,12 +80,8 @@ fn normalize_dictionary_words(words: Vec<String>) -> Vec<String> {
         normalized_words.push(normalized_word.to_string());
     }
 
-    normalized_words.sort_by_key(|word| dictionary_word_key(word));
+    normalized_words.sort_by_key(|word| word.to_lowercase());
     normalized_words
-}
-
-fn dictionary_word_key(word: &str) -> String {
-    word.trim().to_lowercase()
 }
 
 #[cfg(test)]
@@ -105,10 +95,10 @@ mod tests {
             "".to_string(),
             "alpha".to_string(),
             "ALPHA".to_string(),
-            " beta".to_string(),
+            " alpha".to_string(),
             "Gamma".to_string(),
         ]);
 
-        assert_eq!(words, vec!["alpha", "Beta", "Gamma"]);
+        assert_eq!(words, vec!["alpha", "ALPHA", "Beta", "Gamma"]);
     }
 }

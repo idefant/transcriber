@@ -10,6 +10,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - Dictation paste no longer wipes non-text clipboard contents. Images, file lists, HTML, and other memory-backed clipboard formats are now restored after the transcription is pasted, instead of only text.
+- Dictionary duplicate detection is now case-sensitive, so words differing only by case (e.g. "Alpha" and "ALPHA") are treated as distinct entries instead of being blocked or removed together.
 
 ## [0.1.1] - 2026-07-04
 
