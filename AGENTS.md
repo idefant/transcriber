@@ -8,6 +8,35 @@
 
 Use `lucide-react` icon exports with the `Icon` suffix, for example `CameraIcon`, not `Camera`.
 
+## Utilities
+
+Do not hand-roll a helper when `lodash-es` already provides it. Import named functions from the package root:
+
+```ts
+import { clamp, debounce } from 'lodash-es';
+```
+
+- Before writing a helper, check whether `lodash-es` covers it, for example `clamp`, `debounce`, `throttle`, `partition`, `groupBy`, `keyBy`, `uniqBy`, `orderBy`, `isEqual`, `cloneDeep`, `pick`, `omit`, `chunk`, `range`, `takeRight`, `dropRight`.
+- When `lodash-es` has no equivalent, put the helper in `src/shared/utils` and re-export it from that barrel instead of redefining it next to a component. It already provides `mod` (Euclidean modulo) and `rotate` (cyclic array shift), which lodash lacks.
+- Reusable hooks live in `src/shared/hooks`. Prefer `useDebouncedCallback` over hand-written `setTimeout`/`clearTimeout` plumbing in a component; it keeps the debounced instance stable across renders and returns `run`, `cancel`, and `flush`.
+- Never import the CommonJS `lodash` package, a default export (`import _ from 'lodash-es'`), or per-method paths such as `lodash-es/clamp`. Only `import { func } from 'lodash-es';` keeps the Vite ESM build tree-shakeable.
+- Leave already-simple native code alone. Do not rewrite `Math.floor(x)`, `Math.max(a, b)`, `arr.map(...)`, `arr.length === 0`, or `Object.keys(o)` into `floor`, `max`, `map`, `isEmpty`, or `keys`.
+- Reach for `lodash-es` when the native version needs a named helper, a manual loop, or several chained steps to express one idea. Replacing a one-line native call with a lodash call is not an improvement.
+- Iteratee-based helpers (`partition`, `groupBy`, `keyBy`, `sortBy`, `orderBy`, `uniqBy`) drag in lodash's `baseIteratee` graph, which costs roughly 15 kB in the bundle. Use them when they replace real logic, not when they merely restate a single `filter` or `map`.
+
+## Comments
+
+Document exported symbols with JSDoc block comments, not `//`. Editors surface a JSDoc docstring on hover and in autocomplete, while a line comment above an export is invisible at the call site:
+
+```ts
+/** Runs a waiting call right now instead of waiting out the delay. Does nothing when idle. */
+flush: () => void;
+```
+
+- Use `//` for explanations inside a function body and above non-exported internals.
+- Do not restate the signature. Document what the caller cannot see: edge cases, units, invariants, and the reason the code exists.
+- Add `@example` when the behavior is easier to show than to describe, for example a return value that is not obvious from the name.
+
 ## Tests
 
 Do not write or add tests unless the user explicitly asks for tests.

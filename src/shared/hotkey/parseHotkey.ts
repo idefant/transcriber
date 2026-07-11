@@ -57,13 +57,16 @@ const resolveMainKey = (token: string): string | undefined => {
   return undefined;
 };
 
-// Parses a hotkey string (e.g. "Ctrl+Space", "LCtrl+Z") into a structured object.
-// Returns undefined if the string has no valid main key.
-// Modifier semantics:
-//   "Ctrl"  / "Alt"  / "Shift" / "Win"  → side = 'either'
-//   "LCtrl" / "LAlt" / "LShift"/ "LWin" → side = 'left'
-//   "RCtrl" / "RAlt" / "RShift"/ "RWin" → side = 'right'
-//   absent                               → side = 'none'
+/**
+ * Parses a hotkey string such as `"Ctrl+Space"` or `"LCtrl+Z"` into a structured object.
+ * Returns `undefined` if the string has no valid main key.
+ *
+ * Modifier semantics:
+ * - `"Ctrl"` / `"Alt"` / `"Shift"` / `"Win"` → side `'either'`
+ * - `"LCtrl"` / `"LAlt"` / `"LShift"` / `"LWin"` → side `'left'`
+ * - `"RCtrl"` / `"RAlt"` / `"RShift"` / `"RWin"` → side `'right'`
+ * - absent → side `'none'`
+ */
 export const parseHotkey = (value: string): ParsedHotkey | undefined => {
   const parts = value
     .split('+')

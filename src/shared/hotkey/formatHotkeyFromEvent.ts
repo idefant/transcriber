@@ -1,6 +1,6 @@
 import { CODE_TO_KEY } from './keyMap';
 
-// Set of event.code values for all modifier keys (both sides).
+/** Set of `event.code` values for all modifier keys (both sides). */
 export const MODIFIER_CODES = new Set([
   'ControlLeft',
   'ControlRight',
@@ -12,13 +12,17 @@ export const MODIFIER_CODES = new Set([
   'MetaRight',
 ]);
 
-// Converts a keyboard event + currently pressed modifier codes into a hotkey string.
-// Returns undefined for pure modifier key presses or unknown key codes.
-// Side-specific output:
-//   only left Ctrl held  → "LCtrl"
-//   only right Ctrl held → "RCtrl"
-//   both Ctrl held       → "Ctrl"  (= any side, backward-compatible)
-// Same logic for Alt, Shift, Win/Meta.
+/**
+ * Converts a keyboard event and the currently pressed modifier codes into a hotkey string.
+ * Returns `undefined` for pure modifier key presses or unknown key codes.
+ *
+ * Side-specific output:
+ * - only left Ctrl held → `"LCtrl"`
+ * - only right Ctrl held → `"RCtrl"`
+ * - both Ctrl held → `"Ctrl"` (any side, backward-compatible)
+ *
+ * The same logic applies to Alt, Shift, and Win/Meta.
+ */
 export const formatHotkeyFromEvent = (
   event: KeyboardEvent,
   pressedModifierCodes: Set<string>,

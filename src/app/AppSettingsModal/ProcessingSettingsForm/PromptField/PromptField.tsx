@@ -1,6 +1,8 @@
-import { type FC, useEffect, useRef, useState } from 'react';
+import { type FC, useState } from 'react';
 import { Button, Form, Input, Typography } from 'antd';
 import { RotateCcwIcon } from 'lucide-react';
+
+import { useDebouncedCallback } from '#/shared/hooks';
 
 import styles from './PromptField.module.scss';
 
@@ -16,8 +18,6 @@ interface PromptFieldProps {
   onPersist: (value: string) => void;
   onReset?: () => void;
 }
-
-const PERSIST_DELAY_MS = 500;
 
 const getSeedValue = ({
   defaultValue,
@@ -44,41 +44,20 @@ const PromptField: FC<PromptFieldProps> = ({
   onReset,
 }) => {
   const [value, setValue] = useState(() => getSeedValue({ defaultValue, enabled, storedValue }));
-  const storedRef = useRef(storedValue);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  useEffect(() => {
-    storedRef.current = storedValue;
-  }, [storedValue]);
-
-  useEffect(
-    () => () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    },
-    [],
-  );
+  const persistPrompt = useDebouncedCallback(onPersist, 500);
 
   const handleChange = (next: string) => {
     setValue(next);
-
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      onPersist(next);
-    }, PERSIST_DELAY_MS);
+    persistPrompt.run(next);
   };
 
+  // Leaving the field should not wait out the delay.
   const handleBlur = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-    const persistedValue = storedRef.current ?? defaultValue;
-
-    if (value !== persistedValue) {
-      onPersist(value);
-    }
+    persistPrompt.flush();
   };
 
   const handleReset = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    persistPrompt.cancel();
     setValue(defaultValue);
     onReset?.();
   };

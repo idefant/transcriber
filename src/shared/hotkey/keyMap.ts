@@ -1,4 +1,4 @@
-// Maps KeyboardEvent.code → canonical key name matching Rust parse_main_key output.
+/** Maps `KeyboardEvent.code` → canonical key name matching Rust `parse_main_key` output. */
 export const CODE_TO_KEY: Record<string, string> = {
   Space: 'Space',
   Enter: 'Enter',

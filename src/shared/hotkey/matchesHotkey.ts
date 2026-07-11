@@ -26,13 +26,16 @@ const matchesModifierSide = (
   }
 };
 
-// Returns true if the keyboard event matches the given parsed hotkey.
-// pressedModifierCodes must be a Set<string> of event.code values for currently held modifier keys.
-// Matching is strict for side-specific modifiers:
-//   'left'   → left key must be down AND right key must be up
-//   'right'  → right key must be down AND left key must be up
-//   'either' → at least one side must be down
-//   'none'   → both sides must be up
+/**
+ * Returns true if the keyboard event matches the given parsed hotkey. `pressedModifierCodes` holds
+ * the `event.code` values of the currently held modifier keys.
+ *
+ * Matching is strict for side-specific modifiers:
+ * - `'left'` → left key must be down AND right key must be up
+ * - `'right'` → right key must be down AND left key must be up
+ * - `'either'` → at least one side must be down
+ * - `'none'` → both sides must be up
+ */
 export const matchesHotkey = (
   event: KeyboardEvent,
   pressedModifierCodes: Set<string>,
