@@ -42,6 +42,8 @@ The focus switch is driven by Tauri window events in `src-tauri/src/background.r
 
 Because of that split, there is no longer any intentional overlap between native and DOM handling in the focused-window case. The DOM handler still skips non-cancel processing when the hotkey capture lock is active (during hotkey recording in settings).
 
+The split also means anything that steals keyboard input from the focused webview disables every hotkey at once, because no native hook is left to catch it. A lone Alt tap used to do exactly that; see [alt-menu-key.md](alt-menu-key.md).
+
 ## DOM dispatch thread
 
 The DOM-triggered commands (`dictation_shortcut_pressed`, `dictation_shortcut_released`, `cancel_dictation`) are declared as synchronous `#[tauri::command] pub fn`, which Tauri runs on the main event-loop thread. Starting or stopping dictation does slow, blocking work — overlay window creation, a WASAPI stream build, and COM audio-endpoint calls for "mute while recording" — and running that directly on the main thread used to freeze window dragging and title-bar buttons (the event loop stops pumping messages) and could deadlock the STA-threaded WebView2 event loop against COM marshaling, since the main thread blocked instead of pumping the messages that marshaling needs. This only affected the focused-window DOM path; the unfocused native hook path already ran the equivalent work on its own thread.

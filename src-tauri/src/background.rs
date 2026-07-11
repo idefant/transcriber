@@ -29,6 +29,7 @@ pub struct BackgroundRuntime {
 
 pub fn setup_background_mode(app: &tauri::AppHandle) -> AppResult<()> {
     setup_main_window_event_handlers(app)?;
+    suppress_alt_menu_activation(app)?;
     setup_tray(app)?;
     apply_startup_window_visibility(app)?;
     sync_main_window_focus_state(app)?;
@@ -76,6 +77,76 @@ fn setup_main_window_event_handlers(app: &tauri::AppHandle) -> AppResult<()> {
         _ => {}
     });
 
+    Ok(())
+}
+
+/// Stops a tap on Alt from opening the window menu, which would swallow the next keystroke.
+#[cfg(target_os = "windows")]
+fn suppress_alt_menu_activation(app: &tauri::AppHandle) -> AppResult<()> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows_sys::Win32::{
+        Foundation::{HWND, LPARAM, LRESULT, WPARAM},
+        UI::{
+            Shell::{DefSubclassProc, SetWindowSubclass},
+            WindowsAndMessaging::{SC_KEYMENU, WM_SYSCOMMAND},
+        },
+    };
+
+    // Only has to be unique per subclass procedure, and this is the app's single subclass.
+    const SUBCLASS_ID: usize = 1;
+
+    unsafe extern "system" fn subclass_proc(
+        hwnd: HWND,
+        message: u32,
+        w_param: WPARAM,
+        l_param: LPARAM,
+        _subclass_id: usize,
+        _reference_data: usize,
+    ) -> LRESULT {
+        // Pressing and releasing Alt makes DefWindowProc post SC_KEYMENU, which puts the window
+        // into the modal menu loop; the loop then eats the next keystroke before WebView2 sees it,
+        // killing every in-app hotkey. tao keeps WS_SYSMENU even on an undecorated window (it
+        // hides the frame through WM_NCCALCSIZE instead), so the message really does open the
+        // invisible system menu. Neither tao, wry nor tauri-runtime-wry intercepts it. Swallow it
+        // here: this subclass is installed last, so it runs before all of theirs. The low four
+        // bits of w_param are reserved for internal use and must be masked off.
+        if message == WM_SYSCOMMAND && (w_param & 0xFFF0) == SC_KEYMENU as usize {
+            return 0;
+        }
+
+        DefSubclassProc(hwnd, message, w_param, l_param)
+    }
+
+    let window = main_window(app)?;
+
+    let handle = window
+        .window_handle()
+        .map_err(|error| AppError::from(format!("Window handle error: {error}")))?;
+
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        return Err(AppError::from("Unsupported window handle".to_string()));
+    };
+
+    let is_installed = unsafe {
+        SetWindowSubclass(
+            handle.hwnd.get() as HWND,
+            Some(subclass_proc),
+            SUBCLASS_ID,
+            0,
+        )
+    };
+
+    if is_installed == 0 {
+        return Err(AppError::from(
+            "Could not subclass the main window".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn suppress_alt_menu_activation(_app: &tauri::AppHandle) -> AppResult<()> {
     Ok(())
 }
 
