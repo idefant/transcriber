@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { notification } from 'antd';
 
 import AppThemeProvider from '#/app/AppThemeProvider';
+import CloseWindowHotkey from '#/app/CloseWindowHotkey';
 import {
   createUpdateNotificationArgs,
   updateNotificationKey,
@@ -178,6 +179,7 @@ const App: FC = () => {
         <OpenRecordSubscription />
         <OpenSettingsSubscription />
         <DictationHotkeyFallback />
+        <CloseWindowHotkey />
         <UpdateChecker />
         <RouterProvider router={router} />
       </AppThemeProvider>
