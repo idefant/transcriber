@@ -80,7 +80,7 @@ fn setup_main_window_event_handlers(app: &tauri::AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-/// Stops a tap on Alt from opening the window menu, which would swallow the next keystroke.
+/// Не даёт нажатию Alt открыть меню окна, которое иначе поглотило бы следующее нажатие клавиши.
 #[cfg(target_os = "windows")]
 fn suppress_alt_menu_activation(app: &tauri::AppHandle) -> AppResult<()> {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -92,7 +92,7 @@ fn suppress_alt_menu_activation(app: &tauri::AppHandle) -> AppResult<()> {
         },
     };
 
-    // Only has to be unique per subclass procedure, and this is the app's single subclass.
+    // Должен быть уникальным только в пределах процедуры подкласса, а это единственный подкласс в приложении.
     const SUBCLASS_ID: usize = 1;
 
     unsafe extern "system" fn subclass_proc(
@@ -103,13 +103,13 @@ fn suppress_alt_menu_activation(app: &tauri::AppHandle) -> AppResult<()> {
         _subclass_id: usize,
         _reference_data: usize,
     ) -> LRESULT {
-        // Pressing and releasing Alt makes DefWindowProc post SC_KEYMENU, which puts the window
-        // into the modal menu loop; the loop then eats the next keystroke before WebView2 sees it,
-        // killing every in-app hotkey. tao keeps WS_SYSMENU even on an undecorated window (it
-        // hides the frame through WM_NCCALCSIZE instead), so the message really does open the
-        // invisible system menu. Neither tao, wry nor tauri-runtime-wry intercepts it. Swallow it
-        // here: this subclass is installed last, so it runs before all of theirs. The low four
-        // bits of w_param are reserved for internal use and must be masked off.
+        // Нажатие и отпускание Alt заставляет DefWindowProc отправить SC_KEYMENU, что переводит окно
+        // в модальный цикл меню; этот цикл затем поглощает следующее нажатие клавиши до того, как его увидит WebView2,
+        // убивая любой хоткей внутри приложения. tao сохраняет WS_SYSMENU даже у окна без рамки (вместо этого
+        // оно скрывает рамку через WM_NCCALCSIZE), поэтому сообщение действительно открывает
+        // невидимое системное меню. Ни tao, ни wry, ни tauri-runtime-wry его не перехватывают. Поглощаем его
+        // здесь: этот подкласс устанавливается последним, поэтому выполняется раньше всех остальных. Младшие четыре
+        // бита w_param зарезервированы для внутреннего использования, и их нужно замаскировать.
         if message == WM_SYSCOMMAND && (w_param & 0xFFF0) == SC_KEYMENU as usize {
             return 0;
         }
@@ -244,14 +244,15 @@ pub(crate) fn show_main_window(app: &tauri::AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-/// Tray left-click behavior: hide the window only when the user can actually see it,
-/// otherwise bring it back. Every failed check falls back to the "bring it back" side.
+/// Поведение при клике левой кнопкой по иконке в трее: скрывать окно только тогда, когда пользователь
+/// действительно может его видеть, иначе возвращать его на экран. Любая неудавшаяся проверка
+/// приводит к варианту «вернуть на экран».
 fn toggle_main_window(app: &tauri::AppHandle) -> AppResult<()> {
     let window = main_window(app)?;
 
-    // `is_visible` maps to `IsWindowVisible`, which stays true for a minimized window and for
-    // a window parked on another virtual desktop. Only `hide()` turns it false, so being
-    // minimized has to be tested separately.
+    // `is_visible` соответствует `IsWindowVisible`, которое остаётся true и для свёрнутого окна, и для
+    // окна, находящегося на другом виртуальном рабочем столе. В false его переводит только `hide()`,
+    // поэтому свёрнутое состояние нужно проверять отдельно.
     let is_hidden = !window.is_visible().unwrap_or(false);
     let is_minimized = window.is_minimized().unwrap_or(false);
 
@@ -259,9 +260,9 @@ fn toggle_main_window(app: &tauri::AppHandle) -> AppResult<()> {
         return show_main_window(app);
     }
 
-    // A window on another virtual desktop is invisible to the user, so hiding it would look
-    // like the click did nothing. Focus it instead: `SetForegroundWindow` makes Windows switch
-    // to that desktop. When the query fails, assume the current desktop and keep the toggle.
+    // Окно на другом виртуальном рабочем столе невидимо пользователю, поэтому его скрытие выглядело бы
+    // так, будто клик ничего не сделал. Вместо этого фокусируем его: `SetForegroundWindow` заставляет Windows
+    // переключиться на этот рабочий стол. Если запрос не удался, считаем, что окно на текущем рабочем столе, и сохраняем переключение.
     if !is_on_current_virtual_desktop(&window).unwrap_or(true) {
         window.set_focus()?;
 
@@ -295,11 +296,11 @@ fn is_on_current_virtual_desktop(window: &WebviewWindow) -> AppResult<bool> {
     let hwnd = HWND(handle.hwnd.get() as *mut core::ffi::c_void);
 
     unsafe {
-        // The tray handler runs on the main thread, which tao already put into a COM STA.
-        // should_uninit is true only when this call entered an apartment (S_OK or S_FALSE).
-        // On RPC_E_CHANGED_MODE COM stays usable but CoUninitialize must not run, otherwise it
-        // would drop tao's OleInitialize reference. Apartment-threaded on purpose: a cold thread
-        // must not become MTA, that would break OLE drag-and-drop.
+        // Обработчик трея выполняется в главном потоке, который tao уже перевёл в COM STA.
+        // should_uninit равен true, только если этот вызов вошёл в апартамент (S_OK или S_FALSE).
+        // При RPC_E_CHANGED_MODE COM остаётся пригодным для использования, но CoUninitialize вызывать нельзя, иначе
+        // это сбросило бы ссылку tao на OleInitialize. Apartment-threaded выбран намеренно: холодный поток
+        // не должен становиться MTA, это сломало бы OLE drag-and-drop.
         let com_hr = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let should_uninit = com_hr.is_ok();
 

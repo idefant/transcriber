@@ -22,21 +22,21 @@ use crate::{
 
 const OVERLAY_LABEL_PREFIX: &str = "recording_overlay_";
 
-/// Card sizes — must match the `.overlay` dimensions in the component SCSS.
+/// Размеры карточки — должны совпадать с размерами `.overlay` в SCSS компонента.
 const BOTTOM_CARD_WIDTH: f64 = 180.0;
 const BOTTOM_CARD_HEIGHT: f64 = 40.0;
 const CENTER_CARD_WIDTH: f64 = 220.0;
-/// Upper bound on the center card height. The card is centered inside the
-/// window, so the exact value only needs to be ≥ the tallest state.
+/// Верхняя граница высоты центральной карточки. Карточка центрируется внутри
+/// окна, поэтому точное значение должно быть только ≥ самого высокого состояния.
 const CENTER_CARD_HEIGHT: f64 = 220.0;
 
-/// Transparent margin around the card, large enough to fit the card's CSS drop
-/// shadow without the (rectangular) window clipping it. The native window
-/// shadow is disabled, so this margin stays fully transparent.
+/// Прозрачный отступ вокруг карточки, достаточно большой, чтобы вместить CSS-тень
+/// карточки без обрезания её (прямоугольным) окном. Нативная тень окна
+/// отключена, поэтому этот отступ остаётся полностью прозрачным.
 const BOTTOM_SHADOW_MARGIN: f64 = 36.0;
 const CENTER_SHADOW_MARGIN: f64 = 80.0;
 
-/// Distance from the screen bottom to the bottom edge of the bottom-variant card.
+/// Расстояние от нижнего края экрана до нижнего края карточки варианта bottom.
 const OVERLAY_BOTTOM_OFFSET: f64 = 16.0;
 
 const HIDE_DELAY_MS: u64 = 250;
@@ -87,8 +87,8 @@ struct OverlayWindowGeometry {
 pub struct OverlayShowPayload {
     state: &'static str,
     variant: OverlayVariant,
-    /// History record to reveal from the error/warning overlay actions. `None`
-    /// for the regular recording/transcribing/processing states.
+    /// Запись истории, которую нужно открыть из действий оверлея error/warning.
+    /// `None` для обычных состояний recording/transcribing/processing.
     record_id: Option<String>,
 }
 
@@ -193,9 +193,10 @@ impl NoticeAutoHideTracker {
     }
 }
 
-/// Last requested overlay content. Newly created per-monitor windows read it on
-/// mount via `get_overlay_state`, so they render correctly even if they missed
-/// the `show-overlay` event that was broadcast before their webview was ready.
+/// Последнее запрошенное содержимое оверлея. Вновь созданные окна для каждого
+/// монитора читают его при монтировании через `get_overlay_state`, поэтому они
+/// корректно отрисовываются, даже если пропустили событие `show-overlay`,
+/// разосланное до готовности их webview.
 fn current_overlay() -> &'static Mutex<Option<OverlayShowPayload>> {
     static CURRENT: OnceLock<Mutex<Option<OverlayShowPayload>>> = OnceLock::new();
     CURRENT.get_or_init(|| Mutex::new(None))
@@ -212,8 +213,9 @@ fn overlay_index(label: &str) -> Option<usize> {
 }
 
 pub fn create_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
-    // Warm up a single overlay webview at startup so the first dictation shows
-    // without webview-init lag. Extra per-monitor windows are created lazily.
+    // Прогреваем один webview оверлея при запуске, чтобы первая диктовка
+    // отображалась без задержки на инициализацию webview. Дополнительные окна
+    // для каждого монитора создаются лениво.
     build_overlay_window(app, &overlay_label(0))?;
 
     Ok(())
@@ -227,8 +229,8 @@ pub fn get_overlay_state() -> Option<OverlayShowPayload> {
         .and_then(|guard| guard.clone())
 }
 
-/// Dismiss the overlay on demand. Used by the error/warning overlay close button
-/// and its auto-hide timer in the frontend.
+/// Скрывает оверлей по запросу. Используется кнопкой закрытия оверлея
+/// error/warning и её таймером автоскрытия на фронтенде.
 #[tauri::command]
 pub fn dismiss_overlay(app: tauri::AppHandle) {
     let _ = hide_recording_overlay(&app);
@@ -267,14 +269,16 @@ pub fn show_processing_overlay(app: &tauri::AppHandle) -> AppResult<()> {
     show_overlay_state(app, "processing", None)
 }
 
-/// Show the red error overlay (e.g. speech-to-text failed). `record_id` enables
-/// the "open record" action; pass `None` for failures without a saved record.
+/// Показывает красный оверлей ошибки (например, сбой распознавания речи).
+/// `record_id` включает действие «открыть запись»; передайте `None` для сбоев
+/// без сохранённой записи.
 pub fn show_error_overlay(app: &tauri::AppHandle, record_id: Option<String>) -> AppResult<()> {
     show_overlay_state(app, "error", record_id)
 }
 
-/// Show the amber warning overlay (post-processing failed but the speech-to-text
-/// text was still inserted). `record_id` enables the "open record" action.
+/// Показывает жёлтый оверлей предупреждения (постобработка завершилась ошибкой,
+/// но текст распознавания речи всё же был вставлен). `record_id` включает
+/// действие «открыть запись».
 pub fn show_warning_overlay(app: &tauri::AppHandle, record_id: Option<String>) -> AppResult<()> {
     show_overlay_state(app, "warning", record_id)
 }
@@ -339,8 +343,8 @@ fn show_overlay_state(
         record_id,
     };
 
-    // Store the state before building windows so any window that mounts late can
-    // recover it through `get_overlay_state`.
+    // Сохраняем состояние до создания окон, чтобы любое поздно смонтированное
+    // окно могло восстановить его через `get_overlay_state`.
     if let Ok(mut current) = current_overlay().lock() {
         *current = Some(payload.clone());
     }
@@ -360,8 +364,9 @@ fn show_overlay_state(
         refresh_topmost(&window);
     }
 
-    // Hide overlay windows for monitors that are no longer targeted (e.g. after
-    // switching from "every screen" to "cursor" or unplugging a monitor).
+    // Скрываем окна оверлея для мониторов, которые больше не являются целевыми
+    // (например, после переключения с «на всех экранах» на «у курсора» или
+    // при отключении монитора).
     hide_surplus_overlays(app, monitors.len());
 
     app.emit("show-overlay", payload)?;
@@ -516,8 +521,8 @@ fn monitor_bounds(monitor: &Monitor) -> PhysicalFrame {
 }
 
 fn compute_overlay_window_geometry(variant: &OverlayVariant, scale: f64) -> OverlayWindowGeometry {
-    // The window is the card plus a transparent margin that holds the card's CSS
-    // drop shadow (the card is centered inside the window via `place-items`).
+    // Окно — это карточка плюс прозрачный отступ, вмещающий CSS-тень карточки
+    // (карточка центрируется внутри окна через `place-items`).
     let (card_width, card_height, margin) = match variant {
         OverlayVariant::Bottom => (BOTTOM_CARD_WIDTH, BOTTOM_CARD_HEIGHT, BOTTOM_SHADOW_MARGIN),
         OverlayVariant::Center => (CENTER_CARD_WIDTH, CENTER_CARD_HEIGHT, CENTER_SHADOW_MARGIN),
@@ -570,15 +575,17 @@ fn resolve_overlay_anchor_area(monitor: &Monitor, variant: &OverlayVariant) -> P
 
 #[cfg(target_os = "windows")]
 fn resolve_bottom_overlay_anchor_area(monitor: &Monitor) -> PhysicalFrame {
-    // On Windows the compact overlay should follow the same available work area
-    // that a maximized window uses, so taskbar auto-hide/show changes its anchor.
+    // В Windows компактный оверлей должен следовать той же доступной рабочей
+    // области, что и развёрнутое окно, поэтому автоскрытие/показ панели задач
+    // меняет его точку привязки.
     resolve_monitor_work_area(monitor).unwrap_or_else(|| monitor_bounds(monitor))
 }
 
 #[cfg(not(target_os = "windows"))]
 fn resolve_bottom_overlay_anchor_area(monitor: &Monitor) -> PhysicalFrame {
-    // Tauri does not expose per-monitor work areas cross-platform here, so
-    // non-Windows builds fall back to the full monitor bounds.
+    // Tauri здесь не предоставляет кроссплатформенный доступ к рабочим областям
+    // отдельных мониторов, поэтому сборки не для Windows используют полные
+    // границы монитора.
     monitor_bounds(monitor)
 }
 

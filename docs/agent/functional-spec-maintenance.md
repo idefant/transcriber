@@ -1,11 +1,11 @@
-# Functional Specification Maintenance
+# Поддержка функциональной спецификации
 
-The functional specification in `docs/functional-spec/index.md` is the project's single source of truth for product behavior.
+Функциональная спецификация в `docs/functional-spec/index.md` — единственный источник истины проекта о поведении продукта.
 
-When implementing a new feature, changing existing functionality, changing user-visible behavior, changing supported states, changing validation rules, changing errors, or changing limitations, compare the code changes against the functional specification before finishing.
+При реализации новой функциональности, изменении существующей функциональности, изменении видимого пользователю поведения, изменении поддерживаемых состояний, изменении правил валидации, изменении ошибок или изменении ограничений сверяйте изменения в коде с функциональной спецификацией перед завершением работы.
 
-If the real behavior changes, update the relevant functional specification files in the same task so the specification and project behavior stay consistent.
+Если реальное поведение меняется, обновляйте соответствующие файлы функциональной спецификации в рамках той же задачи, чтобы спецификация и поведение проекта оставались согласованными.
 
-Do not describe implementation details, files, classes, functions, libraries, or architecture in the functional specification. Keep it focused on what the system does, scenarios, rules, states, limitations, and errors.
+Не описывайте в функциональной спецификации детали реализации, файлы, классы, функции, библиотеки или архитектуру. Сосредоточьте её на том, что делает система, сценариях, правилах, состояниях, ограничениях и ошибках.
 
-If a requested code change conflicts with the current functional specification, do not silently implement the change and do not silently rewrite the specification. Ask the user how to proceed: update the specification to match the requested behavior, adjust the requested behavior to match the specification, or handle the discrepancy another way.
+Если запрошенное изменение кода противоречит текущей функциональной спецификации, не реализуйте изменение молча и не переписывайте спецификацию молча. Спросите пользователя, как поступить: обновить спецификацию в соответствии с запрошенным поведением, скорректировать запрошенное поведение в соответствии со спецификацией или разрешить расхождение иным способом.

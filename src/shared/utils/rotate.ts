@@ -1,8 +1,8 @@
 import { mod } from './mod';
 
 /**
- * Cyclically shifts elements to the right, wrapping the tail around to the front. A negative
- * `step` shifts to the left, and a step larger than the array wraps around.
+ * Циклически сдвигает элементы вправо, перенося конец массива в начало. Отрицательный
+ * `step` сдвигает влево, а шаг больше длины массива зацикливается.
  *
  * @example
  * rotate([1, 2, 3], 1); // [3, 1, 2]

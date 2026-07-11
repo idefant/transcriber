@@ -51,7 +51,7 @@ const AppThemeProvider: FC<AppThemeProviderProps> = ({ children }) => {
   const setThemePreference = useCallback(
     (value: ThemePreference) => {
       void updateSettings({ themePreference: value }).catch(() => {
-        // The error is stored in AppSettingsContext.
+        // Ошибка сохраняется в AppSettingsContext.
       });
     },
     [updateSettings],
@@ -60,7 +60,7 @@ const AppThemeProvider: FC<AppThemeProviderProps> = ({ children }) => {
   const setIsDarkMode = useCallback(
     (value: boolean) => {
       void updateSettings({ themePreference: value ? 'dark' : 'light' }).catch(() => {
-        // The error is stored in AppSettingsContext.
+        // Ошибка сохраняется в AppSettingsContext.
       });
     },
     [updateSettings],

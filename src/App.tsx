@@ -33,7 +33,7 @@ interface OpenHistoryRecordEvent {
   date: string;
 }
 
-// Triggers initial data loads for all stores once on app mount.
+// Запускает первоначальную загрузку данных для всех сторов один раз при монтировании приложения.
 const StoreLoader: FC = () => {
   useEffect(() => {
     queueMicrotask(() => {
@@ -48,7 +48,7 @@ const StoreLoader: FC = () => {
   return null;
 };
 
-// Subscribes to Tauri history events for the lifetime of the app.
+// Подписывается на события истории Tauri на всё время жизни приложения.
 const HistorySubscription: FC = () => {
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -66,9 +66,9 @@ const HistorySubscription: FC = () => {
   return null;
 };
 
-// Reveals a history record in the main window when the overlay error/warning
-// notification requests it. Navigates to the history page, then hands the record
-// off to the history store for the page to select.
+// Открывает запись истории в главном окне, когда это запрашивает уведомление
+// об ошибке/предупреждении из оверлея. Переходит на страницу истории, а затем
+// передаёт запись в стор истории, чтобы страница могла её выбрать.
 const OpenRecordSubscription: FC = () => {
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -90,9 +90,9 @@ const OpenRecordSubscription: FC = () => {
   return null;
 };
 
-// Opens the settings modal on the relevant tab when the user clicks the system
-// notification about a configuration error. The backend shows the main window
-// before emitting this event.
+// Открывает модальное окно настроек на нужной вкладке, когда пользователь кликает
+// по системному уведомлению об ошибке конфигурации. Бэкенд показывает главное окно
+// перед отправкой этого события.
 const OpenSettingsSubscription: FC = () => {
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -112,8 +112,8 @@ const OpenSettingsSubscription: FC = () => {
   return null;
 };
 
-// Performs a single silent update check after settings have loaded.
-// If an update is available, shows the timed in-app notification.
+// Выполняет одну тихую проверку обновлений после загрузки настроек.
+// Если обновление доступно, показывает временное уведомление внутри приложения.
 const UpdateChecker: FC = () => {
   const [notificationApi, notificationContextHolder] = notification.useNotification();
   const hasChecked = useRef(false);

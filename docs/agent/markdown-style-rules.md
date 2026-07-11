@@ -1,9 +1,9 @@
-# Markdown Style Rules
+# Правила оформления Markdown
 
-## Prose Wrapping
+## Перенос строк в тексте
 
-- Do not manually hard-wrap ordinary prose in Markdown files.
-- Keep each normal paragraph on a single line, even if it becomes long.
-- Use line breaks only where Markdown structure needs them: headings, list items, tables, code fences, blockquotes, or deliberate separate paragraphs.
-- Do not reflow existing Markdown prose just to fit a visual line length.
-- If a user explicitly asks for hard wrapping or a specific line width, follow the user's requested width for that task.
+- Не делайте ручной жёсткий перенос строк в обычном тексте markdown-файлов.
+- Держите каждый обычный абзац в одну строку, даже если она становится длинной.
+- Используйте переносы строк только там, где этого требует структура markdown: заголовки, элементы списков, таблицы, code fence, цитаты (blockquote) или намеренно отдельные абзацы.
+- Не переформатируйте существующий текст markdown только для того, чтобы уместить его в визуальную длину строки.
+- Если пользователь явно просит жёсткий перенос строк или конкретную ширину строки, следуйте запрошенной пользователем ширине для этой задачи.

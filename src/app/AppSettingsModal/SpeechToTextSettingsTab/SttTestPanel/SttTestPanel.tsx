@@ -104,7 +104,7 @@ const SttTestPanel: FC = () => {
         setError(t('settings.tests.readFileError'));
       });
 
-    return false; // prevent default antd upload
+    return false; // предотвращаем стандартную загрузку antd
   };
 
   const handleRepeat = () => {

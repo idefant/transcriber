@@ -9,8 +9,8 @@ export { useSettingsStore } from './settingsStore';
 export { useUiStore } from './uiStore';
 export { useUpdaterStore } from './updaterStore';
 
-// Compatibility hooks — same interface as the old React Context hooks.
-// Consumers that destructure multiple fields use these to avoid extra re-renders.
+// Хуки для совместимости — тот же интерфейс, что и у старых хуков React Context.
+// Потребители, которым нужно деструктурировать несколько полей, используют их, чтобы избежать лишних ре-рендеров.
 
 import { useCatalogStore } from './catalogStore';
 import { useProcessingStore } from './processingStore';

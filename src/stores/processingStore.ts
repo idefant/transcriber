@@ -49,7 +49,7 @@ export const useProcessingStore = create<ProcessingState>((set) => ({
       const config = await processingApi.getProcessingConfig();
       set({ config });
     } catch {
-      // Keep default config on error.
+      // При ошибке оставляем конфигурацию по умолчанию.
     } finally {
       set({ isLoading: false });
     }

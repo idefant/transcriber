@@ -51,7 +51,7 @@ const PromptField: FC<PromptFieldProps> = ({
     persistPrompt.run(next);
   };
 
-  // Leaving the field should not wait out the delay.
+  // Уход с поля не должен ждать окончания задержки.
   const handleBlur = () => {
     persistPrompt.flush();
   };

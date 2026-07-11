@@ -1,6 +1,6 @@
 import type { ProviderKind, ProviderOption } from '#/models/Provider';
 
-// Must match ProviderKind::default_base_url() in src-tauri/src/providers.rs
+// Должно соответствовать ProviderKind::default_base_url() в src-tauri/src/providers.rs
 export const providerDefaultBaseUrls: Record<ProviderKind, string | undefined> = {
   custom: undefined,
   groq: 'https://api.groq.com/openai/v1',

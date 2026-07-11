@@ -125,7 +125,7 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
     });
   }, [editingProvider, form, getProviderLabel, open]);
 
-  // Curated models for the selected provider kind — derived, no state needed
+  // Подобранные модели для выбранного типа провайдера — вычисляемое значение, состояние не нужно
   const catalogRows = useMemo<CatalogRow[]>(
     () =>
       catalog
@@ -149,7 +149,7 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
     [catalog, selectedProvider],
   );
 
-  // When modelRows arrive, match them against our catalog rows
+  // Когда приходят modelRows, сопоставляем их со строками каталога
   const resolvedCatalogRows = useMemo<CatalogRow[]>(() => {
     if (!isModelListVisible || modelRows.length === 0) {
       return catalogRows;

@@ -1,6 +1,6 @@
-# Component Structure
+# Структура компонента
 
-Use this structure for components in `pages`, `components`, `ui`, `app`, and similar feature folders:
+Используй эту структуру для компонентов в `pages`, `components`, `ui`, `app` и подобных фиче-папках:
 
 ```text
 ComponentName/
@@ -13,13 +13,13 @@ ComponentName/
   types.ts
 ```
 
-- Always create the component folder, even when the component could fit in a single file.
-- Do not create empty `helpers`, `hooks`, `types`, or `types.ts`; add them only when needed.
-- `helpers/` and `hooks/` can use descriptive camelCase file names, for example `getFullname.ts` or `useTableColumns.ts`.
-- `types/` files use PascalCase names.
-- Use `types.ts` instead of `types/` when the component has only a small amount of simple types.
-- Component props interface must be named `ComponentNameProps` and live before the component declaration in `ComponentName.tsx`.
-- Prefer component declarations as constants:
+- Всегда создавай папку компонента, даже если компонент мог бы поместиться в одном файле.
+- Не создавай пустые `helpers`, `hooks`, `types` или `types.ts`; добавляй их только по необходимости.
+- `helpers/` и `hooks/` могут использовать описательные имена файлов в camelCase, например `getFullname.ts` или `useTableColumns.ts`.
+- Файлы в `types/` используют имена в PascalCase.
+- Используй `types.ts` вместо `types/`, когда у компонента есть лишь небольшое количество простых типов.
+- Интерфейс пропсов компонента должен называться `ComponentNameProps` и располагаться перед объявлением компонента в `ComponentName.tsx`.
+- Предпочитай объявление компонента через константу:
 
 ```ts
 const ComponentName: FC<ComponentNameProps> = () => {
@@ -29,9 +29,9 @@ const ComponentName: FC<ComponentNameProps> = () => {
 export default ComponentName;
 ```
 
-- Use `FC` without a props generic when the component has no props. Polymorphic or generic components can use a typed `const` instead of `FC` when `FC` would weaken or break type inference.
-- Components may use default exports. Prefer default exports for components unless a named export is genuinely needed.
-- `index.ts` should import and export only the necessary component, variables, and types:
+- Используй `FC` без generic-параметра пропсов, когда у компонента нет пропсов. Полиморфные или generic-компоненты могут использовать типизированную `const` вместо `FC`, если `FC` ослабляет или ломает вывод типов.
+- Компоненты могут использовать экспорт по умолчанию. Предпочитай экспорт по умолчанию для компонентов, если только именованный экспорт не нужен на самом деле.
+- `index.ts` должен импортировать и экспортировать только необходимый компонент, переменные и типы:
 
 ```ts
 import ComponentName from './ComponentName';
@@ -39,10 +39,10 @@ import ComponentName from './ComponentName';
 export default ComponentName;
 ```
 
-- Consumers must import from the module folder, not from concrete files:
+- Потребители должны импортировать из папки модуля, а не из конкретных файлов:
 
 ```ts
 import Button from '#/ui/Button';
 ```
 
-- Do not import from `#/ui/Button/index.ts`, `#/ui/Button/Button.tsx`, or `#/ui/Button/types.ts`.
+- Не импортируй из `#/ui/Button/index.ts`, `#/ui/Button/Button.tsx` или `#/ui/Button/types.ts`.

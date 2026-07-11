@@ -42,7 +42,7 @@ const DictionaryPage: FC = () => {
     });
   }, [load, messageApi]);
 
-  // Refocus input after a save finishes so the user can type the next word immediately.
+  // Возвращаем фокус в поле ввода после завершения сохранения, чтобы пользователь мог сразу ввести следующее слово.
   const prevIsSavingRef = useRef(false);
   useEffect(() => {
     if (prevIsSavingRef.current && !isSaving) {
@@ -123,8 +123,8 @@ const DictionaryPage: FC = () => {
             </Space.Compact>
 
             {words.length > 0 ? (
-              // pointer-events: none during save prevents close-button clicks without
-              // toggling closable on every tag (which would cause a full list re-render).
+              // pointer-events: none во время сохранения предотвращает клики по кнопке закрытия без
+              // переключения closable у каждого тега (что вызвало бы полную перерисовку списка).
               <div
                 className={styles.words}
                 style={{ pointerEvents: isSaving ? 'none' : undefined }}

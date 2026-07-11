@@ -51,7 +51,7 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
   const storedModelKey = currentConfig.modelKey;
   const shouldAutofillDefaultSelection = storedProviderId === null && storedModelKey === null;
 
-  // Providers that have at least one curated model for this task
+  // Провайдеры, у которых есть хотя бы одна подобранная модель для этой задачи
   const compatibleProviders = useMemo(() => {
     const compatibleKinds = new Set(
       catalog.filter((m) => m.task === task).flatMap((m) => m.providerKinds),
@@ -70,7 +70,7 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
     return shouldAutofillDefaultSelection ? compatibleProviders[0] : undefined;
   }, [compatibleProviders, shouldAutofillDefaultSelection, storedProviderId]);
 
-  // Curated models for the selected provider
+  // Подобранные модели для выбранного провайдера
   const modelOptions = useMemo<(ModelOption | ModelOptionGroup)[]>(() => {
     if (!selectedProvider) return [];
 
@@ -136,7 +136,7 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
       : undefined;
   }, [selectableModelOptions, shouldAutofillDefaultSelection, storedModelKey]);
 
-  // Auto-persist defaults only for the pristine "nothing selected yet" case.
+  // Автоматически сохранять значения по умолчанию только для «чистого» случая, когда ещё ничего не выбрано.
   useEffect(() => {
     if (!shouldAutofillDefaultSelection || !selectedProviderId || !selectedModelKey) return;
 

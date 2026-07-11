@@ -1,12 +1,12 @@
-# Debug Logging
+# Отладочное логирование
 
-Debug logs are intended for local troubleshooting of Speech-to-Text and post-processing model calls.
+Отладочные логи предназначены для локальной диагностики вызовов моделей Speech-to-Text и постобработки.
 
-## Format
+## Формат
 
-Logs use append-only `.log` files instead of a single valid JSON document.
+Логи используют файлы `.log` только на дозапись, а не единый корректный JSON-документ.
 
-Each event is written as:
+Каждое событие записывается так:
 
 ```text
 ================================================================================
@@ -18,20 +18,20 @@ Each event is written as:
 }
 ```
 
-The file as a whole is not valid JSON. Each event payload is pretty-printed JSON, which keeps long request and response objects readable without requiring the application to reread and rewrite a growing file for every event.
+Файл целиком не является корректным JSON. Полезная нагрузка каждого события — это JSON с отступами (pretty-printed), что делает длинные объекты запроса и ответа читаемыми, не требуя от приложения перечитывать и переписывать растущий файл при каждом событии.
 
-## Session Files
+## Файлы сессии
 
-The current logging session writes to one debug log file. A new file is created lazily on the first logged event after logging is enabled.
+Текущая сессия логирования пишет в один файл отладочного лога. Новый файл создаётся лениво при первом залогированном событии после включения логирования.
 
-Switching logging off closes the current logging session. Switching it on again during the same process creates a new file when logging first writes again. Restarting the application also starts a new logging session.
+Выключение логирования закрывает текущую сессию логирования. Повторное включение в рамках того же процесса создаёт новый файл при первой следующей записи логирования. Перезапуск приложения также начинает новую сессию логирования.
 
-## Secrets
+## Секреты
 
-Debug logs must not include API keys, `Authorization`, audio bytes, or custom header values.
+Отладочные логи не должны включать API-ключи, `Authorization`, байты аудио или значения пользовательских заголовков.
 
-Custom request headers may be logged by name with a boolean that indicates whether a value was present. This keeps provider configuration debuggable without storing secret values.
+Пользовательские заголовки запроса могут логироваться по имени с булевым значением, указывающим, было ли значение задано. Это сохраняет возможность отлаживать конфигурацию провайдера, не храня секретные значения.
 
-## History Correlation
+## Сопоставление с историей
 
-Dictation creates the history record ID before model calls start. Model events include this ID and the original recording timestamp, so a log entry can be matched to the final history record even when an error happens before the record is saved.
+Диктовка создаёт ID записи истории до начала вызовов модели. События модели включают этот ID и исходную метку времени записи, поэтому запись лога можно сопоставить с финальной записью истории даже тогда, когда ошибка происходит до сохранения записи.

@@ -162,9 +162,10 @@ pub async fn repeat_history_post_processing(
         .map_err(AppError::into_message)
 }
 
-/// Reveal a history record in the main window. Used by the overlay error/warning
-/// notifications: it hides the overlay, brings the main window forward and tells
-/// the history page which record to open (with the month/date needed to navigate).
+/// Показывает запись истории в главном окне. Используется уведомлениями об
+/// ошибках/предупреждениях оверлея: скрывает оверлей, выводит главное окно
+/// на передний план и сообщает странице истории, какую запись открыть
+/// (с месяцем/датой, нужными для навигации).
 #[tauri::command]
 pub fn open_history_record(app: tauri::AppHandle, record_id: String) -> Result<(), String> {
     open_history_record_inner(&app, &record_id).map_err(AppError::into_message)

@@ -1,43 +1,43 @@
-# Tray Window Toggle
+# Переключение окна из трея
 
-A left click on the tray icon toggles the main window: it hides a window the user can see, and restores a window the user cannot. The whole decision lives in `toggle_main_window` in `src-tauri/src/background.rs`. The tray menu item `Открыть приложение` deliberately keeps calling `show_main_window` instead, because "Open" must never close anything.
+Левый клик по иконке в трее переключает главное окно: он скрывает окно, которое пользователь видит, и восстанавливает окно, которое пользователь не видит. Вся логика принятия решения находится в `toggle_main_window` в `src-tauri/src/background.rs`. Пункт меню трея `Открыть приложение` намеренно продолжает вызывать `show_main_window`, потому что «Открыть» никогда не должно ничего закрывать.
 
-## Why `is_visible()` alone is not enough
+## Почему одного `is_visible()` недостаточно
 
-`WebviewWindow::is_visible()` reaches tao's `util::is_visible`, which is `IsWindowVisible(hwnd)`. That WinAPI call only reports the `WS_VISIBLE` style bit. It stays `true` in two cases where the user sees nothing:
+`WebviewWindow::is_visible()` в конечном счёте обращается к `util::is_visible` из tao, которая представляет собой `IsWindowVisible(hwnd)`. Этот вызов WinAPI сообщает только о бите стиля `WS_VISIBLE`. Он остаётся `true` в двух случаях, когда пользователь ничего не видит:
 
-- the window is minimized to the taskbar;
-- the window sits on another Windows virtual desktop.
+- окно свёрнуто на панель задач;
+- окно находится на другом виртуальном рабочем столе Windows.
 
-It becomes `false` only after an explicit `hide()` (`SW_HIDE`), which is exactly the "parked in tray" state produced by the `CloseRequested` handler.
+Он становится `false` только после явного вызова `hide()` (`SW_HIDE`), что в точности соответствует состоянию «спрятано в трее», создаваемому обработчиком `CloseRequested`.
 
-So a naive `if window.is_visible() { window.hide() }` would hide an already-invisible window, and the click would look like it did nothing. The checks must run in this order:
+Поэтому наивное `if window.is_visible() { window.hide() }` скрыло бы уже невидимое окно, и клик выглядел бы так, будто ничего не произошло. Проверки должны выполняться в следующем порядке:
 
-1. `!is_visible() || is_minimized()` → `show_main_window` (show + unminimize + focus). `is_minimized()` maps to `IsIconic`, which is an honest signal, so it has to be tested separately rather than inferred from `is_visible()`.
-2. visible, not minimized, but on another virtual desktop → `set_focus()` only.
-3. otherwise → `hide()`.
+1. `!is_visible() || is_minimized()` → `show_main_window` (показать + развернуть + сфокусировать). `is_minimized()` соответствует `IsIconic`, который является достоверным сигналом, поэтому его нужно проверять отдельно, а не выводить из `is_visible()`.
+2. окно видимо, не свёрнуто, но находится на другом виртуальном рабочем столе → только `set_focus()`.
+3. иначе → `hide()`.
 
-## Why focus is not part of the decision
+## Почему фокус не участвует в решении
 
-An obvious alternative is "hide when the window is focused, raise it otherwise". It cannot work here: clicking the tray icon moves the foreground window to the taskbar before the handler runs, so tao has already delivered `WindowEvent::Focused(false)` and `is_focused()` returns `false` for a window that was active a moment ago. Reconstructing the pre-click focus would need a timestamp heuristic on the last focus loss.
+Очевидная альтернатива — «скрывать, когда окно в фокусе, иначе поднимать его». Здесь это не работает: клик по иконке в трее переводит окно переднего плана на панель задач ещё до запуска обработчика, поэтому tao уже доставил `WindowEvent::Focused(false)`, и `is_focused()` возвращает `false` для окна, которое мгновение назад было активным. Восстановление фокуса, каким он был до клика, потребовало бы эвристики по временной метке последней потери фокуса.
 
-The product decision is therefore simpler and deterministic: a visible window on the current desktop is always hidden, even when another window occludes it.
+Поэтому продуктовое решение проще и детерминировано: видимое окно на текущем рабочем столе всегда скрывается, даже если его перекрывает другое окно.
 
-## Why monitors are not compared
+## Почему мониторы не сравниваются
 
-`overlay.rs` already knows how to resolve a monitor from a point (`cursor_position()` + `monitor_from_point()`), so comparing the window's monitor with the tray icon's monitor is cheap. It is intentionally not done. A window on a neighbouring monitor is still on screen, so hiding it matches what the user asked for. Only a different virtual desktop makes the window genuinely unreachable.
+`overlay.rs` уже умеет определять монитор по точке (`cursor_position()` + `monitor_from_point()`), поэтому сравнить монитор окна с монитором иконки в трее было бы дёшево. Но это намеренно не делается. Окно на соседнем мониторе всё равно находится на экране, поэтому его скрытие соответствует тому, что запросил пользователь. По-настоящему недостижимым окно делает только другой виртуальный рабочий стол.
 
-## How `set_focus()` crosses a virtual desktop
+## Как `set_focus()` переключает виртуальный рабочий стол
 
-tao's `set_focus()` is guarded by `is_visible && !is_minimized && !is_foreground`, evaluated against its cached `WindowFlags`. A window on another virtual desktop satisfies all three (it keeps `VISIBLE`, is not `MINIMIZED`, and `GetForegroundWindow()` returns a window of the current desktop), so tao calls `force_window_active`, which ends in `SetForegroundWindow`. Windows responds by switching to the desktop that owns the window and activating it.
+`set_focus()` в tao защищён условием `is_visible && !is_minimized && !is_foreground`, вычисляемым по его кешированным `WindowFlags`. Окно на другом виртуальном рабочем столе удовлетворяет всем трём условиям (сохраняет `VISIBLE`, не является `MINIMIZED`, а `GetForegroundWindow()` возвращает окно текущего рабочего стола), поэтому tao вызывает `force_window_active`, который завершается вызовом `SetForegroundWindow`. Windows реагирует переключением на рабочий стол, которому принадлежит окно, и его активацией.
 
-This is why branch 2 above calls `set_focus()` and nothing else. Calling `show()` first would be a no-op, and `hide()` would strand the window.
+Именно поэтому ветка 2 выше вызывает `set_focus()` и ничего больше. Вызов `show()` перед этим был бы no-op, а `hide()` оставил бы окно «на мели».
 
-## COM apartment for `IVirtualDesktopManager`
+## COM-апартамент для `IVirtualDesktopManager`
 
-`is_on_current_virtual_desktop` creates `IVirtualDesktopManager` (`windows::Win32::UI::Shell`, feature `Win32_UI_Shell`) and calls `IsWindowOnCurrentVirtualDesktop` with the HWND taken from `raw_window_handle`, the same way `overlay.rs::refresh_topmost` does.
+`is_on_current_virtual_desktop` создаёт `IVirtualDesktopManager` (`windows::Win32::UI::Shell`, фича `Win32_UI_Shell`) и вызывает `IsWindowOnCurrentVirtualDesktop` с HWND, взятым из `raw_window_handle`, точно так же, как это делает `overlay.rs::refresh_topmost`.
 
-The tray handler runs on the main thread, which tao has already put into a COM STA via `OleInitialize`. The guard mirrors `audio_mute.rs`:
+Обработчик трея выполняется в главном потоке, который tao уже перевёл в COM STA через `OleInitialize`. Guard зеркалирует `audio_mute.rs`:
 
 ```rust
 let com_hr = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
@@ -48,16 +48,16 @@ if should_uninit {
 }
 ```
 
-Two rules encoded here:
+Здесь заложены два правила:
 
-- `CoUninitialize` must run only when this call actually entered an apartment (`S_OK` or `S_FALSE`). On `RPC_E_CHANGED_MODE` the thread already belongs to a different apartment; COM is still usable, but uninitializing would drop a reference the app does not own.
-- The apartment must be `COINIT_APARTMENTTHREADED`, not `COINIT_MULTITHREADED` as in `audio_mute.rs`. `audio_mute` runs on its own worker thread, while this code runs on the UI thread — turning that thread into an MTA would break OLE drag-and-drop and WebView2.
+- `CoUninitialize` должен выполняться только тогда, когда этот вызов действительно вошёл в апартамент (`S_OK` или `S_FALSE`). При `RPC_E_CHANGED_MODE` поток уже принадлежит другому апартаменту; COM всё ещё пригоден к использованию, но деинициализация сбросила бы ссылку, которой приложение не владеет.
+- Апартамент должен быть `COINIT_APARTMENTTHREADED`, а не `COINIT_MULTITHREADED`, как в `audio_mute.rs`. `audio_mute` выполняется в собственном рабочем потоке, тогда как этот код выполняется в потоке UI — превращение этого потока в MTA сломало бы OLE drag-and-drop и WebView2.
 
-## Error fallbacks
+## Запасные варианты при ошибках
 
-Nothing here is worth showing to the user, so `toggle_main_window` is invoked as `let _ = toggle_main_window(&app_handle)` and every probe has a default:
+Здесь нет ничего, что стоило бы показывать пользователю, поэтому `toggle_main_window` вызывается как `let _ = toggle_main_window(&app_handle)`, и у каждой проверки есть значение по умолчанию:
 
-- `is_visible()` / `is_minimized()` → `unwrap_or(false)`. A failed probe then lands in the "restore" branch: showing a window that was already shown is harmless, hiding one the user wanted is not.
-- `is_on_current_virtual_desktop()` → `unwrap_or(true)`. Treating an unknown desktop as the current one keeps the plain toggle working on single-desktop machines and when the COM call fails.
+- `is_visible()` / `is_minimized()` → `unwrap_or(false)`. Неудачная проверка тогда попадает в ветку «восстановить»: показать окно, которое уже было показано, безвредно, а скрыть то, которое пользователь хотел видеть, — нет.
+- `is_on_current_virtual_desktop()` → `unwrap_or(true)`. Трактовка неизвестного рабочего стола как текущего сохраняет работоспособность простого переключения на машинах с одним рабочим столом и при сбое COM-вызова.
 
-Non-Windows builds compile a stub that returns `Ok(true)`, so the toggle degrades to "visible window always hides".
+В сборках не для Windows компилируется заглушка, возвращающая `Ok(true)`, поэтому переключение вырождается в «видимое окно всегда скрывается».

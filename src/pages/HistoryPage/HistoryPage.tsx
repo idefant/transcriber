@@ -51,13 +51,13 @@ const HistoryPage: FC = () => {
   const storeRemoveRecord = useHistoryStore((s) => s.removeRecord);
 
   const [processingRecordId, setProcessingRecordId] = useState<string>();
-  // preferredDate is the user-selected date.
-  // undefined = auto (open today's date if it has records)
-  // null      = explicitly closed by the user
-  // string    = explicitly opened by the user
+  // preferredDate — выбранная пользователем дата.
+  // undefined = автоматически (открыть сегодняшнюю дату, если для неё есть записи)
+  // null      = явно закрыто пользователем
+  // string    = явно открыто пользователем
   const [preferredDate, setPreferredDate] = useState<string | null | undefined>();
-  // selectedRecordId tracks the id; the full record is resolved from the store's groups so it
-  // automatically reflects event-driven updates without a separate sync effect.
+  // selectedRecordId хранит id; сама запись берётся из groups в сторе, поэтому
+  // она автоматически отражает обновления, вызванные событиями, без отдельного эффекта синхронизации.
   const [selectedRecordId, setSelectedRecordId] = useState<string>();
 
   const monthPickerValue = useMemo(() => dayjs(`${selectedMonth}-01`), [selectedMonth]);
@@ -67,7 +67,7 @@ const HistoryPage: FC = () => {
     if (preferredDate !== undefined && groups.some((g) => g.date === preferredDate)) {
       return preferredDate;
     }
-    // Auto mode: open today's date if it has records, otherwise nothing.
+    // Автоматический режим: открыть сегодняшнюю дату, если для неё есть записи, иначе — ничего.
     const today = dayjs().format('YYYY-MM-DD');
     return groups.some((g) => g.date === today) ? today : undefined;
   }, [groups, preferredDate]);
@@ -80,7 +80,7 @@ const HistoryPage: FC = () => {
     [groups, selectedRecordId],
   );
 
-  // Initial load on mount only. Month changes are handled explicitly in setMonth().
+  // Первоначальная загрузка только при монтировании. Изменения месяца обрабатываются явно в setMonth().
   useEffect(() => {
     queueMicrotask(() => {
       void storeLoad(selectedMonth).catch((error: unknown) => {
@@ -90,10 +90,10 @@ const HistoryPage: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reveal a record requested from the overlay error/warning notification. The
-  // store already switched the month and triggered a reload; here we drive the
-  // local selection and expand the matching day. A store subscription (rather
-  // than a render-derived effect) keeps the setState out of the effect body.
+  // Показываем запись, запрошенную из уведомления об ошибке/предупреждении оверлея. Стор
+  // уже переключил месяц и запустил перезагрузку; здесь мы управляем
+  // локальным выбором и разворачиваем нужный день. Подписка на стор (а не
+  // эффект, производный от рендера) не даёт setState попасть в тело эффекта.
   useEffect(() => {
     const applyPendingOpenRecord = (state: ReturnType<typeof useHistoryStore.getState>) => {
       if (state.pendingOpenRecordId === undefined) {
@@ -181,9 +181,9 @@ const HistoryPage: FC = () => {
     }
   };
 
-  // For repeat actions, we only await the command (to know when it's done).
-  // Record updates arrive via the history-updated event → historyStore.mergeRecord → groups update
-  // → selectedRecord is automatically recomputed from the store via useMemo.
+  // Для действий повтора мы только ожидаем завершения команды (чтобы знать, когда она выполнена).
+  // Обновления записи приходят через событие history-updated → historyStore.mergeRecord → обновление groups
+  // → selectedRecord автоматически пересчитывается из стора через useMemo.
 
   const handleRepeatRecord = async (record: HistoryRecord) => {
     setProcessingRecordId(record.id);

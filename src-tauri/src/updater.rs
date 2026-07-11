@@ -9,9 +9,9 @@ use crate::error::AppError;
 const STABLE_ENDPOINT: &str = "https://idefant.github.io/transcriber/stable.json";
 const UNSTABLE_ENDPOINT: &str = "https://idefant.github.io/transcriber/unstable.json";
 
-/// A pending update that has been discovered but not yet installed.
-/// Stored in managed state so `download_and_install_update` can retrieve
-/// and consume it.
+/// Отложенное обновление, которое было обнаружено, но ещё не установлено.
+/// Хранится в managed state, чтобы `download_and_install_update` могла
+/// получить и использовать его.
 pub struct PendingUpdate(pub Mutex<Option<tauri_plugin_updater::Update>>);
 
 impl Default for PendingUpdate {
@@ -20,7 +20,7 @@ impl Default for PendingUpdate {
     }
 }
 
-/// Information about an available update returned to the frontend.
+/// Информация о доступном обновлении, возвращаемая фронтенду.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateInfo {
@@ -28,7 +28,7 @@ pub struct UpdateInfo {
     pub notes: Option<String>,
 }
 
-/// Progress payload emitted to the frontend during download.
+/// Полезная нагрузка о прогрессе, отправляемая фронтенду во время загрузки.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateProgress {
@@ -36,14 +36,13 @@ pub struct UpdateProgress {
     pub total: Option<u64>,
 }
 
-/// Checks whether an update is available.
+/// Проверяет, доступно ли обновление.
 ///
-/// If `offer_unstable` is `true`, queries the `unstable` channel
-/// (includes alpha/beta/rc releases). Otherwise queries the `stable`
-/// channel.
+/// Если `offer_unstable` равно `true`, опрашивается канал `unstable`
+/// (включает alpha/beta/rc-релизы). Иначе опрашивается канал `stable`.
 ///
-/// On success, stores the pending `Update` in managed state and returns
-/// metadata about it. Returns `None` if already on the latest version.
+/// В случае успеха сохраняет отложенное `Update` в managed state и возвращает
+/// метаданные о нём. Возвращает `None`, если уже установлена последняя версия.
 #[tauri::command]
 pub async fn check_for_update(
     app: tauri::AppHandle,
@@ -85,10 +84,10 @@ pub async fn check_for_update(
     }
 }
 
-/// Downloads and installs the pending update, then restarts the app.
+/// Загружает и устанавливает отложенное обновление, затем перезапускает приложение.
 ///
-/// Must be called after a successful `check_for_update` that returned
-/// `Some(...)`. Emits `updater://progress` events during download.
+/// Должна вызываться после успешного `check_for_update`, вернувшего
+/// `Some(...)`. Во время загрузки отправляет события `updater://progress`.
 #[tauri::command]
 pub async fn download_and_install_update(app: tauri::AppHandle) -> Result<(), String> {
     let update = app

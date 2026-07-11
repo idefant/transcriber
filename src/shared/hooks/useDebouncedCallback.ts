@@ -2,24 +2,25 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { debounce, type DebouncedFunc } from 'lodash-es';
 
 export interface DebouncedCallback<Args extends unknown[]> {
-  /** Schedules a call, restarting the delay if one is already waiting. */
+  /** Планирует вызов, перезапуская задержку, если вызов уже ожидает выполнения. */
   run: (...args: Args) => void;
-  /** Drops a call that is still waiting for the delay to elapse. */
+  /** Отменяет вызов, который всё ещё ожидает истечения задержки. */
   cancel: () => void;
-  /** Runs a waiting call right now instead of waiting out the delay. Does nothing when idle. */
+  /** Выполняет ожидающий вызов немедленно, не дожидаясь истечения задержки. Ничего не делает, если вызовов не ожидается. */
   flush: () => void;
 }
 
 /**
- * Debounces `callback` and exposes `run`, `cancel`, and `flush`.
+ * Дебаунсит `callback` и предоставляет `run`, `cancel` и `flush`.
  *
- * The returned object and its methods are referentially stable for the lifetime of the component,
- * so they are safe to use in a dependency array. `callback` may be recreated on every render
- * without restarting the delay or dropping a waiting call, because it is read through a ref at
- * invoke time. A waiting call is dropped on unmount and whenever `delayMs` changes.
+ * Возвращаемый объект и его методы сохраняют ссылочную стабильность на протяжении всего времени
+ * жизни компонента, поэтому их безопасно использовать в массиве зависимостей. `callback` может
+ * пересоздаваться на каждом рендере без перезапуска задержки и без потери ожидающего вызова,
+ * поскольку он читается через ref в момент вызова. Ожидающий вызов сбрасывается при размонтировании
+ * и при каждом изменении `delayMs`.
  *
- * @param callback Invoked once the delay elapses, with the arguments of the latest `run` call.
- * @param delayMs Milliseconds to wait after the last `run` call.
+ * @param callback Вызывается по истечении задержки с аргументами последнего вызова `run`.
+ * @param delayMs Количество миллисекунд ожидания после последнего вызова `run`.
  */
 export const useDebouncedCallback = <Args extends unknown[]>(
   callback: (...args: Args) => void,
@@ -32,8 +33,8 @@ export const useDebouncedCallback = <Args extends unknown[]>(
     callbackRef.current = callback;
   }, [callback]);
 
-  // Built outside render so the debounced instance survives re-renders untouched. As a result
-  // `run` only starts working once the component is mounted, which is what event handlers need.
+  // Создаётся вне рендера, чтобы экземпляр debounced переживал повторные рендеры без изменений. В результате
+  // `run` начинает работать только после монтирования компонента, что и требуется обработчикам событий.
   useEffect(() => {
     const debounced = debounce((...args: Args) => {
       callbackRef.current(...args);

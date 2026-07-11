@@ -1,7 +1,7 @@
-# SCSS Style Rules
+# Правила оформления SCSS
 
-- Prefer nesting related selectors inside the owning class in SCSS modules.
-- Put responsive overrides inside the class they modify:
+- Предпочитайте вложенность связанных селекторов внутри владеющего класса в SCSS-модулях.
+- Размещайте адаптивные переопределения внутри класса, который они изменяют:
 
 ```scss
 .page {
@@ -13,7 +13,7 @@
 }
 ```
 
-- Put child element selectors inside the parent class:
+- Размещайте селекторы дочерних элементов внутри родительского класса:
 
 ```scss
 .metaList {
@@ -33,5 +33,5 @@
 }
 ```
 
-- Put pseudo-classes and state variants near the base selector when it keeps the relationship clear.
-- Do not create deep nesting just for shape. Prefer one or two nesting levels; extract a separate class when the selector becomes hard to scan.
+- Размещайте псевдоклассы и варианты состояний рядом с базовым селектором, если это сохраняет ясность связи.
+- Не создавайте глубокую вложенность просто ради формы. Предпочитайте один-два уровня вложенности; выделяйте отдельный класс, когда селектор становится сложно читать.

@@ -1,69 +1,69 @@
-# State Management Architecture
+# Архитектура управления состоянием
 
-This document explains why the app uses Zustand stores instead of React Context, how stores are structured, and the constraints that must be preserved in future changes.
+Этот документ объясняет, почему приложение использует хранилища (stores) Zustand вместо React Context, как устроены хранилища и какие ограничения нужно сохранять при будущих изменениях.
 
-## Background
+## Предыстория
 
-Prior to the Zustand migration, all shared state lived in React Context providers (`AppSettingsProvider`, `ProvidersProvider`, `ProcessingProvider`, `CatalogProvider`). History and Dictionary pages kept their data in local `useState` and fetched directly from Rust on every mount.
+До миграции на Zustand всё общее состояние жило в провайдерах React Context (`AppSettingsProvider`, `ProvidersProvider`, `ProcessingProvider`, `CatalogProvider`). Страницы истории и словаря хранили свои данные в локальном `useState` и получали их напрямую из Rust при каждом монтировании.
 
-This caused several problems:
+Это вызывало несколько проблем:
 
-- Dictionary items were sorted on the Rust side (lowercase key) and again on the React side (`localeCompare('ru')`), producing inconsistent orderings and visible flickering when the list was replaced.
-- Changing `closable` per-tag during save caused every tag to re-render twice.
-- `flushSync` inside event handlers forced extra paints.
-- The `history-updated` Tauri event carried no payload, so every update triggered a full cold-refetch of the entire month, creating a race with optimistic UI updates.
-- The event subscription lived inside `HistoryPage`, so it was inactive when the page was not mounted.
+- Элементы словаря сортировались на стороне Rust (по ключу в нижнем регистре), а затем ещё раз на стороне React (`localeCompare('ru')`), что приводило к несогласованному порядку и заметному мерцанию при замене списка.
+- Изменение `closable` для каждого тега при сохранении приводило к двойному ререндеру каждого тега.
+- `flushSync` внутри обработчиков событий вызывал лишние отрисовки (paint).
+- Событие Tauri `history-updated` не несло payload, поэтому каждое обновление вызывало полный холодный перезапрос всего месяца, создавая гонку с оптимистичными обновлениями UI.
+- Подписка на событие жила внутри `HistoryPage`, поэтому была неактивна, когда страница не была смонтирована.
 
-## Store structure
+## Структура хранилищ
 
-All stores live in `src/stores/`. Each file owns one domain:
+Все хранилища находятся в `src/stores/`. Каждый файл отвечает за один домен:
 
-| File                 | Domain                                     |
-| -------------------- | ------------------------------------------ |
-| `settingsStore.ts`   | App settings (theme, language)             |
-| `providersStore.ts`  | AI provider configs                        |
-| `processingStore.ts` | STT / post-process config, default prompts |
-| `catalogStore.ts`    | Model catalog                              |
-| `dictionaryStore.ts` | Dictionary word list                       |
-| `historyStore.ts`    | History groups, Tauri event subscription   |
+| Файл                 | Домен                                                  |
+| -------------------- | ------------------------------------------------------ |
+| `settingsStore.ts`   | Настройки приложения (тема, язык)                      |
+| `providersStore.ts`  | Конфигурации AI-провайдеров                            |
+| `processingStore.ts` | Конфигурация STT / постобработки, промпты по умолчанию |
+| `catalogStore.ts`    | Каталог моделей                                        |
+| `dictionaryStore.ts` | Список слов словаря                                    |
+| `historyStore.ts`    | Группы истории, подписка на события Tauri              |
 
-`src/stores/index.ts` re-exports the raw stores and provides compatibility hooks (`useAppSettings`, `useProviders`, `useProcessing`, `useCatalog`) that wrap `useShallow` so consumers that destructure multiple fields do not re-render on unrelated changes.
+`src/stores/index.ts` реэкспортирует исходные хранилища и предоставляет хуки совместимости (`useAppSettings`, `useProviders`, `useProcessing`, `useCatalog`), которые оборачивают `useShallow`, чтобы потребители, деструктурирующие несколько полей, не перерендеривались при несвязанных изменениях.
 
-## Canonical sort order belongs to Rust
+## Каноничный порядок сортировки принадлежит Rust
 
-**Do not sort data in the frontend.** The Rust side owns canonical ordering — dictionary words are sorted in `normalize_dictionary_words` (`src-tauri/src/dictionary.rs`), history groups in `sort_records` (`src-tauri/src/history.rs`). Stores receive the API response and write it to state as-is. Adding a client-side sort will desync ordering and cause flickering during the transition between the old and new list.
+**Не сортируйте данные на фронтенде.** Каноничный порядок принадлежит стороне Rust — слова словаря сортируются в `normalize_dictionary_words` (`src-tauri/src/dictionary.rs`), группы истории — в `sort_records` (`src-tauri/src/history.rs`). Хранилища получают ответ API и записывают его в состояние как есть. Добавление сортировки на стороне клиента рассинхронизирует порядок и вызовет мерцание при переходе между старым и новым списком.
 
-## Initial load
+## Первоначальная загрузка
 
-`StoreLoader` (a side-effect-only component rendered in `App.tsx`) calls every store's `load()` action once on mount via `queueMicrotask`. Stores set `isLoading: true` on entry and `false` in `finally`, so the `Spin` wrapper in pages reflects real loading state without a flash.
+`StoreLoader` (компонент, рендерящийся в `App.tsx` только ради побочного эффекта) вызывает действие `load()` каждого хранилища один раз при монтировании через `queueMicrotask`. Хранилища устанавливают `isLoading: true` при входе и `false` в `finally`, поэтому обёртка `Spin` на страницах отражает реальное состояние загрузки без мигания.
 
-Pages do not call `load()` on their own mount — the data is already available (or loading) from `StoreLoader`. The exception is `HistoryPage`, which calls `historyStore.load()` explicitly because history is month-scoped and the current month changes during the session.
+Страницы не вызывают `load()` при собственном монтировании — данные уже доступны (или загружаются) благодаря `StoreLoader`. Исключение — `HistoryPage`, которая вызывает `historyStore.load()` явно, потому что история ограничена месяцем, а текущий месяц меняется в течение сессии.
 
-## History event subscription
+## Подписка на событие истории
 
-`history-updated` is a Tauri event emitted from `src-tauri/src/history.rs` after every record mutation. The payload is `HistoryRecord | null`:
+`history-updated` — это событие Tauri, генерируемое из `src-tauri/src/history.rs` после каждого изменения записи. Payload имеет тип `HistoryRecord | null`:
 
-- `HistoryRecord` — a record was created or updated. `historyStore.mergeRecord()` finds the record by `id` in the current groups and replaces it in-place (one `set()` call, one re-render, no refetch).
-- `null` — a record was deleted. The store does a silent reload of the current month (`load(month, { silent: true })`) so grouping is recalculated by Rust without showing the loading spinner.
+- `HistoryRecord` — запись была создана или обновлена. `historyStore.mergeRecord()` находит запись по `id` в текущих группах и заменяет её на месте (один вызов `set()`, один ререндер, без повторного запроса).
+- `null` — запись была удалена. Хранилище выполняет тихую перезагрузку текущего месяца (`load(month, { silent: true })`), чтобы группировка пересчитывалась на стороне Rust без показа индикатора загрузки.
 
-The subscription is established in `HistorySubscription` (rendered in `App.tsx`), not in `HistoryPage`. This keeps the subscription alive regardless of which page is visible, so background dictations update the store even when the history page is not mounted.
+Подписка устанавливается в `HistorySubscription` (рендерится в `App.tsx`), а не в `HistoryPage`. Это сохраняет подписку живой независимо от того, какая страница видна, поэтому фоновые диктовки обновляют хранилище, даже когда страница истории не смонтирована.
 
-**Do not move the subscription back into `HistoryPage`** — it would silently stop receiving updates while the user is on another page, and the next visit to history would show stale data until the month is reloaded.
+**Не переносите подписку обратно в `HistoryPage`** — это приведёт к тому, что она молча перестанет получать обновления, пока пользователь находится на другой странице, а при следующем визите в историю будут показаны устаревшие данные до перезагрузки месяца.
 
-## In-place merge vs. cold refetch
+## Слияние на месте против холодного перезапроса
 
-Before the migration, every `history-updated` event caused a full `get_history_groups` call. This created a race: the component applied an optimistic splice, then the refetch landed and replaced the list, causing a double-render and visible reordering.
+До миграции каждое событие `history-updated` вызывало полный вызов `get_history_groups`. Это создавало гонку: компонент применял оптимистичное изменение (splice), затем прилетал перезапрос и заменял список, вызывая двойной ререндер и заметное изменение порядка.
 
-The fix: `mergeRecord(record)` scans `groups` for a record with matching `id` and replaces it using `map()`. If the record is not found (new dictation from background), a single silent reload is triggered. Repeat handlers no longer apply any optimistic update — they fire the Rust command and wait for the event.
+Исправление: `mergeRecord(record)` сканирует `groups` в поисках записи с совпадающим `id` и заменяет её с помощью `map()`. Если запись не найдена (новая диктовка из фона), запускается одна тихая перезагрузка. Обработчики повтора больше не применяют никаких оптимистичных обновлений — они вызывают команду Rust и ждут события.
 
-## Component-local vs. store state
+## Локальное состояние компонента против состояния хранилища
 
-Transient UI state stays local in components — do not promote it to a store:
+Временное состояние UI остаётся локальным в компонентах — не выносите его в хранилище:
 
-- `isSaving` / `processingRecordId` — loading flags scoped to a single user action
-- `activeDate` / `selectedRecord` in `HistoryPage` — derived from store groups via `useMemo`, not synced with a `useEffect`
+- `isSaving` / `processingRecordId` — флаги загрузки, привязанные к одному действию пользователя
+- `activeDate` / `selectedRecord` в `HistoryPage` — выводятся из групп хранилища через `useMemo`, а не синхронизируются через `useEffect`
 
-When `HistoryPage` needs to reflect event-driven group changes in `activeDate` or `selectedRecord`, it computes them synchronously:
+Когда `HistoryPage` нужно отразить изменения групп, вызванные событиями, в `activeDate` или `selectedRecord`, она вычисляет их синхронно:
 
 ```ts
 const activeDate = useMemo(
@@ -72,8 +72,8 @@ const activeDate = useMemo(
 );
 ```
 
-This avoids the `react-hooks/set-state-in-effect` lint error and eliminates the cascading render from a `useEffect` that calls `setState`.
+Это позволяет избежать ошибки линтера `react-hooks/set-state-in-effect` и устраняет каскадный ререндер от `useEffect`, вызывающего `setState`.
 
-## Default prompts
+## Промпты по умолчанию
 
-`processingStore` owns `defaultPrompts` and exposes `loadDefaultPrompts()`. The initial fetch happens in `StoreLoader`. `ProcessingSettingsForm` calls `loadDefaultPrompts()` inside a `useEffect` whenever `config.stt.language` or `settings.effectiveUiLanguage` changes, because Rust derives the default prompt text from those values. The component does not call `processingApi.getDefaultPrompts()` directly.
+`processingStore` владеет `defaultPrompts` и предоставляет `loadDefaultPrompts()`. Первоначальный запрос происходит в `StoreLoader`. `ProcessingSettingsForm` вызывает `loadDefaultPrompts()` внутри `useEffect` при каждом изменении `config.stt.language` или `settings.effectiveUiLanguage`, потому что Rust выводит текст промпта по умолчанию из этих значений. Компонент не вызывает `processingApi.getDefaultPrompts()` напрямую.

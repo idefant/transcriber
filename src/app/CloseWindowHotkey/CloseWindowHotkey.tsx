@@ -3,20 +3,20 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 
 const appWindow = getCurrentWindow();
 
-// Ctrl+W on either side, with no other modifier. `event.code` keeps the shortcut on the
-// physical W key regardless of the active keyboard layout.
+// Ctrl+W с любой стороны, без других модификаторов. `event.code` удерживает комбинацию
+// на физической клавише W независимо от активной раскладки клавиатуры.
 const isCloseWindowHotkey = (event: KeyboardEvent): boolean =>
   event.code === 'KeyW' && event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey;
 
 /**
- * Closes the main window on Ctrl+W while it has focus. Closing hides the window into the tray,
- * exactly like the titlebar close button, because the backend intercepts `CloseRequested`.
+ * Закрывает главное окно по Ctrl+W, когда оно находится в фокусе. Закрытие скрывает окно в трей,
+ * точно так же, как кнопка закрытия в заголовке окна, потому что бэкенд перехватывает `CloseRequested`.
  */
 const CloseWindowHotkey: FC = () => {
   useEffect(() => {
-    // Bubble phase on purpose. `DictationHotkeyFallback` and `HotkeyInput` listen in the capture
-    // phase and call stopPropagation() once they claim a key, so a user-assigned Ctrl+W hotkey and
-    // the hotkey capture mode both win over closing the window.
+    // Фаза всплытия выбрана намеренно. `DictationHotkeyFallback` и `HotkeyInput` слушают на фазе
+    // перехвата и вызывают stopPropagation(), как только забирают клавишу, поэтому назначенный
+    // пользователем хоткей Ctrl+W и режим захвата хоткея оба побеждают закрытие окна.
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.repeat || !isCloseWindowHotkey(event)) {
         return;

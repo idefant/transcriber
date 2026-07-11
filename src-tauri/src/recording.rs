@@ -21,12 +21,13 @@ use crate::{
 
 const LEVEL_EMIT_INTERVAL: Duration = Duration::from_millis(50);
 
-/// A microphone capture stream that is built ahead of time and kept paused so a
-/// dictation can start with only a cheap `stream.play()` instead of paying the
-/// expensive WASAPI `build_input_stream` cost (hundreds of ms) on the hot path.
+/// Поток захвата с микрофона, который создаётся заранее и остаётся на паузе,
+/// чтобы диктовка могла начаться дешёвым вызовом `stream.play()` вместо
+/// дорогостоящего вызова WASAPI `build_input_stream` (сотни мс) на горячем пути.
 ///
-/// The same prepared recorder is reused across sessions: `start` re-arms it,
-/// `stop_to_audio` / `abort` return it to the paused, empty state.
+/// Один и тот же подготовленный рекордер переиспользуется между сессиями:
+/// `start` заново его активирует, `stop_to_audio` / `abort` возвращают его
+/// в состояние паузы и очищают.
 pub struct PreparedRecorder {
     stream: Stream,
     shared: Arc<RecorderShared>,
@@ -35,8 +36,8 @@ pub struct PreparedRecorder {
     device_name: String,
 }
 
-/// State shared with the audio callback. The callback only accumulates samples
-/// while `active` is set, so a paused-but-alive stream keeps no data.
+/// Состояние, общее с аудио-коллбэком. Коллбэк накапливает сэмплы только пока
+/// установлен `active`, поэтому поток на паузе, но живой, не хранит данных.
 struct RecorderShared {
     samples: Mutex<Vec<f32>>,
     active: AtomicBool,
@@ -50,9 +51,10 @@ pub struct RecordedAudio {
     pub started_at: DateTime<Utc>,
 }
 
-/// Build (but do not start) a capture stream for the current default input
-/// device. This performs all the expensive work — device enumeration, config
-/// negotiation and `build_input_stream` — so `PreparedRecorder::start` stays fast.
+/// Создаёт (но не запускает) поток захвата для текущего устройства ввода по
+/// умолчанию. Здесь выполняется вся дорогостоящая работа — перечисление
+/// устройств, согласование конфигурации и `build_input_stream` — чтобы
+/// `PreparedRecorder::start` оставался быстрым.
 pub fn prepare_recorder(app: &tauri::AppHandle) -> AppResult<PreparedRecorder> {
     let host = cpal::default_host();
     let device = host
@@ -100,9 +102,10 @@ pub fn prepare_recorder(app: &tauri::AppHandle) -> AppResult<PreparedRecorder> {
 }
 
 impl PreparedRecorder {
-    /// True when this recorder was built for the device the OS currently reports
-    /// as the default input. When it returns false the caller rebuilds so a
-    /// device change (e.g. plugging in a headset) is honored.
+    /// `true`, если этот рекордер был создан для устройства, которое ОС в данный
+    /// момент сообщает как устройство ввода по умолчанию. Когда возвращается
+    /// false, вызывающий код пересоздаёт рекордер, чтобы учесть смену
+    /// устройства (например, подключение гарнитуры).
     pub fn is_for_current_default_device(&self) -> bool {
         let host = cpal::default_host();
         match host.default_input_device() {
@@ -114,8 +117,9 @@ impl PreparedRecorder {
         }
     }
 
-    /// Re-arm and start capturing. Clears any leftover samples and resumes the
-    /// paused stream — the only work on the dictation-start hot path.
+    /// Повторно активирует и запускает захват. Очищает оставшиеся сэмплы и
+    /// возобновляет поток на паузе — единственная работа на горячем пути
+    /// начала диктовки.
     pub fn start(&self, app: &tauri::AppHandle) -> AppResult<()> {
         if let Ok(mut samples) = self.shared.samples.lock() {
             samples.clear();
@@ -124,7 +128,7 @@ impl PreparedRecorder {
             *last_emit = Instant::now() - LEVEL_EMIT_INTERVAL;
         }
 
-        // Arm before play so the very first callbacks are recorded.
+        // Активируем до play, чтобы записались самые первые коллбэки.
         self.shared.active.store(true, Ordering::SeqCst);
 
         self.stream.play().map_err(|error| {
@@ -139,8 +143,8 @@ impl PreparedRecorder {
         Ok(())
     }
 
-    /// Stop capturing and encode what was recorded to WAV. Leaves the recorder
-    /// paused and empty so it can be reused for the next session.
+    /// Останавливает захват и кодирует записанное в WAV. Оставляет рекордер
+    /// на паузе и пустым, чтобы его можно было переиспользовать в следующей сессии.
     pub fn stop_to_audio(
         &self,
         app: &tauri::AppHandle,
@@ -148,7 +152,7 @@ impl PreparedRecorder {
     ) -> AppResult<RecordedAudio> {
         let ui_language = settings::get_effective_ui_language(app).unwrap_or_default();
 
-        // Pause first so the OS microphone indicator turns off immediately.
+        // Сначала ставим на паузу, чтобы индикатор микрофона ОС выключился сразу.
         self.pause_and_deactivate();
 
         let mut samples = self
@@ -189,8 +193,9 @@ impl PreparedRecorder {
         })
     }
 
-    /// Cancel capturing without producing audio and discard any samples. Leaves
-    /// the recorder paused and empty so it can be reused for the next session.
+    /// Отменяет захват без создания аудио и отбрасывает все сэмплы. Оставляет
+    /// рекордер на паузе и пустым, чтобы его можно было переиспользовать
+    /// в следующей сессии.
     pub fn abort(&self) {
         self.pause_and_deactivate();
         if let Ok(mut samples) = self.shared.samples.lock() {
@@ -199,7 +204,7 @@ impl PreparedRecorder {
     }
 
     fn pause_and_deactivate(&self) {
-        // Stop accumulating before pausing so no late callback appends samples.
+        // Останавливаем накопление до паузы, чтобы запоздавший коллбэк не добавил сэмплы.
         self.shared.active.store(false, Ordering::SeqCst);
         let _ = self.stream.pause();
     }
@@ -281,20 +286,20 @@ fn calculate_input_level(samples: &[f32], channels: usize) -> f32 {
     (sum_squares / samples.len() as f32).sqrt().clamp(0.0, 1.0)
 }
 
-/// Target peak after normalization, expressed as a linear amplitude (-1 dBFS).
-/// Leaves a little headroom below full scale instead of normalizing to exactly 1.0.
+/// Целевой пик после нормализации, выражен в линейной амплитуде (-1 дБFS).
+/// Оставляет небольшой запас ниже полной шкалы вместо нормализации ровно до 1.0.
 const NORMALIZE_TARGET_PEAK: f32 = 0.891_251;
 
-/// Upper bound on the applied gain (~24 dB). Without this cap a near-silent
-/// buffer (mic muted, no speech captured) would normalize its noise floor up
-/// to full volume instead of being left alone.
+/// Верхняя граница применяемого усиления (~24 дБ). Без этого ограничения почти
+/// тихий буфер (микрофон выключен, речь не захвачена) нормализовал бы свой шумовой
+/// порог до полной громкости вместо того, чтобы остаться без изменений.
 const NORMALIZE_MAX_GAIN: f32 = 16.0;
 
-/// Scales the whole buffer by a single factor so its peak amplitude reaches
-/// `NORMALIZE_TARGET_PEAK`. Boosts quiet recordings (e.g. low mic input level)
-/// and gently pulls down recordings that are already close to clipping,
-/// without introducing distortion since the factor is derived from the
-/// recording's own peak.
+/// Масштабирует весь буфер одним коэффициентом так, чтобы его пиковая амплитуда
+/// достигла `NORMALIZE_TARGET_PEAK`. Усиливает тихие записи (например, низкий
+/// уровень входного сигнала микрофона) и мягко понижает записи, уже близкие
+/// к клиппингу, без внесения искажений, поскольку коэффициент выводится из
+/// собственного пика записи.
 fn normalize_peak(samples: &mut [f32]) {
     let peak = samples
         .iter()

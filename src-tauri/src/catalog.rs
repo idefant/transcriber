@@ -17,9 +17,9 @@ pub struct SttParams {
 pub struct PostProcessParams {
     pub temperature: f32,
     pub max_tokens: u32,
-    /// Append `/no_think` to the system prompt for Qwen-style models.
+    /// Добавляет `/no_think` к системному промпту для моделей в стиле Qwen.
     pub disable_thinking_prompt: bool,
-    /// Send `thinking: { type: "disabled" }` for Claude models on OpenRouter.
+    /// Отправляет `thinking: { type: "disabled" }` для моделей Claude в OpenRouter.
     pub disable_thinking_body: bool,
 }
 

@@ -1,11 +1,11 @@
-# Development Documentation Maintenance
+# Поддержка документации разработки
 
-Development documentation in `docs/development/` records codebase-facing explanations: why a complex implementation choice was made, why it works that way, and what constraints must be remembered during future work.
+Документация разработки в `docs/development/` фиксирует объяснения, обращённые к кодовой базе: почему было принято то или иное сложное решение по реализации, почему оно работает именно так и какие ограничения нужно помнить при будущей работе.
 
-When adding or changing functionality that solves a complex codebase problem and the reasoning may need to be preserved, consider whether the rationale belongs in `docs/development/`.
+При добавлении или изменении функциональности, которая решает сложную проблему кодовой базы и обоснование которой может понадобиться сохранить, подумай, стоит ли поместить обоснование в `docs/development/`.
 
-If questions arise about such a codebase problem during the task, ask the user whether to add a new page or a new section in `docs/development/` for that problem.
+Если в ходе задачи возникают вопросы о такой проблеме кодовой базы, спроси у пользователя, стоит ли добавить новую страницу или новый раздел в `docs/development/` для этой проблемы.
 
-This rule applies to questions about the project codebase and its behavior. It does not apply to documentation about how the agent interacts with the codebase; agent behavior rules belong in `docs/agent/`.
+Это правило применяется к вопросам о кодовой базе проекта и её поведении. Оно не применяется к документации о том, как агент взаимодействует с кодовой базой; правила поведения агента находятся в `docs/agent/`.
 
-Before re-analyzing a previously documented complex problem, check the relevant `docs/development/` page so the reasoning does not need to be rediscovered and so future changes do not accidentally break the documented decision.
+Перед повторным анализом ранее задокументированной сложной проблемы проверь соответствующую страницу в `docs/development/`, чтобы не приходилось заново находить обоснование и чтобы будущие изменения случайно не нарушили задокументированное решение.

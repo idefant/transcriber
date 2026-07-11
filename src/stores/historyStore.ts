@@ -20,8 +20,8 @@ interface HistoryState {
   groups: HistoryGroup[];
   selectedMonth: string;
   isLoading: boolean;
-  // Set when an external trigger (overlay "open record") asks the history page to
-  // reveal a specific record. The page consumes it to drive its local selection.
+  // Устанавливается, когда внешний триггер (оверлей «открыть запись») просит страницу истории
+  // показать конкретную запись. Страница использует это значение для управления своим локальным выбором.
   pendingOpenRecordId?: string;
   pendingOpenDate?: string;
   load: (month?: string, options?: { silent?: boolean }) => Promise<void>;
@@ -68,7 +68,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         })),
       });
     } else {
-      // New record — reload the current month silently so grouping is done by Rust.
+      // Новая запись — тихо перезагружаем текущий месяц, чтобы группировку выполнил Rust.
       const recordMonth = record.createdAt.slice(0, 7);
       if (recordMonth === selectedMonth) {
         void get().load(selectedMonth, { silent: true });
@@ -100,8 +100,8 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   },
 }));
 
-// Set up the Tauri event subscription. Call once from App.tsx on mount.
-// The payload is HistoryRecord when a record is updated, null when deleted.
+// Настраивает подписку на событие Tauri. Вызывается один раз из App.tsx при монтировании.
+// В payload передаётся HistoryRecord, если запись обновлена, и null, если удалена.
 export const initHistoryEventSubscription = () =>
   listen<HistoryRecord | null>('history-updated', (event) => {
     const record = event.payload;

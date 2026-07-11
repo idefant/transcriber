@@ -1,5 +1,6 @@
 /**
- * Euclidean modulo. Unlike the native `%`, the result never goes negative for a positive divisor.
+ * Евклидов остаток от деления. В отличие от нативного `%`, результат никогда не становится отрицательным
+ * при положительном делителе.
  *
  * @example
  * -1 % 3; // -1

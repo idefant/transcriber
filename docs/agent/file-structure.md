@@ -1,13 +1,12 @@
-# File Structure
+# Структура файлов
 
-These rules describe project-level folders. Component folders must also follow
-[component-structure.md](component-structure.md).
+Эти правила описывают папки уровня проекта. Папки компонентов также должны соответствовать [component-structure.md](component-structure.md).
 
-## Models
+## Модели
 
-Long-lived application data types live in `src/models`.
+Долгоживущие типы данных приложения находятся в `src/models`.
 
-Use PascalCase file names for model files:
+Используйте имена файлов в PascalCase для файлов моделей:
 
 ```text
 src/models/
@@ -16,15 +15,13 @@ src/models/
   Settings.ts
 ```
 
-Model files describe domain data that can be stored, loaded, or passed across
-features for a long time. Do not put component props in `src/models`; keep props
-near their component.
+Файлы моделей описывают доменные данные, которые можно долго хранить, загружать или передавать между разными частями приложения. Не помещайте пропсы компонентов в `src/models`; храните пропсы рядом с их компонентом.
 
-## Mocks
+## Моки
 
-Temporary mock data lives in `src/mocks`.
+Временные моковые данные находятся в `src/mocks`.
 
-Use descriptive camelCase file names:
+Используйте описательные имена файлов в camelCase:
 
 ```text
 src/mocks/
@@ -32,14 +29,10 @@ src/mocks/
   providers.ts
 ```
 
-Mocks may import model types from `src/models`, but components should not own
-large mock datasets inline.
+Моки могут импортировать типы моделей из `src/models`, но компоненты не должны содержать большие наборы моковых данных прямо внутри себя.
 
-## Pages
+## Страницы
 
-Pages own route-level state and layout composition. Extract child components
-only for meaningful UI areas or complex logic, for example a records list or a
-details panel.
+Страницы владеют состоянием уровня маршрута и компоновкой макета. Выделяйте дочерние компоненты только для значимых областей UI или сложной логики, например список записей или панель деталей.
 
-Avoid extracting tiny fragments such as two buttons, a single table, or a few
-form fields unless they become reused or carry their own business logic.
+Избегайте выделения мелких фрагментов, таких как две кнопки, одна таблица или несколько полей формы, если они не становятся переиспользуемыми или не содержат собственную бизнес-логику.

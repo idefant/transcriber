@@ -15,9 +15,9 @@ const DictationHotkeyFallback: FC = () => {
   const activeActivationIdRef = useRef<number | null>(null);
   const pressedModifierCodesRef = useRef(new Set<string>());
 
-  // Track dictation session state to gate the cancel hotkey.
-  // Cancel is only intercepted while a session is active; outside a session
-  // Ctrl+Z (or any other cancel hotkey) passes through to the webview unchanged.
+  // Отслеживаем состояние сессии диктовки, чтобы управлять перехватом хоткея отмены.
+  // Отмена перехватывается только пока сессия активна; вне сессии
+  // Ctrl+Z (или любой другой хоткей отмены) проходит во webview без изменений.
   useEffect(() => {
     const unlistenPromise = listen<{ active: boolean; sessionId?: number | null }>(
       'dictation-session',
@@ -61,7 +61,7 @@ const DictationHotkeyFallback: FC = () => {
     const pressedModifierCodes = pressedModifierCodesRef.current;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Keep modifier-side tracking up to date before checking hotkey matches.
+      // Обновляем отслеживание нажатых модификаторов перед проверкой совпадения хоткея.
       if (MODIFIER_CODES.has(event.code)) {
         pressedModifierCodes.add(event.code);
         return;
@@ -86,7 +86,7 @@ const DictationHotkeyFallback: FC = () => {
         return;
       }
 
-      // Cancel hotkey is only consumed when a dictation session is active.
+      // Хоткей отмены перехватывается только когда сессия диктовки активна.
       if (
         cancelHotkey !== undefined &&
         isSessionActiveRef.current &&
@@ -130,7 +130,7 @@ const DictationHotkeyFallback: FC = () => {
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
-      // Keep modifier-side tracking up to date.
+      // Обновляем отслеживание нажатых модификаторов.
       if (MODIFIER_CODES.has(event.code)) {
         pressedModifierCodes.delete(event.code);
         return;
@@ -142,7 +142,7 @@ const DictationHotkeyFallback: FC = () => {
         return;
       }
 
-      // Release only when the main key of the active dictation hotkey comes up.
+      // Отпускание учитывается, только когда отпущена основная клавиша активного хоткея диктовки.
       const eventKey = CODE_TO_KEY[event.code];
 
       if (eventKey?.toLowerCase() !== dictationHotkey.key.toLowerCase()) {
@@ -155,8 +155,8 @@ const DictationHotkeyFallback: FC = () => {
       void dictationApi.notifyDictationShortcutReleased(activationId);
     };
 
-    // Clear tracked modifier state when the window loses focus so stale entries
-    // don't cause false matches after the user switches back.
+    // Сбрасываем отслеживаемое состояние модификаторов при потере окном фокуса, чтобы устаревшие
+    // записи не приводили к ложным совпадениям после возврата пользователя в окно.
     const handleBlur = () => {
       pressedModifierCodes.clear();
     };

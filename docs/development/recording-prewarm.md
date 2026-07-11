@@ -1,64 +1,64 @@
-# Recording Prewarm (Warm Capture Stream)
+# Прогрев записи (прогретый поток захвата)
 
-## Problem
+## Проблема
 
-Starting a dictation felt laggy: the recording overlay appeared instantly, but the microphone only began capturing a few hundred milliseconds later, so the first fraction of the user's speech was lost.
+Старт диктовки ощущался как заторможенный: оверлей записи появлялся мгновенно, но микрофон начинал захват лишь через несколько сотен миллисекунд, из-за чего терялась первая часть речи пользователя.
 
-Measurements of the start path (Windows, cpal 0.16 over WASAPI) pinned the cost on building the capture stream, not on showing the overlay:
+Замеры пути запуска (Windows, cpal 0.16 поверх WASAPI) показали, что затраты приходятся на построение потока захвата, а не на показ оверлея:
 
-| Stage                                                        |           avg | cold (first dictation after launch) |
-| ------------------------------------------------------------ | ------------: | ----------------------------------: |
-| `default_input_device()` + `default_input_config()`          |         ~4 ms |                              ~23 ms |
-| **`build_input_stream()`**                                   | **34–231 ms** |                    **up to 511 ms** |
-| `stream.play()`                                              |      ~0.01 ms |                            ~0.01 ms |
-| time to first audio callback                                 |      ~3–16 ms |                              ~20 ms |
-| `OutputMuteGuard::new()` (when "mute while recording" is on) |     +17–22 ms |                          +57–171 ms |
+| Этап                                                                            |       среднее | холодный старт (первая диктовка после запуска) |
+| ------------------------------------------------------------------------------- | ------------: | ---------------------------------------------: |
+| `default_input_device()` + `default_input_config()`                             |         ~4 мс |                                         ~23 мс |
+| **`build_input_stream()`**                                                      | **34–231 мс** |                                  **до 511 мс** |
+| `stream.play()`                                                                 |      ~0.01 мс |                                       ~0.01 мс |
+| время до первого аудио-колбэка                                                  |      ~3–16 мс |                                         ~20 мс |
+| `OutputMuteGuard::new()` (когда включена настройка «Заглушать звук при записи») |     +17–22 мс |                                     +57–171 мс |
 
-`build_input_stream` (WASAPI `IAudioClient::Activate` + `Initialize`) dominated, and its cost was highly variable depending on how "warm" the audio engine was. Because `start_dictation_inner` showed the overlay first and then built and started the stream synchronously on the hotkey dispatch thread, the overlay was an inaccurate "you can talk now" signal.
+Основные затраты приходились на `build_input_stream` (WASAPI `IAudioClient::Activate` + `Initialize`), и её стоимость сильно варьировалась в зависимости от того, насколько «прогрет» был аудиодвижок. Поскольку `start_dictation_inner` сначала показывал оверлей, а затем синхронно строил и запускал поток в потоке обработки хоткея, оверлей был неточным сигналом «можно говорить».
 
-## Solution: a prepared, reusable capture stream
+## Решение: подготовленный переиспользуемый поток захвата
 
-`recording::PreparedRecorder` builds the capture stream once and keeps it paused between sessions. The expensive `build_input_stream` is paid off the hot path; starting a dictation is then only a buffer reset plus `stream.play()`.
+`recording::PreparedRecorder` строит поток захвата один раз и держит его на паузе между сессиями. Дорогостоящий вызов `build_input_stream` вынесен за пределы горячего пути; запуск диктовки после этого — это лишь сброс буфера и `stream.play()`.
 
-- `prepare_recorder` does all the expensive work (device enumeration, config negotiation, `build_input_stream`) and returns a paused recorder.
-- `PreparedRecorder::start` clears leftover samples, sets the `active` flag, and calls `stream.play()`. This is the entire dictation-start hot path and measures ~3 ms to the first real audio callback, stably.
-- `PreparedRecorder::stop_to_audio` pauses, takes the captured samples, and encodes WAV, leaving the recorder paused and empty for reuse.
-- `PreparedRecorder::abort` pauses and discards samples (used on cancel), also leaving it reusable.
+- `prepare_recorder` выполняет всю дорогостоящую работу (перечисление устройств, согласование конфигурации, `build_input_stream`) и возвращает поставленный на паузу recorder.
+- `PreparedRecorder::start` очищает оставшиеся сэмплы, устанавливает флаг `active` и вызывает `stream.play()`. Это весь горячий путь запуска диктовки, и он стабильно занимает ~3 мс до первого реального аудио-колбэка.
+- `PreparedRecorder::stop_to_audio` ставит на паузу, забирает захваченные сэмплы и кодирует WAV, оставляя recorder на паузе и пустым для повторного использования.
+- `PreparedRecorder::abort` ставит на паузу и отбрасывает сэмплы (используется при отмене), также оставляя его пригодным для повторного использования.
 
-The audio callback only appends samples while `active` is set, so a paused-but-alive stream accumulates nothing. `active` is set before `play()` so the very first callbacks are recorded, and cleared before `pause()` so no late callback appends stray samples.
+Аудио-колбэк добавляет сэмплы только пока установлен флаг `active`, поэтому поток, находящийся на паузе, но живой, ничего не накапливает. `active` устанавливается перед `play()`, чтобы записывались самые первые колбэки, и сбрасывается перед `pause()`, чтобы ни один запоздавший колбэк не добавил случайные сэмплы.
 
-The stream is prewarmed at startup on a background thread via `dictation::prewarm_recorder`, called from the Tauri `setup` hook in `lib.rs` right after `create_recording_overlay`. Prewarm failure is non-fatal: if no warm stream exists on the first dictation, it is built on demand (the old, slow behavior) and then kept for reuse.
+Поток прогревается при запуске в фоновом потоке через `dictation::prewarm_recorder`, вызываемый из хука Tauri `setup` в `lib.rs` сразу после `create_recording_overlay`. Ошибка прогрева не является фатальной: если к моменту первой диктовки прогретого потока нет, он строится по требованию (старое, медленное поведение), а затем сохраняется для повторного использования.
 
-## Lifecycle and ownership
+## Жизненный цикл и владение
 
-The prepared recorder lives in `DictationRuntime::prepared_recorder` (`Mutex<Option<PreparedRecorder>>`), not inside the session. This is what makes it survive across sessions.
+Подготовленный recorder живёт в `DictationRuntime::prepared_recorder` (`Mutex<Option<PreparedRecorder>>`), а не внутри сессии. Именно поэтому он переживает смену сессий.
 
-`DictationSession::Recording` now carries only a lightweight `RecordingHandle` holding the session `started_at` and the output-mute guard. On stop, `finish_recording` reads the audio from the shared prepared recorder and then drops the handle to un-mute; on cancel, `cancel_dictation_inner` calls `release_recording` (abort) and drops the handle. `cpal::Stream` is `Send` on this platform (it was already stored in Tauri-managed state before this change), so keeping it in managed state is fine.
+`DictationSession::Recording` теперь несёт только лёгкий `RecordingHandle`, хранящий `started_at` сессии и guard отключения звука вывода. При остановке `finish_recording` читает аудио из общего подготовленного recorder'а, а затем уничтожает handle, чтобы вернуть звук; при отмене `cancel_dictation_inner` вызывает `release_recording` (abort) и уничтожает handle. `cpal::Stream` на этой платформе является `Send` (он уже хранился в управляемом Tauri состоянии до этого изменения), так что хранить его в управляемом состоянии допустимо.
 
-## Mute moved off the pre-capture path (Variant B)
+## Отключение звука вынесено с пути перед захватом (вариант B)
 
-`OutputMuteGuard::new()` (COM: `CoInitialize` + endpoint enumeration + `SetMute`) used to run before `build_input_stream`, adding 17–171 ms in front of the microphone opening. It now runs in `acquire_output_mute` **after** capture has started, so its cost no longer delays the first captured sample. The functional spec already allows recording to proceed if muting fails, so a best-effort guard after start is compliant. On a very cold first dictation the output stays briefly un-muted (tens to ~170 ms) before mute applies; this is acceptable and only affects the first run.
+`OutputMuteGuard::new()` (COM: `CoInitialize` + перечисление конечных точек + `SetMute`) раньше выполнялся до `build_input_stream`, добавляя 17–171 мс перед открытием микрофона. Теперь он выполняется в `acquire_output_mute` **после** начала захвата, поэтому его стоимость больше не задерживает первый захваченный сэмпл. Функциональная спецификация уже допускает продолжение записи, если отключение звука не удалось, поэтому guard, выполняемый по возможности после старта, соответствует требованиям. При очень холодной первой диктовке вывод звука ненадолго остаётся не заглушённым (от десятков до ~170 мс), прежде чем применится отключение звука; это приемлемо и затрагивает только первый запуск.
 
-## Single settings read on the start path (Variant C)
+## Единственное чтение настроек на пути запуска (вариант C)
 
-`start_dictation_inner` reads `AppSettings` once and reuses it for both the mute flag and the cancel hotkey. `prepare_recorder` reads no settings at all (the old `start_recording` read them twice for UI language and the mute flag).
+`start_dictation_inner` читает `AppSettings` один раз и переиспользует их и для флага отключения звука, и для хоткея отмены. `prepare_recorder` вообще не читает настройки (старый `start_recording` читал их дважды — для языка интерфейса и для флага отключения звука).
 
-## Default input device changes
+## Изменение устройства ввода по умолчанию
 
-A prewarmed stream is bound to the device that was default when it was built. `begin_recording` checks `PreparedRecorder::is_for_current_default_device` (compares the current default input device name) and rebuilds when it differs, so plugging in a headset is honored. The rebuild is the slow path again, but only on the rare start right after a device change.
+Прогретый поток привязан к устройству, которое было устройством по умолчанию на момент его построения. `begin_recording` проверяет `PreparedRecorder::is_for_current_default_device` (сравнивает имя текущего устройства ввода по умолчанию) и перестраивает поток, если оно отличается, поэтому подключение гарнитуры учитывается. Перестроение снова идёт по медленному пути, но только при редком запуске сразу после смены устройства.
 
-## Microphone indicator and privacy
+## Индикатор микрофона и приватность
 
-Keeping an initialized `IAudioClient` alive between sessions does **not** keep the OS microphone in use. The privacy indicator and "in use" state track the capture stream being _started_ (`IAudioClient::Start` / `stream.play()`), not merely initialized. `stop_to_audio` and `abort` call `stream.pause()` (`IAudioClient::Stop`) immediately, which turns the indicator off and stops any data flow; only a paused, empty, initialized client persists. This is why the user-facing spec ("the app releases the microphone immediately after recording stops") is unchanged and did not need editing.
+Сохранение инициализированного `IAudioClient` живым между сессиями **не** удерживает микрофон ОС в использовании. Индикатор приватности и состояние «используется» отслеживают _запуск_ потока захвата (`IAudioClient::Start` / `stream.play()`), а не просто его инициализацию. `stop_to_audio` и `abort` немедленно вызывают `stream.pause()` (`IAudioClient::Stop`), что выключает индикатор и останавливает любой поток данных; сохраняется только приостановленный, пустой, инициализированный клиент. Именно поэтому пользовательская спецификация («приложение освобождает микрофон сразу после остановки записи») не изменилась и не потребовала правок.
 
-## Lock ordering
+## Порядок блокировок
 
-Two mutexes are involved: `DictationRuntime::session` and `DictationRuntime::prepared_recorder`. The only nested acquisition is `session` → `prepared_recorder` (in `start_dictation_inner`/`begin_recording` and in `cancel_dictation_inner`/`release_recording`). No path acquires `session` while holding `prepared_recorder` (`finish_recording`, `prewarm_recorder`, and `begin_recording`'s reuse path touch only `prepared_recorder`), so there is no inverse ordering and no deadlock. Keep it that way when adding code that touches both.
+Задействованы два мьютекса: `DictationRuntime::session` и `DictationRuntime::prepared_recorder`. Единственный случай вложенного захвата — `session` → `prepared_recorder` (в `start_dictation_inner`/`begin_recording` и в `cancel_dictation_inner`/`release_recording`). Ни один путь не захватывает `session`, удерживая `prepared_recorder` (`finish_recording`, `prewarm_recorder` и путь повторного использования в `begin_recording` затрагивают только `prepared_recorder`), поэтому обратного порядка и взаимной блокировки не возникает. Сохраняйте этот порядок при добавлении кода, затрагивающего оба мьютекса.
 
-## Constraints to preserve
+## Ограничения, которые нужно сохранять
 
-- Do not leave `active` set between sessions; the callback must never accumulate while paused.
-- Always `pause()` on stop and cancel so the microphone indicator turns off promptly.
-- Un-mute by dropping the `RecordingHandle`'s guard after the microphone is released, not before.
-- Rebuild the prepared recorder when the default input device changes; do not silently record from the old device.
-- If prewarm or reuse is ever removed, the on-demand build in `begin_recording` must remain as the fallback.
+- Не оставляйте `active` установленным между сессиями; колбэк никогда не должен накапливать данные во время паузы.
+- Всегда вызывайте `pause()` при остановке и отмене, чтобы индикатор микрофона своевременно выключался.
+- Возвращайте звук, уничтожая guard из `RecordingHandle`, после освобождения микрофона, а не до этого.
+- Перестраивайте подготовленный recorder при смене устройства ввода по умолчанию; не записывайте молча со старого устройства.
+- Если прогрев или повторное использование когда-либо будут удалены, построение по требованию в `begin_recording` должно остаться в качестве запасного варианта.

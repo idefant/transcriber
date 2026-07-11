@@ -9,8 +9,8 @@ use crate::{error::AppResult, storage};
 const META_FILE_NAME: &str = "_meta.json";
 const PROCESSING_FILE_NAME: &str = "processing.json";
 
-// Increment this constant when a breaking storage schema change is made,
-// and add a corresponding arm to run_migration_step.
+// Увеличивай эту константу при обратно несовместимом изменении схемы
+// хранилища и добавляй соответствующую ветку в run_migration_step.
 const CURRENT_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Default, Deserialize, Serialize)]
@@ -20,16 +20,17 @@ struct MetaStore {
     schema_version: u32,
 }
 
-/// Must be called once during app setup, before any domain stores are read.
-/// Runs any pending migrations and writes the current schema version to _meta.json.
+/// Должна вызываться один раз при настройке приложения, до чтения любых
+/// доменных хранилищ. Выполняет все ожидающие миграции и записывает текущую
+/// версию схемы в _meta.json.
 pub fn run(app: &tauri::AppHandle) -> AppResult<()> {
     let meta: MetaStore = storage::load_json_or_default(app, META_FILE_NAME)?;
 
     let from_version = if meta.schema_version == 0 {
-        // _meta.json did not exist (or was empty/corrupt).
-        // Check whether any domain data files are already present.
-        // If so, this is an existing installation that predates versioning — treat as v1.
-        // If not, it's a fresh install — start at the current version directly.
+        // _meta.json не существовал (или был пустым/повреждённым).
+        // Проверяем, присутствуют ли уже какие-либо файлы доменных данных.
+        // Если да, это существующая установка, появившаяся до введения версионирования, — считаем её v1.
+        // Если нет, это новая установка — сразу начинаем с текущей версии.
         let app_data_dir = app.path().app_data_dir()?;
         let has_existing_data = [
             "settings.json",

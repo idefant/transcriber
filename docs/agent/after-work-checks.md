@@ -1,8 +1,8 @@
-# After Work Checks
+# Проверки после работы
 
-After code, styles, config, or documentation edits, run the relevant project checks before the final response.
+После правок кода, стилей, конфигурации или документации перед финальным ответом запускай соответствующие проверки проекта.
 
-Use `npm` for project scripts:
+Используй `npm` для скриптов проекта:
 
 ```bash
 npm run typecheck
@@ -12,19 +12,19 @@ npm run format:check
 npm run rust:check
 ```
 
-On Windows, prefer Git Bash for these commands. If direct PowerShell blocks `npm.ps1`, run the command through `scripts/powershell-utf8.cmd`, for example:
+В Windows предпочитай Git Bash для этих команд. Если прямой PowerShell блокирует `npm.ps1`, запусти команду через `scripts/powershell-utf8.cmd`, например:
 
 ```powershell
 .\scripts\powershell-utf8.cmd 'npm run typecheck'
 ```
 
-Also run the production build when the change affects application code, routing, Vite/TypeScript configuration, dependencies, or other build-sensitive behavior:
+Также запускай продакшен-сборку, если изменение затрагивает код приложения, роутинг, конфигурацию Vite/TypeScript, зависимости или другое поведение, чувствительное к сборке:
 
 ```bash
 npm run build
 ```
 
-Use autofix commands only for mechanical fixes:
+Используй команды автофикса только для механических исправлений:
 
 ```bash
 npm run lint:fix
@@ -32,8 +32,8 @@ npm run stylelint:fix
 npm run format
 ```
 
-In Windows PowerShell, `npm` can resolve to `npm.ps1`. If execution policy still blocks that script outside the wrapper, use `npm.cmd` for the same command or run the command from Git Bash/Command Prompt.
+В Windows PowerShell `npm` может разрешаться в `npm.ps1`. Если политика выполнения всё ещё блокирует этот скрипт вне обёртки, используй `npm.cmd` для той же команды или запускай команду из Git Bash/Command Prompt.
 
-Do not rely on Husky or lint-staged as the only verification path. They run on commit, while Codex should verify changes before handing work back.
+Не полагайся на Husky или lint-staged как на единственный способ проверки. Они запускаются при коммите, тогда как Codex должен проверять изменения до передачи работы.
 
-In the final response, mention which checks were run and whether anything failed or was skipped.
+В финальном ответе укажи, какие проверки были запущены и не завершилось ли что-то ошибкой или было пропущено.

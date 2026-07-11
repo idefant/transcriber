@@ -1,52 +1,52 @@
-# Clipboard Snapshot and Restore
+# Снимок и восстановление буфера обмена
 
-Dictation paste stages the transcribed text on the clipboard, sends a synthetic `Ctrl+V`, then puts the previous clipboard contents back. `src-tauri/src/keyboard.rs` implements that snapshot/restore cycle on top of the [`clipboard-win`](https://docs.rs/clipboard-win) crate.
+Вставка диктовки помещает расшифрованный текст в буфер обмена, отправляет синтетическое нажатие `Ctrl+V`, а затем возвращает предыдущее содержимое буфера обмена обратно. `src-tauri/src/keyboard.rs` реализует этот цикл снимка/восстановления поверх крейта [`clipboard-win`](https://docs.rs/clipboard-win).
 
-This note records why the code looks the way it does. The Windows clipboard is not a `format -> bytes` dictionary, and the two non-obvious rules below were both found by pasting an image with a known marker pixel and checking where that pixel landed afterwards.
+Эта заметка фиксирует, почему код выглядит именно так. Буфер обмена Windows — это не словарь `format -> bytes`, и оба неочевидных правила ниже были найдены путём вставки изображения с известным маркерным пикселем и проверки того, куда этот пиксель попадал впоследствии.
 
-## Why the whole clipboard is snapshotted
+## Почему снимок делается со всего буфера обмена
 
-The original implementation read only `CF_UNICODETEXT`. For anything else — an image, a file list, HTML — the read returned nothing and the restore path called `EmptyClipboard`, silently destroying the user's clipboard. Copying an image and then dictating made the image unpastable.
+Первоначальная реализация читала только `CF_UNICODETEXT`. Для всего остального — изображения, списка файлов, HTML — чтение не возвращало ничего, и путь восстановления вызывал `EmptyClipboard`, незаметно уничтожая буфер обмена пользователя. Копирование изображения с последующей диктовкой делало изображение невозможным вставить.
 
-The snapshot therefore enumerates every available format and copies each one's memory block verbatim.
+Поэтому снимок перечисляет каждый доступный формат и копирует блок памяти каждого из них дословно.
 
-## Which formats are skipped
+## Какие форматы пропускаются
 
-`is_restorable_format` rejects formats whose clipboard handle is not an `HGLOBAL` memory block and therefore cannot be copied byte for byte:
+`is_restorable_format` отклоняет форматы, чей дескриптор буфера обмена не является блоком памяти `HGLOBAL` и поэтому не может быть скопирован побайтово:
 
-- `CF_BITMAP`, `CF_PALETTE` — GDI handles. Images survive anyway, because Windows synthesizes them from the restored `CF_DIB`.
-- `CF_METAFILEPICT`, `CF_ENHMETAFILE` — GDI handles for vector metafiles. These are genuinely lost unless the source also published a raster or memory-backed format.
-- `CF_OWNERDISPLAY`, the `CF_DSP*` family — owner-drawn display formats.
-- `CF_PRIVATEFIRST..CF_PRIVATELAST` and `CF_GDIOBJFIRST..CF_GDIOBJLAST` — application-private ranges whose memory the system does not manage.
+- `CF_BITMAP`, `CF_PALETTE` — дескрипторы GDI. Изображения всё равно сохраняются, потому что Windows синтезирует их из восстановленного `CF_DIB`.
+- `CF_METAFILEPICT`, `CF_ENHMETAFILE` — дескрипторы GDI для векторных метафайлов. Они действительно теряются, если только источник не опубликовал также растровый формат или формат, размещённый в памяти.
+- `CF_OWNERDISPLAY`, семейство `CF_DSP*` — форматы отображения, отрисовываемые владельцем (owner-drawn).
+- `CF_PRIVATEFIRST..CF_PRIVATELAST` и `CF_GDIOBJFIRST..CF_GDIOBJLAST` — приватные диапазоны приложений, память которых система не контролирует.
 
-Formats whose `GetClipboardData` returns a null handle are recorded as present with no payload and re-set the same way, which is how marker formats such as `ExcludeClipboardContentFromMonitorProcessing` carry meaning.
+Форматы, для которых `GetClipboardData` возвращает нулевой дескриптор, фиксируются как присутствующие без содержимого и устанавливаются обратно тем же способом — именно так маркерные форматы вроде `ExcludeClipboardContentFromMonitorProcessing` несут смысл.
 
-OLE-published content is snapshotted as raw Win32 formats only. The live `IDataObject` of the source application is not recreated, so an embedded object or a mail attachment loses its OLE identity even though its raw formats come back.
+Содержимое, опубликованное через OLE, снимается только как необработанные форматы Win32. Живой `IDataObject` приложения-источника не воссоздаётся, поэтому встроенный объект или вложение письма теряет свою идентичность OLE, даже несмотря на то, что его необработанные форматы возвращаются.
 
-## Rule 1: keep `CF_DIB`, drop `CF_DIBV5`
+## Правило 1: сохранять `CF_DIB`, отбрасывать `CF_DIBV5`
 
-Windows enumerates an image as both `CF_DIB` and `CF_DIBV5` regardless of which one the source placed, because each is synthesized from the other. Reading each costs a full-size conversion inside Windows — roughly 50 ms apiece for a 4K screenshot — so only one is worth capturing.
+Windows перечисляет изображение и как `CF_DIB`, и как `CF_DIBV5`, независимо от того, какой из них разместил источник, потому что каждый синтезируется из другого. Чтение каждого стоит полноразмерного преобразования внутри Windows — примерно 50 мс на каждый для скриншота 4K — поэтому захватывать стоит только один.
 
-It must be `CF_DIB`. A `BITMAPINFOHEADER` is always followed by the three `BI_BITFIELDS` masks, so the pixel offset is unambiguous. A `BITMAPV5HEADER` already carries those masks inside the header, yet the buffer Windows synthesizes still appends 12 mask bytes after it. Writing those bytes back as a native `CF_DIBV5` makes readers treat the masks as pixel data, which shifts the entire image three pixels sideways.
+Это должен быть `CF_DIB`. За `BITMAPINFOHEADER` всегда следуют три маски `BI_BITFIELDS`, поэтому смещение пикселей однозначно. `BITMAPV5HEADER` уже несёт эти маски внутри заголовка, однако буфер, который синтезирует Windows, всё равно добавляет после него 12 байт маски. Запись этих байтов обратно как нативного `CF_DIBV5` заставляет читающие приложения трактовать маски как пиксельные данные, что сдвигает всё изображение на три пикселя в сторону.
 
-Keeping `CF_DIB` also halves the snapshot cost. For a 3840x2160 screenshot the snapshot drops from about 87 ms to about 48 ms and from 66 MB to 33 MB.
+Сохранение только `CF_DIB` также вдвое снижает стоимость снимка. Для скриншота 3840x2160 время снимка падает примерно с 87 мс до 48 мс, а размер — с 66 МБ до 33 МБ.
 
-## Rule 2: force `CF_BITMAP` synthesis after restoring an image
+## Правило 2: принудительно синтезировать `CF_BITMAP` после восстановления изображения
 
-The original clipboard usually carried a real `HBITMAP`, which cannot be copied into a snapshot. After a restore, `CF_BITMAP` therefore has to be synthesized. Windows derives it from whichever DIB format is currently materialized, and its `CF_DIBV5` path has the same mask-offset bug described above.
+Исходный буфер обмена обычно нёс настоящий `HBITMAP`, который нельзя скопировать в снимок. Поэтому после восстановления `CF_BITMAP` приходится синтезировать. Windows выводит его из того формата DIB, который в данный момент материализован, и её путь через `CF_DIBV5` содержит ту же ошибку смещения масок, что описана выше.
 
-So if a paste target reads `CF_DIBV5` before anything reads `CF_BITMAP`, the synthesized bitmap comes out shifted three pixels sideways. `force_bitmap_synthesis` reads `CF_BITMAP` immediately after the restore, which pins the correct `CF_DIB`-derived handle in the clipboard's cache before any consumer can poison it.
+Поэтому, если цель вставки читает `CF_DIBV5` раньше, чем что-либо прочтёт `CF_BITMAP`, синтезированный битмап получается сдвинутым на три пикселя в сторону. `force_bitmap_synthesis` читает `CF_BITMAP` сразу после восстановления, что закрепляет в кэше буфера обмена корректный дескриптор, полученный из `CF_DIB`, прежде чем какой-либо потребитель успеет его испортить.
 
-This runs after the synthetic `Ctrl+V`, so it does not delay the paste.
+Это выполняется после синтетического `Ctrl+V`, поэтому не задерживает вставку.
 
-## Two things `clipboard-win` does not cover
+## Две вещи, которые не покрывает `clipboard-win`
 
-`Clipboard::new_attempts` retries `OpenClipboard` but only yields the scheduler slice between tries. A paste target can hold the clipboard open for longer than that, so `open_clipboard` runs its own retry loop with real 30 ms sleeps.
+`Clipboard::new_attempts` повторяет попытки `OpenClipboard`, но между попытками лишь уступает квант планировщика. Цель вставки может удерживать буфер обмена открытым дольше этого, поэтому `open_clipboard` выполняет собственный цикл повторов с реальными паузами по 30 мс.
 
-`raw::set_without_clear` returns `Ok` without writing anything when the data slice is empty, and the crate exposes no way to place a null clipboard handle. Marker formats need exactly that, so `set_empty_format` calls `SetClipboardData` directly.
+`raw::set_without_clear` возвращает `Ok`, ничего не записывая, когда срез данных пуст, а крейт не предоставляет способа поместить нулевой дескриптор буфера обмена. Маркерным форматам нужно именно это, поэтому `set_empty_format` вызывает `SetClipboardData` напрямую.
 
-## Testing this area
+## Тестирование этой области
 
-Format-level assertions are not enough: a three-pixel shift keeps every format, size, and checksum intact. Verify image fidelity by copying a bitmap that has a single marker pixel at a known coordinate, running the paste cycle, and reading the pixel back through an external consumer such as `System.Windows.Forms.Clipboard::GetImage`.
+Проверок на уровне формата недостаточно: сдвиг на три пикселя оставляет нетронутыми все форматы, размеры и контрольные суммы. Проверяйте точность изображения, копируя битмап с единственным маркерным пикселем в известной координате, запуская цикл вставки и считывая пиксель обратно через внешнего потребителя, такого как `System.Windows.Forms.Clipboard::GetImage`.
 
-Check both orders: a plain read after the restore, and a read that materializes `CF_DIBV5` first. Seed the clipboard from a separate process, and verify the seed actually succeeded — `SetImage` fails transiently under clipboard contention.
+Проверяйте оба порядка: обычное чтение после восстановления и чтение, которое сначала материализует `CF_DIBV5`. Заполняйте буфер обмена из отдельного процесса и проверяйте, что заполнение действительно прошло успешно — `SetImage` временно даёт сбой при конкуренции за буфер обмена.

@@ -1,117 +1,117 @@
-# Hotkey Architecture
+# Архитектура хоткеев
 
-This document describes the two-path hotkey system: the native Windows hook and the in-app DOM handler, how they interact, the supported hotkey actions, the left/right modifier format, and a note on dev/prod settings divergence.
+Этот документ описывает двухпутевую систему хоткеев: нативный хук Windows и обработчик DOM внутри приложения, как они взаимодействуют, поддерживаемые действия хоткеев, формат левых/правых модификаторов и заметку о расхождении настроек dev/prod.
 
-## Two paths
+## Два пути
 
-The app does **not** use Tauri's global-shortcut plugin. Instead it maintains two mechanisms and switches between them based on whether the main window is focused:
+Приложение **не** использует плагин global-shortcut от Tauri. Вместо этого оно поддерживает два механизма и переключается между ними в зависимости от того, находится ли главное окно в фокусе:
 
-**Native `WH_KEYBOARD_LL` hook** (`src-tauri/src/shortcut_hook.rs`) — installed by `dictation::register_dictation_shortcut`, but enabled only while the main window is **not** focused. Runs on a dedicated thread with its own Windows message loop. In that state it operates globally and consumes (returns `1`) only key events that match one of the configured hotkeys; everything else passes through `CallNextHookEx`.
+**Нативный хук `WH_KEYBOARD_LL`** (`src-tauri/src/shortcut_hook.rs`) — устанавливается функцией `dictation::register_dictation_shortcut`, но включён только пока главное окно **не** в фокусе. Работает в выделенном потоке с собственным циклом сообщений Windows. В этом состоянии он работает глобально и поглощает (возвращает `1`) только те события клавиш, которые совпадают с одним из настроенных хоткеев; всё остальное проходит дальше через `CallNextHookEx`.
 
-**In-app DOM handler** (`src/app/DictationHotkeyFallback/DictationHotkeyFallback.tsx`) — mounted in the main window only (`App.tsx`). Listens to `keydown`/`keyup` on `globalThis` with `capture: true`. It is the only hotkey path while the main window is focused and the webview receives key events. Handles the dictation hotkey, the cancel hotkey (gated by session state), the "copy latest transcription" hotkey, the "paste latest transcription" hotkey, and the "repeat latest transcription" hotkey.
+**Обработчик DOM внутри приложения** (`src/app/DictationHotkeyFallback/DictationHotkeyFallback.tsx`) — монтируется только в главном окне (`App.tsx`). Слушает `keydown`/`keyup` на `globalThis` с `capture: true`. Это единственный путь хоткеев, пока главное окно в фокусе и webview получает события клавиш. Обрабатывает хоткей диктовки, хоткей отмены (управляемый состоянием сессии), хоткей «скопировать последнюю расшифровку», хоткей «вставить последнюю расшифровку» и хоткей «повторить последнюю расшифровку».
 
-## Supported actions
+## Поддерживаемые действия
 
-The hotkey layer currently supports five actions:
+Слой хоткеев в настоящее время поддерживает пять действий:
 
-- dictation start/stop;
-- dictation cancel;
-- copy the latest final history text;
-- paste the latest final history text;
-- repeat processing for the latest history record.
+- запуск/остановка диктовки;
+- отмена диктовки;
+- копирование последнего финального текста истории;
+- вставка последнего финального текста истории;
+- повтор обработки для последней записи истории.
 
-The "copy latest", "paste latest", and "repeat latest" actions are optional and disabled when their stored hotkey string is empty.
+Действия «скопировать последнее», «вставить последнее» и «повторить последнее» являются опциональными и отключены, когда сохранённая строка их хоткея пуста.
 
-## Paste-latest modifier conflict
+## Конфликт модификаторов при вставке последнего
 
-The "paste latest transcription" hotkey uses clipboard staging plus a synthetic `Ctrl+V`. This creates a conflict when the triggering hotkey itself contains modifiers such as `Ctrl+Shift+V`: if the app sends `Ctrl+V` while the original chord is still physically held, the target application can inherit the held modifier state and treat the paste as a different shortcut.
+Хоткей «вставить последнюю расшифровку» использует размещение текста в буфере обмена плюс синтетическое нажатие `Ctrl+V`. Это создаёт конфликт, когда сам хоткей-триггер содержит модификаторы, такие как `Ctrl+Shift+V`: если приложение отправляет `Ctrl+V`, пока исходная комбинация клавиш ещё физически удерживается, целевое приложение может унаследовать состояние удерживаемых модификаторов и трактовать вставку как другой шорткат.
 
-One investigated alternative was to recognize the hotkey on `keydown`, immediately send synthetic key-up events for the hotkey keys, and then send `Ctrl+V` without waiting for physical release. That approach looked attractive because it would remove the user-visible delay and treat the hotkey as a consumed chord.
+Одна из рассмотренных альтернатив заключалась в том, чтобы распознавать хоткей по `keydown`, немедленно отправлять синтетические события отпускания для клавиш хоткея, а затем отправлять `Ctrl+V`, не дожидаясь физического отпускания. Этот подход выглядел привлекательно, потому что убирал бы заметную пользователю задержку и трактовал хоткей как поглощённую комбинацию клавиш.
 
-In practice, this does not reliably solve the problem on Windows when implemented with `SendInput`. Microsoft documents that `SendInput` does not reset the keyboard's current state, which means physically held keys can still interfere with injected input. In focused-window testing, synthetic key-up events for the triggering hotkey did not reliably neutralize the held modifiers before the following synthetic paste.
+На практике при реализации через `SendInput` это не решает проблему надёжно на Windows. Microsoft документирует, что `SendInput` не сбрасывает текущее состояние клавиатуры, а значит физически удерживаемые клавиши всё равно могут влиять на инжектируемый ввод. При тестировании с окном в фокусе синтетические события отпускания для хоткея-триггера не нейтрализовали удерживаемые модификаторы надёжно перед последующей синтетической вставкой.
 
-Because of that platform constraint, the code currently keeps the more conservative behavior: wait until the paste hotkey is released before sending the synthetic `Ctrl+V`. If future work revisits this area, it should assume that "programmatically release the user's held modifiers and paste immediately" is not a reliable `SendInput`-only strategy.
+Из-за этого ограничения платформы код сейчас сохраняет более консервативное поведение: ждать, пока хоткей вставки не будет отпущен, прежде чем отправлять синтетическое `Ctrl+V`. Если в будущем эта область будет пересматриваться, следует исходить из того, что «программно отпустить удерживаемые пользователем модификаторы и вставить немедленно» — не надёжная стратегия, основанная только на `SendInput`.
 
-## Focus boundary
+## Граница фокуса
 
-When the main window is **not** focused, the native hook handles everything. When the main window **is** focused, the backend uninstalls the low-level hook and leaves the focused-window case entirely to the DOM handler.
+Когда главное окно **не** в фокусе, всё обрабатывает нативный хук. Когда главное окно **находится** в фокусе, бэкенд снимает низкоуровневый хук и полностью оставляет случай окна в фокусе обработчику DOM.
 
-This is not just an optimization. Keeping the `WH_KEYBOARD_LL` hook installed while the Transcriber window was focused caused unrelated AutoHotkey shortcuts to stop firing, even when the pressed key was not one of the app's configured hotkeys. The problem reproduced with keys such as `F1`, `F13`, `F14`, `F15`, and `F16`, and the decisive diagnostic was that AHK started seeing the key again as soon as the native hook was fully removed. Tightening the hook's event-filtering logic was not sufficient; the fix had to be lifecycle-based.
+Это не просто оптимизация. Сохранение установленного хука `WH_KEYBOARD_LL`, пока окно Transcriber было в фокусе, приводило к тому, что не связанные с приложением шорткаты AutoHotkey переставали срабатывать, даже когда нажатая клавиша не была одним из настроенных хоткеев приложения. Проблема воспроизводилась с такими клавишами, как `F1`, `F13`, `F14`, `F15` и `F16`, и решающей диагностикой стало то, что AHK снова начинал видеть клавишу, как только нативный хук был полностью снят. Ужесточения логики фильтрации событий хука оказалось недостаточно; исправление должно было опираться на жизненный цикл.
 
-The focus switch is driven by Tauri window events in `src-tauri/src/background.rs`. `WindowEvent::Focused(true)` calls `shortcut_hook::set_main_window_focused(true)` and tears the hook down. `WindowEvent::Focused(false)` enables it again, and startup also synchronizes the initial focus state so the hook is not left active when the app opens directly into a focused window.
+Переключение фокуса управляется событиями окна Tauri в `src-tauri/src/background.rs`. `WindowEvent::Focused(true)` вызывает `shortcut_hook::set_main_window_focused(true)` и снимает хук. `WindowEvent::Focused(false)` снова его включает, а при запуске также синхронизируется исходное состояние фокуса, чтобы хук не оставался активным, когда приложение открывается сразу с окном в фокусе.
 
-Because of that split, there is no longer any intentional overlap between native and DOM handling in the focused-window case. The DOM handler still skips non-cancel processing when the hotkey capture lock is active (during hotkey recording in settings).
+Из-за этого разделения в случае окна в фокусе больше нет намеренного перекрытия между нативной обработкой и обработкой DOM. Обработчик DOM по-прежнему пропускает обработку, не связанную с отменой, когда активна блокировка захвата хоткея (во время записи хоткея в настройках).
 
-The split also means anything that steals keyboard input from the focused webview disables every hotkey at once, because no native hook is left to catch it. A lone Alt tap used to do exactly that; see [alt-menu-key.md](alt-menu-key.md).
+Это разделение также означает, что всё, что перехватывает ввод с клавиатуры у webview в фокусе, разом отключает все хоткеи, потому что не остаётся нативного хука, способного его поймать. Именно это раньше делало одиночное нажатие Alt; см. [alt-menu-key.md](alt-menu-key.md).
 
-## DOM dispatch thread
+## Поток диспетчеризации DOM
 
-The DOM-triggered commands (`dictation_shortcut_pressed`, `dictation_shortcut_released`, `cancel_dictation`) are declared as synchronous `#[tauri::command] pub fn`, which Tauri runs on the main event-loop thread. Starting or stopping dictation does slow, blocking work — overlay window creation, a WASAPI stream build, and COM audio-endpoint calls for "mute while recording" — and running that directly on the main thread used to freeze window dragging and title-bar buttons (the event loop stops pumping messages) and could deadlock the STA-threaded WebView2 event loop against COM marshaling, since the main thread blocked instead of pumping the messages that marshaling needs. This only affected the focused-window DOM path; the unfocused native hook path already ran the equivalent work on its own thread.
+Команды, инициируемые из DOM (`dictation_shortcut_pressed`, `dictation_shortcut_released`, `cancel_dictation`), объявлены как синхронные `#[tauri::command] pub fn`, которые Tauri выполняет в потоке основного цикла событий. Запуск или остановка диктовки выполняет медленную блокирующую работу — создание окна оверлея, сборку потока WASAPI и вызовы COM для аудио-эндпоинта ради «отключения микрофона во время записи» — и выполнение этого прямо в основном потоке раньше замораживало перетаскивание окна и кнопки заголовка (цикл событий переставал прокачивать сообщения) и могло привести к взаимной блокировке между STA-потоковым циклом событий WebView2 и COM-маршалингом, поскольку основной поток блокировался вместо прокачки сообщений, необходимых маршалингу. Это затрагивало только путь DOM для окна в фокусе; путь нативного хука для окна не в фокусе уже выполнял эквивалентную работу в собственном потоке.
 
-To fix this, the three commands in `dictation.rs` only enqueue a `DictationJob` onto an `mpsc` channel and return immediately. A single dedicated thread (`ensure_dictation_dispatch_thread`, started lazily and also eagerly from `register_dictation_shortcut`) drains the channel and calls the same `handle_dom_shortcut_pressed`/`handle_dom_shortcut_released`/`cancel_dictation_inner` functions the command handlers used to call directly. Because it is a single thread reading a FIFO channel, `pressed` is still guaranteed to be processed before a later `released` — the ordering the hold-mode `activation_id` invariant depends on (see "Hold-mode activation identity" below) is preserved. This mirrors `shortcut_hook::ensure_event_dispatch_thread`, which already does the same thing for the native hook path.
+Чтобы это исправить, все три команды в `dictation.rs` только помещают `DictationJob` в канал `mpsc` и немедленно возвращают управление. Единственный выделенный поток (`ensure_dictation_dispatch_thread`, запускаемый лениво, а также заранее из `register_dictation_shortcut`) вычитывает канал и вызывает те же функции `handle_dom_shortcut_pressed`/`handle_dom_shortcut_released`/`cancel_dictation_inner`, которые раньше напрямую вызывали обработчики команд. Поскольку это единственный поток, читающий канал FIFO, `pressed` по-прежнему гарантированно обрабатывается раньше более позднего `released` — сохраняется порядок, от которого зависит инвариант `activation_id` в режиме удержания (см. «Идентичность активации в режиме удержания» ниже). Это отражает `shortcut_hook::ensure_event_dispatch_thread`, который уже делает то же самое для пути нативного хука.
 
-If you add a new DOM-triggered dictation command, route it through this dispatch thread rather than doing session/overlay/recording work directly in the command handler.
+Если вы добавляете новую команду диктовки, инициируемую из DOM, направляйте её через этот поток диспетчеризации, а не выполняйте работу с сессией/оверлеем/записью прямо в обработчике команды.
 
-## Repeat-cancel boundary
+## Граница «повтор — отмена»
 
-The "repeat latest transcription" flow has the same cancel invariant as ordinary dictation: once the session is cancelled, the overlay must stay hidden and the pipeline must not enter a new visible phase.
+Поток «повторить последнюю расшифровку» имеет тот же инвариант отмены, что и обычная диктовка: как только сессия отменена, оверлей должен оставаться скрытым, а конвейер не должен переходить в новую видимую фазу.
 
-The risky boundary is the hand-off from repeated STT to post-processing. A cancel can arrive after STT finishes but before post-processing starts. If the code shows the `processing` overlay without re-checking the live session state at that exact boundary, the cancelled session can resurrect the overlay and leave it orphaned because the cancel hotkey was already disarmed.
+Рискованная граница — это передача от повторного STT к постобработке. Отмена может прийти после завершения STT, но до начала постобработки. Если код показывает оверлей `processing`, не перепроверив актуальное состояние сессии именно на этой границе, отменённая сессия может воскресить оверлей и оставить его осиротевшим, потому что хоткей отмены уже был снят с взвода.
 
-To avoid that regression, the repeat hotkey path must treat "enter post-processing" as a guarded transition, not as an unconditional continuation after successful STT. The transition helper in `dictation.rs` re-checks the session while switching from `Transcribing` to `Processing`, then verifies again after showing the overlay and hides it immediately if a late cancel won the race.
+Чтобы избежать этой регрессии, путь хоткея повтора должен трактовать «вход в постобработку» как защищённый переход, а не как безусловное продолжение после успешного STT. Хелпер перехода в `dictation.rs` перепроверяет сессию при переключении из `Transcribing` в `Processing`, затем проверяет ещё раз после показа оверлея и немедленно скрывает его, если позднюю гонку выиграла отмена.
 
-## Hold-mode activation identity
+## Идентичность активации в режиме удержания
 
-The focused-window DOM path has one extra race that the native hook path does not naturally expose: `keydown` / `cancel` / `keyup` are sent to the backend as separate async commands. If a hold-mode session is cancelled and the user immediately starts a new hold-mode session, the late `keyup` from the old activation can arrive after the new recording has already started.
+Путь DOM для окна в фокусе имеет одну дополнительную гонку, которую путь нативного хука естественным образом не проявляет: `keydown` / `cancel` / `keyup` отправляются в бэкенд как отдельные асинхронные команды. Если сессия в режиме удержания отменяется, а пользователь сразу же начинает новую сессию в режиме удержания, запоздавший `keyup` от старой активации может прийти уже после того, как новая запись началась.
 
-That `keyup` must not be treated as "stop whatever is currently recording". Each DOM hold activation therefore gets its own monotonically increasing `activationId` in `DictationHotkeyFallback`, and both `dictation_shortcut_pressed` and `dictation_shortcut_released` carry that id into Rust.
+Этот `keyup` не должен трактоваться как «остановить то, что сейчас записывается». Поэтому каждая активация удержания в DOM получает собственный монотонно возрастающий `activationId` в `DictationHotkeyFallback`, и обе команды `dictation_shortcut_pressed` и `dictation_shortcut_released` передают этот id в Rust.
 
-`dictation.rs` stores only the currently active DOM hold activation id. A `Released` event stops recording only when its `activationId` still matches the active recording. If the session was cancelled and restarted, the stale release is ignored.
+`dictation.rs` хранит только id текущей активной активации удержания DOM. Событие `Released` останавливает запись только тогда, когда его `activationId` всё ещё совпадает с активной записью. Если сессия была отменена и перезапущена, устаревшее отпускание игнорируется.
 
-The same identity rule applies to the focused-window cancel hotkey. `dictation-session` now carries the active `sessionId`, and the DOM cancel path sends that id back with `cancel_dictation`. A late cancel from session A must not be allowed to cancel session B.
+То же правило идентичности применяется к хоткею отмены для окна в фокусе. `dictation-session` теперь несёт активный `sessionId`, и путь отмены DOM отправляет этот id обратно вместе с `cancel_dictation`. Запоздавшей отмене из сессии A нельзя позволить отменить сессию B.
 
-If future work touches the dictation hotkey protocol, preserve this invariant: transport events from the focused DOM path are not ordered strongly enough to infer identity from timing alone.
+Если в будущем протокол хоткея диктовки будет затронут, сохраняйте этот инвариант: транспортные события из пути DOM для окна в фокусе упорядочены недостаточно строго, чтобы выводить идентичность только по времени.
 
-## Local cancellation vs remote cancellation
+## Локальная отмена в сравнении с удалённой отменой
 
-Cancelling dictation now aborts the local async task that is waiting on STT/post-processing. This is intentionally stronger than the old "mark the session cancelled and ignore the result later" behavior, because otherwise a cancelled session can keep a live task around long enough to race with the next session's UI updates.
+Отмена диктовки теперь прерывает локальную асинхронную задачу, ожидающую STT/постобработку. Это намеренно сильнее старого поведения «пометить сессию отменённой и проигнорировать результат позже», потому что иначе отменённая сессия может держать живую задачу достаточно долго, чтобы конкурировать с обновлениями UI следующей сессии.
 
-This does **not** guarantee that the upstream AI provider stops processing the request. The local task is aborted, but the remote server may already have accepted the request and may continue its own work. The important application invariant is narrower: once the session is cancelled, the app must not keep waiting locally, must not transition the cancelled session into a new visible phase, and must not let stale completion handlers update overlay state for a later session.
+Это **не** гарантирует, что удалённый провайдер ИИ прекратит обработку запроса. Локальная задача прерывается, но удалённый сервер, возможно, уже принял запрос и может продолжать собственную работу. Важный инвариант приложения уже: как только сессия отменена, приложение не должно продолжать ждать локально, не должно переводить отменённую сессию в новую видимую фазу и не должно позволять устаревшим обработчикам завершения обновлять состояние оверлея для более поздней сессии.
 
-There is one more UI-side invariant here: `hide_recording_overlay` uses a delayed native window hide to avoid flicker during state transitions, so each hide request must be tied to an overlay visibility generation. Without that guard, a delayed hide from session A can physically hide the already visible overlay of session B even when the React state and dictation session state are both correct.
+Здесь есть ещё один инвариант на стороне UI: `hide_recording_overlay` использует отложенное нативное скрытие окна, чтобы избежать мерцания во время переходов состояния, поэтому каждый запрос на скрытие должен быть привязан к поколению видимости оверлея. Без этой защиты отложенное скрытие из сессии A может физически скрыть уже видимый оверлей сессии B, даже когда состояние React и состояние сессии диктовки оба корректны.
 
-## Left/right modifier format
+## Формат левых/правых модификаторов
 
-Hotkey strings use an optional side prefix on each modifier token:
+Строки хоткеев используют необязательный префикс стороны у каждого токена модификатора:
 
-| Token   | Meaning                                |
-| ------- | -------------------------------------- |
-| `Ctrl`  | either side — any Ctrl key triggers    |
-| `LCtrl` | left side only — right Ctrl must be up |
-| `RCtrl` | right side only — left Ctrl must be up |
+| Токен   | Значение                                               |
+| ------- | ------------------------------------------------------ |
+| `Ctrl`  | любая сторона — срабатывает любая клавиша Ctrl         |
+| `LCtrl` | только левая сторона — правый Ctrl должен быть отпущен |
+| `RCtrl` | только правая сторона — левый Ctrl должен быть отпущен |
 
-The same pattern applies to `Alt`/`LAlt`/`RAlt`, `Shift`/`LShift`/`RShift`, and `Win`/`LWin`/`RWin`.
+Тот же паттерн применяется к `Alt`/`LAlt`/`RAlt`, `Shift`/`LShift`/`RShift` и `Win`/`LWin`/`RWin`.
 
-Old settings stored without a prefix (`"Ctrl+Space"`) are backward-compatible: they parse as `Either` (any side). Normalization on load rewrites tokens to the canonical casing (`LCtrl`, `RCtrl`, `Ctrl`) so the format is consistent on disk.
+Старые настройки, сохранённые без префикса (`"Ctrl+Space"`), обратно совместимы: они разбираются как `Either` (любая сторона). Нормализация при загрузке переписывает токены в каноническом регистре (`LCtrl`, `RCtrl`, `Ctrl`), чтобы формат на диске был согласованным.
 
-Side matching is strict: recording with only the left Ctrl held stores `LCtrl`, which then requires the right Ctrl to be **up** at trigger time. Recording with both sides held stores `Ctrl` (either side).
+Сопоставление сторон строгое: запись с удержанием только левого Ctrl сохраняет `LCtrl`, что затем требует, чтобы правый Ctrl был **отпущен** в момент срабатывания. Запись с удержанием обеих сторон сохраняет `Ctrl` (любая сторона).
 
 ### Rust
 
-`enum ModifierSide { None, Either, Left, Right }` lives in `shortcut_hook.rs`. `Hotkey::parse` recognises `lctrl/rctrl`, `lalt/ralt`, `lshift/rshift`, `lwin/rwin`. `to_normalized_string` outputs `LCtrl/RCtrl/Ctrl`. `modifiers_match` calls `modifier_side_matches` with side-specific VK codes (`VK_LCONTROL 0xA2`, `VK_RCONTROL 0xA3`, etc.) via `GetAsyncKeyState`.
+`enum ModifierSide { None, Either, Left, Right }` находится в `shortcut_hook.rs`. `Hotkey::parse` распознаёт `lctrl/rctrl`, `lalt/ralt`, `lshift/rshift`, `lwin/rwin`. `to_normalized_string` выводит `LCtrl/RCtrl/Ctrl`. `modifiers_match` вызывает `modifier_side_matches` со специфичными для стороны VK-кодами (`VK_LCONTROL 0xA2`, `VK_RCONTROL 0xA3` и т.д.) через `GetAsyncKeyState`.
 
-### Frontend
+### Фронтенд
 
-`src/shared/hotkey/` is the shared module:
+`src/shared/hotkey/` — общий модуль:
 
-- `parseHotkey` — parses a hotkey string into `ParsedHotkey { ctrl, alt, shift, meta: ModifierSide, key }`.
-- `matchesHotkey(event, pressedModifierCodes, hotkey)` — compares an event against a parsed hotkey using a `Set<string>` of currently pressed modifier `event.code` values.
-- `formatHotkeyFromEvent(event, pressedModifierCodes)` — converts a key event to a hotkey string with side-specific modifier tokens.
-- `MODIFIER_CODES` — `Set<string>` of all modifier `event.code` values (both sides).
-- `CODE_TO_KEY` — maps `event.code` to canonical key names mirroring Rust `parse_main_key` output.
+- `parseHotkey` — разбирает строку хоткея в `ParsedHotkey { ctrl, alt, shift, meta: ModifierSide, key }`.
+- `matchesHotkey(event, pressedModifierCodes, hotkey)` — сравнивает событие с разобранным хоткеем, используя `Set<string>` значений `event.code` для текущих нажатых модификаторов.
+- `formatHotkeyFromEvent(event, pressedModifierCodes)` — преобразует событие клавиши в строку хоткея с токенами модификаторов, специфичными для стороны.
+- `MODIFIER_CODES` — `Set<string>` всех значений `event.code` модификаторов (обеих сторон).
+- `CODE_TO_KEY` — сопоставляет `event.code` с каноническими именами клавиш, зеркально отражая вывод `parse_main_key` в Rust.
 
-Both `DictationHotkeyFallback` and `HotkeyInput` track pressed modifier codes themselves (a `Set<string>` built from `keydown`/`keyup` events for modifier codes) and pass the set into `matchesHotkey` / `formatHotkeyFromEvent`.
+И `DictationHotkeyFallback`, и `HotkeyInput` самостоятельно отслеживают коды нажатых модификаторов (`Set<string>`, построенный из событий `keydown`/`keyup` для кодов модификаторов) и передают это множество в `matchesHotkey` / `formatHotkeyFromEvent`.
 
-## Dev/prod settings divergence
+## Расхождение настроек dev/prod
 
-DEV (`npm run dev:tauri`) and PROD use different Tauri `identifier` values (`com.transcriber.desktop.dev` vs `com.transcriber.desktop`), which means different app data directories and therefore **separate `settings.json` files**. A hotkey configured in one build does not appear in the other. If testing behavior across both builds, copy the settings file or configure the hotkey in both instances.
+DEV (`npm run dev:tauri`) и PROD используют разные значения `identifier` Tauri (`com.transcriber.desktop.dev` против `com.transcriber.desktop`), что означает разные каталоги данных приложения и, следовательно, **раздельные файлы `settings.json`**. Хоткей, настроенный в одной сборке, не появляется в другой. При тестировании поведения на обеих сборках скопируйте файл настроек или настройте хоткей в обеих сборках.

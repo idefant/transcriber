@@ -1,37 +1,37 @@
-# Alt and the Window Menu Loop
+# Alt и цикл меню окна
 
-Tapping Alt inside the main window used to kill the next keystroke: any in-app hotkey pressed right after Alt did nothing at all. `suppress_alt_menu_activation` in `src-tauri/src/background.rs` fixes this by subclassing the main window and swallowing `WM_SYSCOMMAND` when `wParam` masks down to `SC_KEYMENU`.
+Раньше нажатие Alt внутри главного окна «убивало» следующее нажатие клавиши: любой хоткей внутри приложения, нажатый сразу после Alt, вообще ничего не делал. `suppress_alt_menu_activation` в `src-tauri/src/background.rs` исправляет это, подклассируя главное окно и поглощая `WM_SYSCOMMAND`, когда `wParam` при маскировании сводится к `SC_KEYMENU`.
 
-## Why an undecorated window still has a menu
+## Почему окно без оформления всё равно имеет меню
 
-`tauri.conf.json` sets `decorations: false`, so it is tempting to assume the window has no menu and no system menu. It does have one. tao builds every window with `WS_CAPTION | WS_CLIPSIBLINGS | WS_SYSMENU` in `WindowFlags::to_window_styles` and never removes `WS_SYSMENU` for undecorated windows — the frame disappears because tao intercepts `WM_NCCALCSIZE`, not because the styles changed. tao even calls `GetSystemMenu` to grey out `SC_CLOSE`, which only works because the system menu exists.
+`tauri.conf.json` устанавливает `decorations: false`, поэтому возникает соблазн предположить, что у окна нет ни меню, ни системного меню. На самом деле оно есть. tao строит каждое окно с флагами `WS_CAPTION | WS_CLIPSIBLINGS | WS_SYSMENU` в `WindowFlags::to_window_styles` и никогда не удаляет `WS_SYSMENU` для окон без оформления — рамка исчезает потому, что tao перехватывает `WM_NCCALCSIZE`, а не потому, что стили изменились. tao даже вызывает `GetSystemMenu`, чтобы сделать неактивным (серым) `SC_CLOSE`, что работает только потому, что системное меню существует.
 
-## The failure chain
+## Цепочка отказа
 
-1. The user presses and releases Alt. `DefWindowProc` interprets a lone Alt tap as a request to activate the window menu and posts `WM_SYSCOMMAND` with `wParam == SC_KEYMENU` to the top-level window.
-2. `DefWindowProc` handles `SC_KEYMENU` by entering the modal menu loop. There is no menu bar to open, but the loop still runs and captures the keyboard.
-3. The next keystroke is treated as a menu mnemonic and consumed. It never reaches the WebView2 child window, so no DOM `keydown` fires.
-4. Meanwhile the native `WH_KEYBOARD_LL` hook is uninstalled, because the window is focused (see [hotkeys.md](hotkeys.md), "Focus boundary"). The focused window has exactly one hotkey path — the DOM handler — and the menu loop just ate its input.
+1. Пользователь нажимает и отпускает Alt. `DefWindowProc` интерпретирует одиночное нажатие Alt как запрос на активацию меню окна и отправляет `WM_SYSCOMMAND` с `wParam == SC_KEYMENU` в окно верхнего уровня.
+2. `DefWindowProc` обрабатывает `SC_KEYMENU`, входя в модальный цикл меню. Открывать строку меню нечего, но цикл всё равно запускается и захватывает клавиатуру.
+3. Следующее нажатие клавиши трактуется как мнемоника меню и поглощается. Оно никогда не доходит до дочернего окна WebView2, поэтому DOM-событие `keydown` не срабатывает.
+4. Тем временем нативный хук `WH_KEYBOARD_LL` снят, потому что окно находится в фокусе (см. [hotkeys.md](hotkeys.md), раздел «Граница фокуса»). У окна в фокусе есть ровно один путь хоткеев — обработчик DOM — и цикл меню только что поглотил его ввод.
 
-The result is that every in-app hotkey silently stops working until the menu loop exits, including the ones the native hook suppresses globally. Clicking inside the window or tapping Alt a second time leaves the loop and restores normal behavior, which is the quickest way to confirm this diagnosis.
+В результате каждый хоткей внутри приложения незаметно перестаёт работать, пока цикл меню не завершится, включая те, что нативный хук подавляет глобально. Клик внутри окна или повторное нажатие Alt завершает цикл и восстанавливает нормальное поведение — это самый быстрый способ подтвердить такой диагноз.
 
-## Why the fix has to live here
+## Почему исправление должно находиться именно здесь
 
-Nothing upstream intercepts `SC_KEYMENU`:
+Ничто выше по цепочке не перехватывает `SC_KEYMENU`:
 
-- tao's `WM_SYSCOMMAND` branch handles only `SC_RESTORE`, `SC_MINIMIZE`, and `SC_SCREENSAVE`, then falls through to `DefWindowProc`;
-- wry's `parent_subclass_proc` handles size/move/focus/destroy messages and forwards the rest to `DefSubclassProc`;
-- `tauri-runtime-wry`'s `subclass_parent` (from `undecorated_resizing.rs`) handles `WM_SIZE` and shadow updates only, and is attached solely when the window is both resizable and undecorated.
+- ветка `WM_SYSCOMMAND` в tao обрабатывает только `SC_RESTORE`, `SC_MINIMIZE` и `SC_SCREENSAVE`, после чего передаёт управление дальше в `DefWindowProc`;
+- `parent_subclass_proc` в wry обрабатывает сообщения size/move/focus/destroy, а остальные передаёт в `DefSubclassProc`;
+- `subclass_parent` из `tauri-runtime-wry` (из `undecorated_resizing.rs`) обрабатывает только `WM_SIZE` и обновления тени, и подключается лишь тогда, когда окно одновременно изменяемо по размеру и не имеет оформления.
 
-So the app installs its own subclass with `SetWindowSubclass`. Subclass procedures run last-installed-first, and this one is attached from `setup_background_mode`, i.e. after tao, wry, and `tauri-runtime-wry` have registered theirs. It therefore sees `WM_SYSCOMMAND` before any of them and can return `0` without calling `DefSubclassProc`, so the message never reaches `DefWindowProc` and the menu loop never starts.
+Поэтому приложение устанавливает собственный подкласс через `SetWindowSubclass`. Процедуры подклассов выполняются в порядке «последний установленный — первым», и этот подкласс подключается из `setup_background_mode`, то есть после того, как tao, wry и `tauri-runtime-wry` уже зарегистрировали свои. Поэтому он видит `WM_SYSCOMMAND` раньше любого из них и может вернуть `0`, не вызывая `DefSubclassProc`, так что сообщение никогда не доходит до `DefWindowProc`, и цикл меню никогда не запускается.
 
-Two details matter:
+Важны две детали:
 
-- Mask with `& 0xFFF0`. The low four bits of `wParam` in `WM_SYSCOMMAND` are reserved for internal use, so comparing the raw value against `SC_KEYMENU` misses real messages.
-- Removing `WS_SYSMENU` from `GWL_STYLE` is not a substitute. tao reapplies its styles in `apply_diff`, so the style would come back.
+- Маскирование через `& 0xFFF0`. Младшие четыре бита `wParam` в `WM_SYSCOMMAND` зарезервированы для внутреннего использования, поэтому сравнение необработанного значения с `SC_KEYMENU` пропускает настоящие сообщения.
+- Удаление `WS_SYSMENU` из `GWL_STYLE` не является заменой. tao заново применяет свои стили в `apply_diff`, поэтому стиль вернётся обратно.
 
-## What this intentionally disables
+## Что это намеренно отключает
 
-`SC_KEYMENU` is also how Windows opens the system menu on Alt+Space and how it resolves Alt+letter menu mnemonics. Swallowing it removes both. The window has no menu bar, and its system menu is invisible on an undecorated window, so neither is a loss.
+`SC_KEYMENU` — это также способ, которым Windows открывает системное меню по Alt+Space и разрешает мнемоники меню Alt+буква. Поглощение этого сообщения убирает обе возможности. У окна нет строки меню, а его системное меню невидимо на окне без оформления, поэтому потери в этом нет.
 
-Alt+F4 is unaffected: it arrives as `SC_CLOSE`, not `SC_KEYMENU`, and still reaches the `CloseRequested` handler that hides the window into the tray.
+Alt+F4 не затрагивается: оно приходит как `SC_CLOSE`, а не `SC_KEYMENU`, и по-прежнему доходит до обработчика `CloseRequested`, который прячет окно в трей.

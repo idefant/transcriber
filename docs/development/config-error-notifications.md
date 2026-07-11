@@ -1,47 +1,47 @@
-# Configuration Error Notifications
+# Уведомления об ошибках конфигурации
 
-## Problem
+## Проблема
 
-Processing readiness (speech-to-text provider and model selected, model available for the provider, provider API key present, plus the same for post-processing when it is enabled) used to be validated only after recording, during the processing phase. The user recorded audio, waited through the transcribing spinner, and only then saw the red error overlay. Configuration mistakes were also never surfaced as OS notifications.
+Готовность к обработке (выбраны провайдер и модель Speech-to-Text, модель доступна для провайдера, присутствует API-ключ провайдера, а также то же самое для постобработки, когда она включена) раньше проверялась только после записи, во время фазы обработки. Пользователь записывал аудио, ждал спиннер расшифровки и только затем видел красный оверлей ошибки. Ошибки конфигурации также никогда не отображались в виде уведомлений ОС.
 
-The goal: validate readiness before any recording or reprocessing starts, and for background/overlay flows surface the problem as a native system notification instead of a delayed overlay. Clicking the notification must open the relevant settings tab.
+Цель: проверять готовность до начала любой записи или повторной обработки, а для фоновых потоков/потоков с оверлеем показывать проблему в виде нативного системного уведомления вместо отложенного оверлея. Клик по уведомлению должен открывать соответствующую вкладку настроек.
 
-## Pre-flight validation
+## Предварительная проверка (pre-flight)
 
-`validate_processing_ready` in `dictation.rs` reuses `runner::build_stt_snapshot` (and `runner::build_post_process_snapshot` when post-processing is enabled) plus `providers::resolve_provider_api_key`. The snapshot builders are pure configuration checks with no network calls: they verify the provider and model are selected, the model exists in the catalog, and the model is compatible with the provider.
+`validate_processing_ready` в `dictation.rs` переиспользует `runner::build_stt_snapshot` (и `runner::build_post_process_snapshot`, когда постобработка включена) вместе с `providers::resolve_provider_api_key`. Построители снимков (snapshot builders) — это чистые проверки конфигурации без сетевых вызовов: они проверяют, что провайдер и модель выбраны, что модель существует в каталоге и что модель совместима с провайдером.
 
-Important subtlety: `build_stt_snapshot` does **not** validate the API key. Key presence is checked separately by `resolve_provider_api_key`, which the normal path only calls at request time. The pre-flight check therefore calls `resolve_provider_api_key` explicitly for the STT provider (and the post-processing provider when enabled), otherwise a missing key would slip past the pre-check and only fail later as a network-style error.
+Важная тонкость: `build_stt_snapshot` **не** проверяет API-ключ. Наличие ключа проверяется отдельно функцией `resolve_provider_api_key`, которую обычный путь вызывает только в момент запроса. Поэтому предварительная проверка вызывает `resolve_provider_api_key` явно для провайдера STT (и провайдера постобработки, когда она включена) — иначе отсутствующий ключ проскользнул бы мимо предварительной проверки и дал бы сбой позже как ошибка сетевого вида.
 
-The function returns `Result<(), ConfigError>`, where `ConfigError { section, message }` identifies which settings tab the notification should open (`speechToText` or `postProcessing`) and carries the underlying error message.
+Функция возвращает `Result<(), ConfigError>`, где `ConfigError { section, message }` определяет, какую вкладку настроек должно открывать уведомление (`speechToText` или `postProcessing`), и несёт исходное сообщение об ошибке.
 
-The underlying configuration messages now come from the shared backend runtime i18n layer in `src-tauri/src/i18n.rs`, built on `i18n-embed` with Fluent assets under `src-tauri/i18n/`. The helper resolves the current app language from settings, loads the matching Fluent bundle with an English fallback, and formats messages by key (optionally with arguments). `runner.rs`, `providers.rs`, `notification.rs`, and other user-facing backend call sites reuse that single helper instead of scattering `match`-based copy or ad hoc English strings.
+Исходные сообщения конфигурации теперь берутся из общего слоя runtime-i18n бэкенда в `src-tauri/src/i18n.rs`, построенного на `i18n-embed` с ресурсами Fluent в `src-tauri/i18n/`. Хелпер определяет текущий язык приложения из настроек, загружает соответствующий бандл Fluent с откатом на английский и форматирует сообщения по ключу (опционально с аргументами). `runner.rs`, `providers.rs`, `notification.rs` и другие места вызова в бэкенде, обращённые к пользователю, переиспользуют этот единый хелпер вместо того, чтобы разбрасывать текст на основе `match` или произвольные английские строки.
 
-## Where it hooks
+## Где это подключается
 
-`start_dictation_inner` runs the check before `overlay::show_recording_overlay` and `recording::start_recording`. On failure it drops the session lock, calls `notification::show_config_error`, and returns `Ok(())` — deliberately not `Err`. Returning `Err` would trigger the error branch in `start_dictation` (`emit_dictation_error` + `hide_recording_overlay`); we own the user-facing error through the notification instead.
+`start_dictation_inner` запускает проверку перед `overlay::show_recording_overlay` и `recording::start_recording`. При сбое она отпускает блокировку сессии, вызывает `notification::show_config_error` и возвращает `Ok(())` — намеренно не `Err`. Возврат `Err` вызвал бы ветку ошибки в `start_dictation` (`emit_dictation_error` + `hide_recording_overlay`); вместо этого мы берём на себя показ ошибки пользователю через уведомление.
 
-`begin_repeat_latest_history_record` (the "repeat latest" hotkey flow) runs the same check before `overlay::show_transcribing_overlay` and returns `Ok(None)`, so the caller never spawns the processing task.
+`begin_repeat_latest_history_record` (поток хоткея «повторить последнее») выполняет ту же проверку перед `overlay::show_transcribing_overlay` и возвращает `Ok(None)`, поэтому вызывающий код никогда не запускает задачу обработки.
 
-Both call sites leave the session `Idle` when the check fails. That is what keeps a hotkey release, a repeated press, or a cancel from erroring out: `take_recording` returns `Ok(None)` for any non-`Recording` state, and `cancel_dictation_inner` treats `Idle` as a no-op. Nothing was started, so nothing needs unwinding.
+Оба места вызова оставляют сессию в состоянии `Idle`, когда проверка не проходит. Именно это не даёт отпусканию хоткея, повторному нажатию или отмене завершиться ошибкой: `take_recording` возвращает `Ok(None)` для любого состояния, отличного от `Recording`, а `cancel_dictation_inner` трактует `Idle` как отсутствие действия. Ничего не было начато, поэтому ничего не нужно откатывать.
 
-## Why only these two flows
+## Почему только эти два потока
 
-The in-app History repeat buttons (`repeat_history_transcription`, `repeat_history_record`, `repeat_history_post_processing`) run with the main window open and already surface configuration errors inline on the record via `save_repeated_stt_error`. They do not use the overlay, so a system notification would be redundant and inconsistent with how the rest of the in-app UI reports errors. They are intentionally left unchanged.
+Кнопки повтора в истории внутри приложения (`repeat_history_transcription`, `repeat_history_record`, `repeat_history_post_processing`) работают при открытом главном окне и уже отображают ошибки конфигурации прямо в записи через `save_repeated_stt_error`. Они не используют оверлей, поэтому системное уведомление было бы избыточным и несогласованным с тем, как остальной UI внутри приложения сообщает об ошибках. Они намеренно оставлены без изменений.
 
-The residual readiness check inside `process_recording_inner` is also kept as a safety net for the rare case where settings change mid-recording; that path still ends on the error overlay.
+Остаточная проверка готовности внутри `process_recording_inner` также сохранена как страховка на редкий случай, когда настройки меняются в середине записи; этот путь по-прежнему заканчивается оверлеем ошибки.
 
-## Native notification (Windows-only)
+## Нативное уведомление (только Windows)
 
-`notification.rs` builds the toast with `tauri-winrt-notification` (`Toast`). The official `tauri-plugin-notification` was rejected because its action/click handling is mobile-only — it cannot run code when the user clicks a desktop toast on Windows, which is exactly what "click opens the relevant settings tab" requires.
+`notification.rs` формирует toast-уведомление с помощью `tauri-winrt-notification` (`Toast`). Официальный `tauri-plugin-notification` был отклонён, потому что его обработка действий/кликов работает только на мобильных платформах — он не может выполнить код, когда пользователь кликает по desktop-toast в Windows, а именно это требуется для «клик открывает соответствующую вкладку настроек».
 
-Important caveat from the `tauri-winrt-notification` crate itself: an unpackaged desktop app should not use its own bundle identifier as the toast AppUserModelID. If the app is not installed and the AUMID is not registered, Windows can silently drop the toast even though `show()` returns `Ok(())`.
+Важная оговорка от самого крейта `tauri-winrt-notification`: неупакованное десктопное приложение не должно использовать собственный идентификатор бандла в качестве AppUserModelID для toast-уведомления. Если приложение не установлено и AUMID не зарегистрирован, Windows может незаметно отбросить toast-уведомление, даже если `show()` вернул `Ok(())`.
 
-Because this project uses a separate dev identifier (`com.transcriber.desktop.dev`) for `tauri dev`, `notification.rs` treats identifiers ending with `.dev` as an unpackaged/dev build and uses `Toast::POWERSHELL_APP_ID` explicitly. That makes the toast visible in development (it appears as a PowerShell notification). Installed builds still use the real bundle identifier, so the toast is attributed to Transcriber normally.
+Поскольку этот проект использует отдельный dev-идентификатор (`com.transcriber.desktop.dev`) для `tauri dev`, `notification.rs` трактует идентификаторы, оканчивающиеся на `.dev`, как неупакованную/dev-сборку и явно использует `Toast::POWERSHELL_APP_ID`. Это делает toast-уведомление видимым в разработке (оно появляется как уведомление PowerShell). Установленные сборки по-прежнему используют настоящий идентификатор бандла, поэтому toast-уведомление приписывается Transcriber как обычно.
 
-`on_activated` runs on a WinRT background thread. Window operations are dispatched through `AppHandle::run_on_main_thread`, which shows the main window and emits `open-settings`. Windows closes the toast automatically on activation.
+`on_activated` выполняется в фоновом потоке WinRT. Операции с окном диспетчеризуются через `AppHandle::run_on_main_thread`, который показывает главное окно и отправляет `open-settings`. Windows автоматически закрывает toast-уведомление при активации.
 
-The module is `#[cfg(windows)]` with a no-op stub for other platforms, so the call sites compile unconditionally. `ConfigError` and `ConfigErrorSection` are platform-independent.
+Модуль помечен `#[cfg(windows)]` с пустой заглушкой для других платформ, поэтому места вызова компилируются безусловно. `ConfigError` и `ConfigErrorSection` независимы от платформы.
 
-## Frontend
+## Фронтенд
 
-`App.tsx` subscribes to the `open-settings` event and calls `useUiStore.openSettings(section)`. The backend shows the main window before emitting, so the settings modal opens over an already focused window.
+`App.tsx` подписывается на событие `open-settings` и вызывает `useUiStore.openSettings(section)`. Бэкенд показывает главное окно перед отправкой события, поэтому модальное окно настроек открывается поверх уже сфокусированного окна.

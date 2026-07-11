@@ -12,8 +12,8 @@ interface ReleaseNotesProps {
 
 type MarkdownLinkProps = ComponentProps<'a'> & ExtraProps;
 
-// A plain <a href> would navigate the whole Tauri window away from the app.
-// No opener plugin is registered, so links stay inert and only expose their URL.
+// Обычный <a href> увёл бы всё окно Tauri из приложения по ссылке.
+// Плагин opener не зарегистрирован, поэтому ссылки остаются неактивными и только показывают свой URL.
 const MarkdownLink: FC<MarkdownLinkProps> = ({ children, href }) => (
   <a
     href={href}

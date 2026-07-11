@@ -1,7 +1,7 @@
 use crate::error::{AppError, AppResult};
 
-/// RAII guard that mutes the default audio output endpoint on creation and
-/// restores its previous mute state on drop.
+/// RAII-guard, который заглушает используемое по умолчанию устройство вывода звука при создании
+/// и восстанавливает его предыдущее состояние заглушения при удалении (drop).
 pub struct OutputMuteGuard {
     #[cfg(target_os = "windows")]
     previous_muted: bool,
@@ -24,7 +24,7 @@ impl OutputMuteGuard {
 impl Drop for OutputMuteGuard {
     fn drop(&mut self) {
         #[cfg(target_os = "windows")]
-        // Only restore if we were the ones who muted.
+        // Восстанавливаем звук, только если заглушили его сами.
         if !self.previous_muted {
             let _ = unsafe { set_default_endpoint_mute(false) };
         }
@@ -47,9 +47,9 @@ where
     };
 
     let com_hr = CoInitializeEx(None, COINIT_MULTITHREADED);
-    // should_uninit is true when we successfully entered a COM apartment (S_OK or S_FALSE).
-    // When the thread already has a different apartment (RPC_E_CHANGED_MODE), com_hr.is_ok()
-    // returns false — COM is still available but we must not call CoUninitialize.
+    // should_uninit равен true, когда мы успешно вошли в COM-апартамент (S_OK или S_FALSE).
+    // Если у потока уже есть другой апартамент (RPC_E_CHANGED_MODE), com_hr.is_ok()
+    // возвращает false — COM всё ещё доступен, но вызывать CoUninitialize нельзя.
     let should_uninit = com_hr.is_ok();
 
     let result = (|| -> windows::core::Result<R> {

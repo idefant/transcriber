@@ -1,69 +1,69 @@
-# Screenshot Testing
+# Тестирование скриншотами
 
-Use Playwright to capture and review the UI after layout, theme, modal, navigation, or Ant Design token changes.
+Используйте Playwright для съёмки и проверки UI после изменений макета, темы, модальных окон, навигации или токенов Ant Design.
 
-The app runs inside Tauri's WebView2 (Chromium), so screenshots must be taken from the **real running app**, not from the bare Vite server in a standalone browser. A standalone browser lacks the Tauri APIs (`window.__TAURI__`, IPC) and does not reflect real behavior. Playwright attaches to the running WebView2 over the Chrome DevTools Protocol (CDP).
+Приложение работает внутри WebView2 (Chromium) от Tauri, поэтому скриншоты нужно делать из **реально запущенного приложения**, а не из голого сервера Vite в отдельном браузере. Отдельный браузер лишён Tauri API (`window.__TAURI__`, IPC) и не отражает реальное поведение. Playwright подключается к запущенному WebView2 через Chrome DevTools Protocol (CDP).
 
-## Enabling the debug endpoint
+## Включение отладочного эндпоинта
 
-Screenshots require a CDP endpoint on the running app. Ask the developer to start the app with WebView2 remote debugging — never start it yourself:
+Для скриншотов требуется CDP-эндпоинт на запущенном приложении. Попросите разработчика запустить приложение с удалённой отладкой WebView2 — никогда не запускайте его самостоятельно:
 
 ```bash
 npm run dev:tauri:debug
 ```
 
-This sets `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`. A plain `.env` entry does not work: WebView2 reads this variable from the real process environment, which `.env` does not provide to the Tauri app process.
+Это устанавливает `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`. Обычная запись в `.env` не сработает: WebView2 читает эту переменную из реального окружения процесса, а `.env` не предоставляет её процессу приложения Tauri.
 
-Confirm the endpoint is up before attaching:
+Перед подключением убедитесь, что эндпоинт доступен:
 
 ```bash
 curl -s http://localhost:9222/json/list
 ```
 
-## Attaching
+## Подключение
 
-Two equivalent ways to drive the running app:
+Есть два равнозначных способа управлять запущенным приложением:
 
-- **Playwright MCP** — configured in the project `.mcp.json` with `--cdp-endpoint http://localhost:9222`. The MCP server is loaded at agent-session start (it requires approval on first run), then drive the app with its `browser_*` tools.
-- **connectOverCDP script** — `chromium.connectOverCDP('http://localhost:9222')`, then pick the page whose URL is the app route (for example `/history`), not the `Recording Overlay`. Keep temporary scripts in `.codex/` (gitignored). Do not call `browser.close()` — over CDP it can close the user's app; let the process exit instead.
+- **Playwright MCP** — настроен в `.mcp.json` проекта с `--cdp-endpoint http://localhost:9222`. MCP-сервер загружается при старте сессии агента (при первом запуске требуется подтверждение), после чего управляйте приложением с помощью его инструментов `browser_*`.
+- **Скрипт connectOverCDP** — `chromium.connectOverCDP('http://localhost:9222')`, затем выберите страницу, чей URL — это маршрут приложения (например, `/history`), а не `Recording Overlay`. Храните временные скрипты в `.codex/` (в gitignore). Не вызывайте `browser.close()` — через CDP это может закрыть приложение пользователя; вместо этого дайте процессу завершиться самостоятельно.
 
-## Workflow
+## Рабочий процесс
 
-1. Attach to the running app over CDP (see above).
-2. Select the main app page; for theme checks, toggle the theme.
-3. Capture full-window and per-element screenshots for the touched flows in both light and dark themes.
-4. Check browser console warnings/errors during the run.
-5. Verify that `document.body.scrollWidth` is not greater than `document.body.clientWidth`.
-6. Save temporary screenshots only into `ui-audit-artifacts/` (gitignored).
+1. Подключитесь к запущенному приложению через CDP (см. выше).
+2. Выберите главную страницу приложения; для проверки темы переключите тему.
+3. Сделайте скриншоты всего окна и отдельных элементов для затронутых сценариев в светлой и тёмной темах.
+4. Проверьте предупреждения/ошибки консоли браузера во время прогона.
+5. Убедитесь, что `document.body.scrollWidth` не больше `document.body.clientWidth`.
+6. Сохраняйте временные скриншоты только в `ui-audit-artifacts/` (в gitignore).
 
-The app window is resizable (minimum 1080×600). To review wider layouts, resize the window before capturing.
+Окно приложения можно изменять в размерах (минимум 1080×600). Чтобы проверить более широкие варианты макета, измените размер окна перед съёмкой.
 
-## Required Scenarios
+## Обязательные сценарии
 
-For app-wide visual changes, capture:
+Для визуальных изменений в масштабе всего приложения снимайте:
 
-- history page;
-- history page with the details panel open;
-- dictionary page;
-- settings modal in the general tab;
-- settings modal in the providers tab;
-- provider add/edit modal;
-- Speech-to-Text settings;
-- post-processing settings.
+- страницу истории;
+- страницу истории с открытой панелью деталей;
+- страницу словаря;
+- модальное окно настроек на вкладке «Общие»;
+- модальное окно настроек на вкладке «Провайдеры»;
+- модальное окно добавления/редактирования провайдера;
+- настройки Speech-to-Text;
+- настройки постобработки.
 
-For theme changes, repeat at least:
+Для изменений темы повторите как минимум:
 
-- settings modal in dark mode;
-- history page with the details panel open in dark mode;
-- dictionary page in dark mode.
+- модальное окно настроек в тёмном режиме;
+- страницу истории с открытой панелью деталей в тёмном режиме;
+- страницу словаря в тёмном режиме.
 
-## Review Checklist
+## Чек-лист проверки
 
-- No black text on dark backgrounds.
-- Sidebar and modal menu backgrounds match the surrounding surface.
-- Selected and hover states are visible but not visually aggressive.
-- Page content does not stretch awkwardly when the window is wide.
-- No horizontal page scroll.
-- Text does not overlap controls.
-- Icon-only buttons have accessible labels and tooltips when applicable.
-- Temporary screenshots and scripts are not committed.
+- Нет чёрного текста на тёмном фоне.
+- Фон боковой панели и меню модальных окон совпадает с окружающей поверхностью.
+- Состояния выбора и наведения (hover) заметны, но не выглядят визуально агрессивно.
+- Содержимое страницы не растягивается неестественно при широком окне.
+- Нет горизонтальной прокрутки страницы.
+- Текст не перекрывает элементы управления.
+- Кнопки только с иконкой имеют доступные подписи и всплывающие подсказки, где это уместно.
+- Временные скриншоты и скрипты не коммитятся.

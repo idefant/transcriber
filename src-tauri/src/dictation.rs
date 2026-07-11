@@ -31,8 +31,8 @@ pub struct DictationRuntime {
     active_hold_activation_id: Mutex<Option<u64>>,
     active_task: Mutex<Option<ActiveDictationTask>>,
     next_session_id: AtomicU64,
-    /// Pre-built, paused capture stream reused across sessions so dictation
-    /// starts without paying the WASAPI stream-build cost on the hot path.
+    /// Заранее собранный, приостановленный поток захвата, переиспользуемый между сессиями, чтобы
+    /// диктовка запускалась без затрат на сборку WASAPI-потока на горячем пути.
     prepared_recorder: Mutex<Option<PreparedRecorder>>,
 }
 
@@ -41,12 +41,12 @@ struct ActiveDictationTask {
     handle: tauri::async_runtime::JoinHandle<()>,
 }
 
-/// Lightweight state of an in-progress recording. The capture stream itself
-/// lives in `DictationRuntime::prepared_recorder`; this only tracks per-session
-/// data and holds the output-mute guard so it un-mutes when the session ends.
+/// Лёгкое состояние выполняющейся записи. Сам поток захвата
+/// живёт в `DictationRuntime::prepared_recorder`; здесь хранятся только данные конкретной сессии
+/// и guard заглушения вывода, чтобы звук включался обратно по завершении сессии.
 struct RecordingHandle {
     started_at: DateTime<Utc>,
-    // Held for its Drop side-effect: un-mutes the default output device.
+    // Хранится ради побочного эффекта Drop: включает звук на устройстве вывода по умолчанию обратно.
     _mute_guard: Option<OutputMuteGuard>,
 }
 
@@ -85,15 +85,15 @@ struct DictationShortcutPayload {
     activation_id: u64,
 }
 
-/// Result of processing a recording, used to decide how the overlay ends.
+/// Результат обработки записи, используется, чтобы решить, как завершится оверлей.
 enum DictationOutcome {
-    /// Success (text inserted) or a cancelled/superseded session — hide overlay.
+    /// Успех (текст вставлен) либо отменённая/заменённая сессия — скрыть оверлей.
     Completed,
-    /// Speech-to-text failed; no text was inserted. Show the red error overlay.
-    /// `record_id` is `Some` when a history record was saved.
+    /// Распознавание речи не удалось; текст не вставлен. Показать красный оверлей ошибки.
+    /// `record_id` равен `Some`, если запись истории была сохранена.
     SttError { record_id: Option<String> },
-    /// Post-processing failed but the speech-to-text text was inserted. Show the
-    /// amber warning overlay linked to the saved record.
+    /// Постобработка не удалась, но текст распознавания речи был вставлен. Показать
+    /// янтарный оверлей предупреждения, связанный с сохранённой записью.
     PostProcessError { record_id: String },
 }
 
@@ -110,10 +110,10 @@ pub fn register_dictation_shortcut(app: &tauri::AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-/// Job handed off from a DOM-triggered command (main thread) to the dedicated
-/// dictation dispatch thread. Mirrors `shortcut_hook::HookEvent`: the native
-/// hook path already runs this same work off the main thread, this gives the
-/// focused-window DOM path the same guarantee.
+/// Задача, передаваемая из DOM-команды (главный поток) выделенному
+/// потоку диспетчеризации диктовки. Отражает `shortcut_hook::HookEvent`: путь через нативный
+/// хук уже выполняет ту же работу вне главного потока, а это даёт
+/// пути через DOM сфокусированного окна ту же гарантию.
 enum DictationJob {
     DomPressed { activation_id: u64 },
     DomReleased { activation_id: u64 },
@@ -122,15 +122,15 @@ enum DictationJob {
 
 static DICTATION_JOB_SENDER: OnceLock<Sender<DictationJob>> = OnceLock::new();
 
-/// Serialized worker that runs DOM-triggered dictation actions off the main
-/// thread. `#[tauri::command] pub fn` (non-async) handlers run on the main
-/// event-loop thread, and starting/stopping dictation does slow, blocking work
-/// (overlay window creation, WASAPI stream build, COM audio-endpoint calls) —
-/// running it there freezes window dragging/buttons and can deadlock the
-/// STA-threaded WebView2 event loop against COM marshaling. A single thread
-/// draining an mpsc channel keeps `pressed` strictly ordered before
-/// `released`, same as `shortcut_hook::ensure_event_dispatch_thread` does for
-/// the native hook path.
+/// Сериализованный воркер, выполняющий вне главного потока действия диктовки, инициированные
+/// из DOM. Обработчики `#[tauri::command] pub fn` (не-async) выполняются в главном
+/// потоке цикла событий, а запуск и остановка диктовки — это медленная блокирующая работа
+/// (создание окна оверлея, сборка WASAPI-потока, вызовы COM audio-endpoint) —
+/// её выполнение там замораживает перетаскивание окна и кнопки и может привести к deadlock
+/// STA-потока цикла событий WebView2 при взаимодействии с COM marshaling. Единственный поток,
+/// вычитывающий mpsc-канал, гарантирует строгий порядок: `pressed` всегда перед
+/// `released`, точно так же, как это делает `shortcut_hook::ensure_event_dispatch_thread` для
+/// пути через нативный хук.
 fn ensure_dictation_dispatch_thread(app: &tauri::AppHandle) {
     if DICTATION_JOB_SENDER.get().is_some() {
         return;
@@ -139,7 +139,7 @@ fn ensure_dictation_dispatch_thread(app: &tauri::AppHandle) {
     let (sender, receiver) = mpsc::channel::<DictationJob>();
 
     if DICTATION_JOB_SENDER.set(sender).is_err() {
-        // Another thread won the race to initialize; its worker is running.
+        // Другой поток выиграл гонку за инициализацию; его воркер уже выполняется.
         return;
     }
 
@@ -232,9 +232,9 @@ pub fn handle_repeat_latest_shortcut(app: &tauri::AppHandle) {
     });
 }
 
-// These three DOM-triggered commands are intentionally synchronous but only
-// enqueue a job — see `ensure_dictation_dispatch_thread` for why the actual
-// work must not run on the main thread.
+// Эти три DOM-команды намеренно синхронные и лишь ставят задачу в очередь —
+// см. `ensure_dictation_dispatch_thread`, почему фактическая
+// работа не должна выполняться в главном потоке.
 
 #[tauri::command]
 pub fn cancel_dictation(app: tauri::AppHandle, session_id: Option<u64>) {
@@ -371,18 +371,18 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
 
     overlay::show_recording_overlay(app)?;
 
-    // Start capture on the pre-warmed stream. Building the stream — the
-    // expensive WASAPI step — happened ahead of time, so this is just a cheap
-    // `play()` and audio starts flowing almost immediately.
+    // Запускаем захват на заранее прогретом потоке. Сборка потока — дорогой
+    // шаг WASAPI — уже выполнена заранее, так что это всего лишь дешёвый
+    // вызов `play()`, и звук начинает поступать почти мгновенно.
     let started_at = begin_recording(app)?;
 
-    // Variant C: read app settings once here and reuse them for both the mute
-    // flag and the cancel hotkey, instead of loading them from disk twice.
+    // Вариант C: читаем настройки приложения один раз здесь и переиспользуем их и для флага
+    // заглушения, и для хоткея отмены, вместо двойной загрузки с диска.
     let app_settings = settings::load_app_settings(app).ok();
 
-    // Variant B: mute the default output AFTER capture has started, keeping the
-    // COM/mute cost off the pre-capture path. The spec allows recording to
-    // proceed even if muting fails, so a best-effort guard here is fine.
+    // Вариант B: заглушаем вывод по умолчанию ПОСЛЕ начала захвата, чтобы держать
+    // затраты на COM/заглушение вне пути перед захватом. Спецификация допускает продолжение
+    // записи, даже если заглушение не удалось, поэтому здесь достаточно guard'а по принципу best-effort.
     let mute_guard = acquire_output_mute(
         app_settings
             .as_ref()
@@ -402,24 +402,24 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
 
     set_active_hold_activation_id(app, activation_id);
 
-    // Arm the cancel hotkey for the duration of this session. A missing or
-    // empty cancel hotkey silently disarms the hook (no key is consumed).
+    // Активируем хоткей отмены на время этой сессии. Отсутствующий или
+    // пустой хоткей отмены молча деактивирует хук (ни одна клавиша не перехватывается).
     if let Some(app_settings) = app_settings.as_ref() {
         if let Err(error) = shortcut_hook::arm_cancel_hotkey(app_settings.cancel_hotkey()) {
             emit_dictation_error(app, error.into_message());
         }
     }
 
-    // Notify the frontend that a session is now active (used to gate in-app cancel hotkey).
+    // Уведомляем фронтенд, что сессия теперь активна (используется, чтобы разрешить хоткей отмены внутри приложения).
     emit_dictation_session(app, true, Some(id));
 
     Ok(())
 }
 
-/// Ensure a prepared capture stream exists for the current default input device
-/// and start it. Returns the recording start timestamp. The expensive stream
-/// build only runs here if no warm stream is available or the default input
-/// device changed since it was built.
+/// Убеждается, что для текущего устройства ввода по умолчанию есть подготовленный поток захвата,
+/// и запускает его. Возвращает временную метку начала записи. Дорогая сборка потока
+/// выполняется здесь только если нет прогретого потока или устройство ввода
+/// по умолчанию изменилось с момента его сборки.
 fn begin_recording(app: &tauri::AppHandle) -> AppResult<DateTime<Utc>> {
     let runtime = app.state::<DictationRuntime>();
     let mut prepared = runtime
@@ -444,8 +444,8 @@ fn begin_recording(app: &tauri::AppHandle) -> AppResult<DateTime<Utc>> {
     Ok(Utc::now())
 }
 
-/// Best-effort mute of the default output device. Returns a guard that un-mutes
-/// on drop, or `None` when muting is disabled or failed.
+/// Заглушение устройства вывода по умолчанию по принципу best-effort. Возвращает guard, который включает звук обратно
+/// при drop, либо `None`, если заглушение отключено или не удалось.
 fn acquire_output_mute(is_enabled: bool) -> Option<OutputMuteGuard> {
     if !is_enabled {
         return None;
@@ -460,16 +460,16 @@ fn acquire_output_mute(is_enabled: bool) -> Option<OutputMuteGuard> {
     }
 }
 
-/// Build the reusable capture stream ahead of the first dictation so the WASAPI
-/// build cost is paid at startup, not on the first hotkey press. Runs on a
-/// background thread; failure is non-fatal — the stream is built on demand.
+/// Собирает переиспользуемый поток захвата ещё до первой диктовки, чтобы затраты на сборку
+/// WASAPI были оплачены при запуске, а не при первом нажатии хоткея. Выполняется в
+/// фоновом потоке; ошибка не является фатальной — поток будет собран по требованию.
 pub fn prewarm_recorder(app: &tauri::AppHandle) {
     let app = app.clone();
 
     std::thread::spawn(move || match recording::prepare_recorder(&app) {
         Ok(recorder) => {
             if let Ok(mut prepared) = app.state::<DictationRuntime>().prepared_recorder.lock() {
-                // Don't clobber a recorder a very early dictation already built.
+                // Не затираем recorder, который уже успела собрать очень ранняя диктовка.
                 if prepared.is_none() {
                     *prepared = Some(recorder);
                 }
@@ -481,8 +481,8 @@ pub fn prewarm_recorder(app: &tauri::AppHandle) {
     });
 }
 
-/// Pause and clear the prepared recorder without producing audio (used on cancel
-/// while recording). The recorder stays ready for reuse.
+/// Приостанавливает и очищает подготовленный recorder без формирования аудио (используется при отмене
+/// во время записи). Recorder остаётся готовым к повторному использованию.
 fn release_recording(app: &tauri::AppHandle) {
     if let Ok(prepared) = app.state::<DictationRuntime>().prepared_recorder.lock() {
         if let Some(recorder) = prepared.as_ref() {
@@ -491,8 +491,8 @@ fn release_recording(app: &tauri::AppHandle) {
     }
 }
 
-/// Stop the prepared recorder and encode the captured audio. Dropping `handle`
-/// un-mutes the output device after the microphone has been released.
+/// Останавливает подготовленный recorder и кодирует захваченное аудио. Drop `handle`
+/// включает звук на устройстве вывода обратно после того, как микрофон освобождён.
 fn finish_recording(app: &tauri::AppHandle, handle: RecordingHandle) -> AppResult<RecordedAudio> {
     let runtime = app.state::<DictationRuntime>();
     let audio = {
@@ -511,7 +511,7 @@ fn finish_recording(app: &tauri::AppHandle, handle: RecordingHandle) -> AppResul
         recorder.stop_to_audio(app, handle.started_at)?
     };
 
-    drop(handle); // un-mute now that the microphone is released
+    drop(handle); // включаем звук обратно теперь, когда микрофон освобождён
     Ok(audio)
 }
 
@@ -619,8 +619,8 @@ fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
         }
     };
 
-    // Stop the audio stream synchronously so the OS microphone indicator turns
-    // off and system audio un-mutes before STT/post-processing begins.
+    // Останавливаем аудиопоток синхронно, чтобы индикатор микрофона ОС погас,
+    // а системный звук включился обратно до начала STT/постобработки.
     let audio = match finish_recording(&app, recording_handle) {
         Ok(audio) => audio,
         Err(error) => {
@@ -654,10 +654,10 @@ fn take_recording(
         return Ok(None);
     }
 
-    // Guard before replace: std::mem::replace writes Idle unconditionally, so we
-    // must confirm the state is Recording before calling it, otherwise a spurious
-    // stop_dictation (e.g. hotkey release while transcribing) would corrupt the
-    // state and prevent reset_session from ever hiding the overlay.
+    // Проверка перед replace: std::mem::replace безусловно записывает Idle, поэтому
+    // перед вызовом нужно убедиться, что состояние — Recording, иначе случайный
+    // stop_dictation (например, отпускание хоткея во время транскрибации) повредил бы
+    // состояние и не дал бы reset_session когда-либо скрыть оверлей.
     if !matches!(*session, DictationSession::Recording { .. }) {
         return Ok(None);
     }
@@ -678,8 +678,8 @@ async fn process_recording(app: tauri::AppHandle, id: u64, audio: RecordedAudio)
     let outcome = process_recording_inner(&app, id, audio).await;
     clear_active_task(&app, id);
 
-    // A cancelled or superseded session has already hidden its overlay via
-    // cancel_dictation_inner; just make sure the session state is reset.
+    // Отменённая или заменённая сессия уже скрыла свой оверлей через
+    // cancel_dictation_inner; нужно лишь убедиться, что состояние сессии сброшено.
     if !is_current_session(&app, id) {
         let _ = reset_session(&app, id, true);
         return;
@@ -850,8 +850,8 @@ async fn process_recording_inner(
                     },
                 );
 
-                // Post-processing failed, but the speech-to-text text is valid —
-                // still insert it so the user does not lose their dictation.
+                // Постобработка не удалась, но текст распознавания речи корректен —
+                // всё равно вставляем его, чтобы пользователь не потерял свою диктовку.
                 if is_current_session(app, id) {
                     keyboard::paste_text(app, &stt_text).await?;
                 }
@@ -943,9 +943,9 @@ fn begin_processing_phase(app: &tauri::AppHandle, id: u64) -> AppResult<bool> {
 
     overlay::show_processing_overlay(app)?;
 
-    // Cancel can race with the STT -> post-processing transition. Re-check after
-    // showing the overlay so a late cancel cannot leave the processing overlay
-    // visible while the session is already cancelled.
+    // Отмена может состязаться (race) с переходом STT -> постобработка. Проверяем повторно после
+    // показа оверлея, чтобы поздняя отмена не оставила оверлей обработки
+    // видимым, когда сессия уже отменена.
     if !is_current_session(app, id) {
         let _ = overlay::hide_recording_overlay(app);
         return Ok(false);
@@ -986,9 +986,9 @@ fn is_session_idle(app: &tauri::AppHandle) -> bool {
         .unwrap_or(false)
 }
 
-/// Reset a finished session to idle. The overlay is hidden only when
-/// `hide_overlay` is set — the error/warning notifications keep it visible and
-/// manage their own dismissal instead.
+/// Сбрасывает завершённую сессию в состояние ожидания (idle). Оверлей скрывается только когда
+/// установлен `hide_overlay` — уведомления об ошибке/предупреждении вместо этого оставляют его видимым и
+/// сами управляют своим закрытием.
 fn reset_session(app: &tauri::AppHandle, id: u64, hide_overlay: bool) -> bool {
     if let Ok(mut session) = app.state::<DictationRuntime>().session.lock() {
         if matches!(
@@ -1032,8 +1032,8 @@ fn cancel_dictation_inner(
     let cancelled_task_id = match std::mem::replace(&mut *session, DictationSession::Idle) {
         DictationSession::Idle => None,
         DictationSession::Recording { handle, .. } => {
-            // Stop capturing and discard the audio; dropping `handle` un-mutes
-            // the output device after the microphone is released.
+            // Останавливаем захват и отбрасываем аудио; drop `handle` включает звук обратно
+            // на устройстве вывода после того, как микрофон освобождён.
             release_recording(&app);
             drop(handle);
             None

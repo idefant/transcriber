@@ -25,20 +25,22 @@ where
     match serde_json::from_str(&content) {
         Ok(value) => Ok(value),
         Err(_) => {
-            // Back up the corrupt/incompatible file rather than failing hard.
-            // The caller gets T::default() so the domain stays functional.
+            // Делаем резервную копию повреждённого/несовместимого файла вместо
+            // жёсткого сбоя. Вызывающий код получает T::default(), чтобы домен
+            // оставался работоспособным.
             backup_corrupt_file(app, file_name);
             Ok(T::default())
         }
     }
 }
 
-/// Like `load_json_or_default`, but distinguishes between an absent file
-/// (returns `T::default()`, e.g. fresh install) and a present-but-corrupt file
-/// (backs it up and returns an `Err`).
+/// Аналогично `load_json_or_default`, но различает отсутствующий файл
+/// (возвращает `T::default()`, например при свежей установке) и присутствующий,
+/// но повреждённый файл (делает резервную копию и возвращает `Err`).
 ///
-/// Use this for domains where silent fallback to an empty default would cause
-/// cascading failures or unacceptable data loss (providers, history).
+/// Используйте это для доменов, где молчаливый откат к пустому значению по
+/// умолчанию вызвал бы каскадные сбои или недопустимую потерю данных
+/// (провайдеры, история).
 pub fn load_json_strict<T>(app: &tauri::AppHandle, file_name: &str) -> AppResult<T>
 where
     T: Default + DeserializeOwned,
@@ -82,7 +84,8 @@ where
     let path = app_data_file_path(app, file_name)?;
     let content = serde_json::to_string_pretty(value)?;
 
-    // Write to a temp file then rename for atomicity — avoids partial writes on crash.
+    // Записываем во временный файл, затем переименовываем для атомарности —
+    // это исключает частичную запись при сбое.
     let tmp_path = path.with_extension("tmp");
     fs::write(&tmp_path, content)?;
     fs::rename(&tmp_path, &path)?;

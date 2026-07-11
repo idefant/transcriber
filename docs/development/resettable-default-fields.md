@@ -1,54 +1,54 @@
-# Resettable Default-Backed Fields
+# Сбрасываемые поля со значением по умолчанию
 
-Some settings fields store an optional user override but still need to show and use a built-in default when the override is absent. Examples in this project are `stt.systemPrompt`, `postProcess.systemPrompt`, and `postProcess.userPromptTemplate`.
+Некоторые поля настроек хранят опциональное пользовательское переопределение, но всё равно должны показывать и использовать встроенное значение по умолчанию, когда переопределение отсутствует. Примеры в этом проекте — `stt.systemPrompt`, `postProcess.systemPrompt` и `postProcess.userPromptTemplate`.
 
-## Canonical Stored State
+## Каноничное хранимое состояние
 
-Store these fields as `string | null` on the frontend and `Option<String>` on the Rust side.
+Храните эти поля как `string | null` на фронтенде и `Option<String>` на стороне Rust.
 
-- `null` / `None` means "the user has not set an override; use the default value".
-- Any string value, including `''`, means "the user explicitly set this value; use it as-is".
+- `null` / `None` означает «пользователь не задал переопределение; используйте значение по умолчанию».
+- Любое строковое значение, включая `''`, означает «пользователь явно задал это значение; используйте его как есть».
 
-Do not add parallel `touched`, `isDefault`, or similar flags for these fields. Whether the field has a user override is derived directly from `value !== null`.
+Не добавляйте параллельные флаги `touched`, `isDefault` или подобные для этих полей. Наличие у поля пользовательского переопределения выводится напрямую из `value !== null`.
 
-## UI Contract
+## Контракт UI
 
-When the stored value is `null`:
+Когда хранимое значение — `null`:
 
-- the settings UI displays the default value;
-- the model request uses the default value;
-- the reset button is disabled.
+- UI настроек показывает значение по умолчанию;
+- запрос к модели использует значение по умолчанию;
+- кнопка сброса отключена.
 
-When the stored value is a string:
+Когда хранимое значение — строка:
 
-- the settings UI displays that exact string;
-- the model request uses that exact string;
-- the reset button is enabled.
+- UI настроек показывает именно эту строку;
+- запрос к модели использует именно эту строку;
+- кнопка сброса включена.
 
-Reset writes `null` back to storage. It does not write the default text into storage.
+Сброс записывает `null` обратно в хранилище. Он не записывает текст по умолчанию в хранилище.
 
-## Toggle Contract
+## Контракт переключателя
 
-Feature toggles such as `useCustomPrompt` / `useCustomPrompts` control only whether the override field is active for model execution. They must not mutate the stored text field when toggled on or off.
+Переключатели функций, такие как `useCustomPrompt` / `useCustomPrompts`, управляют только тем, активно ли поле переопределения для выполнения модели. Они не должны изменять хранимое текстовое поле при включении или выключении.
 
-This means:
+Это означает:
 
-- turning the toggle on does not write the default text into storage;
-- turning the toggle off does not clear the stored string;
-- if the stored value is `null`, the UI may still display the default while the toggle is on because that is the effective fallback value, not a persisted override.
+- включение переключателя не записывает текст по умолчанию в хранилище;
+- выключение переключателя не очищает хранимую строку;
+- если хранимое значение — `null`, UI всё равно может показывать значение по умолчанию, пока переключатель включён, потому что это действующее запасное значение, а не сохранённое переопределение.
 
-## Serialization Rule
+## Правило сериализации
 
-Persist `None` as JSON `null` for these fields. Avoid omitting the property on save, because the explicit `null` shape makes the default-vs-override contract easier to inspect and reason about in `processing.json`.
+Сохраняйте `None` как JSON `null` для этих полей. Избегайте пропуска свойства при сохранении, потому что явная форма `null` упрощает проверку и понимание контракта «по умолчанию против переопределения» в `processing.json`.
 
-For partial update inputs on the Rust side, plain `Option<Option<T>>` is not enough to model this contract. With Serde, a missing field and a present `null` both collapse too easily into the same state. Use an explicit tri-state input wrapper that distinguishes:
+Для входных данных частичного обновления на стороне Rust простого `Option<Option<T>>` недостаточно, чтобы смоделировать этот контракт. В Serde отсутствующее поле и присутствующее `null` слишком легко схлопываются в одно и то же состояние. Используйте явную обёртку с тремя состояниями входных данных, которая различает:
 
-- field missing;
-- field present with `null`;
-- field present with a concrete value.
+- поле отсутствует;
+- поле присутствует со значением `null`;
+- поле присутствует с конкретным значением.
 
-Without that wrapper, reset-to-default requests can silently become no-ops because the backend cannot tell `null` apart from "the client did not send this field".
+Без такой обёртки запросы на сброс к значению по умолчанию могут молча превращаться в no-op, потому что бэкенд не может отличить `null` от «клиент не отправил это поле».
 
-## Migration Rule
+## Правило миграции
 
-If an older config version contains extra helper flags for such a field, remove them from the schema and derive the state from the nullable value during normal load/save flow. A dedicated migration is only needed if the old representation cannot be interpreted as `string | null` without ambiguity.
+Если более старая версия конфигурации содержит дополнительные вспомогательные флаги для такого поля, удалите их из схемы и выводите состояние из nullable-значения в обычном потоке загрузки/сохранения. Отдельная миграция нужна только если старое представление нельзя однозначно интерпретировать как `string | null`.

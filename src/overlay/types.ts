@@ -22,6 +22,6 @@ export const cancelLabel = 'Cancel';
 export const openRecordLabel = 'Details';
 export const closeLabel = 'Close';
 
-/** States that render the error/warning notification (colored card + actions). */
+/** Состояния, при которых отображается уведомление об ошибке/предупреждении (цветная карточка + действия). */
 export const isNoticeState = (state: OverlayState): boolean =>
   state === 'error' || state === 'warning';

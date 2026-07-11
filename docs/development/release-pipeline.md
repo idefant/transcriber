@@ -1,117 +1,112 @@
-# Release Pipeline
+# Пайплайн релиза
 
-This document describes how Transcriber releases are built, published, and delivered to users via automatic updates.
+Этот документ описывает, как релизы Transcriber собираются, публикуются и доставляются пользователям через автоматические обновления.
 
-## Overview
+## Обзор
 
-Releases are fully automated through GitHub Actions. The trigger is pushing a git tag that matches `v*` (e.g. `v1.2.3` or `v1.2.3-beta.1`). No manual intervention is needed except tagging.
+Релизы полностью автоматизированы через GitHub Actions. Триггером служит push git-тега, соответствующего `v*` (например, `v1.2.3` или `v1.2.3-beta.1`). Кроме простановки тега, никакого ручного вмешательства не требуется.
 
-The update delivery uses two channels — **stable** and **unstable** — published as JSON manifest files on GitHub Pages. The Tauri updater fetches the appropriate manifest at runtime.
+Доставка обновлений использует два канала — **stable** и **unstable** — публикуемых в виде JSON-манифестов на GitHub Pages. Tauri updater во время выполнения запрашивает соответствующий манифест.
 
-## Versioning
+## Версионирование
 
-The single source of truth for the version is the git tag. CI runs `node scripts/set-version.mjs <version>` before building, which writes the same version into three files:
+Единственный источник истины для версии — это git-тег. Перед сборкой CI запускает `node scripts/set-version.mjs <version>`, который записывает одну и ту же версию в три файла:
 
 - `package.json` → `version`
 - `src-tauri/tauri.conf.json` → `version`
 - `src-tauri/Cargo.toml` → `[package] version`
 
-These files should not be edited manually for releases.
+Эти файлы не следует редактировать вручную для релизов.
 
-### Stable vs pre-release
+### Stable и pre-release
 
-A tag is a pre-release if its version contains a `-` (e.g. `v1.2.0-beta.1`, `v2.0.0-alpha.3`). CI sets `prerelease: true` for such tags. GitHub only marks a release as «Latest» for non-pre-release tags.
+Тег считается pre-release, если его версия содержит `-` (например, `v1.2.0-beta.1`, `v2.0.0-alpha.3`). Для таких тегов CI устанавливает `prerelease: true`. GitHub помечает релиз как «Latest» только для тегов, не являющихся pre-release.
 
-## Release Workflow (`.github/workflows/release.yml`)
+## Workflow релиза (`.github/workflows/release.yml`)
 
-Steps:
+Шаги:
 
-1. `actions/checkout` with `fetch-depth: 0` (needed to inspect full history for CHANGELOG).
-2. Node 24 + Rust stable + `swatinem/rust-cache` for Cargo artifacts.
-3. Version is extracted from the tag (`v1.2.3` → `1.2.3`); pre-release flag derived from `-` in version.
-4. `node scripts/set-version.mjs` syncs the version into all three manifests.
-5. `node scripts/extract-changelog.mjs` extracts the release-notes section from `CHANGELOG.md`.
-6. `npm ci` installs frontend dependencies.
-7. `tauri-apps/tauri-action@v0` builds the NSIS installer, signs the update artifact, creates the GitHub Release, and attaches `latest.json` (the Tauri updater manifest).
-8. `gh release download` fetches the built `latest.json`.
-9. The manifest is copied to `unstable.json` unconditionally, and to `stable.json` only for non-pre-release tags, then committed to the `gh-pages` branch.
-10. The workflow uploads those JSON files as a GitHub Pages artifact and deploys them with `actions/deploy-pages`.
+1. `actions/checkout` с `fetch-depth: 0` (нужно для просмотра полной истории для CHANGELOG).
+2. Node 24 + Rust stable + `swatinem/rust-cache` для артефактов Cargo.
+3. Версия извлекается из тега (`v1.2.3` → `1.2.3`); флаг pre-release определяется по наличию `-` в версии.
+4. `node scripts/set-version.mjs` синхронизирует версию во всех трёх манифестах.
+5. `node scripts/extract-changelog.mjs` извлекает раздел с заметками о релизе из `CHANGELOG.md`.
+6. `npm ci` устанавливает зависимости фронтенда.
+7. `tauri-apps/tauri-action@v0` собирает установщик NSIS, подписывает артефакт обновления, создаёт GitHub Release и прикрепляет `latest.json` (манифест Tauri updater).
+8. `gh release download` скачивает собранный `latest.json`.
+9. Манифест безусловно копируется в `unstable.json`, а в `stable.json` — только для тегов, не являющихся pre-release, после чего коммитится в ветку `gh-pages`.
+10. Workflow загружает эти JSON-файлы как артефакт GitHub Pages и разворачивает их с помощью `actions/deploy-pages`.
 
-Required secrets: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+Необходимые секреты: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 
-## Update Channels
+## Каналы обновлений
 
-Two JSON files on GitHub Pages serve as update manifests:
+Два JSON-файла на GitHub Pages служат манифестами обновлений:
 
-| File            | Updated on                | Used when                                          |
-| --------------- | ------------------------- | -------------------------------------------------- |
-| `stable.json`   | Non-pre-release tags only | Default; `isOfferUnstableVersionsEnabled` is false |
-| `unstable.json` | Every tag                 | `isOfferUnstableVersionsEnabled` is true           |
+| Файл            | Обновляется при                             | Используется, когда                                        |
+| --------------- | ------------------------------------------- | ---------------------------------------------------------- |
+| `stable.json`   | Только для тегов, не являющихся pre-release | По умолчанию; `isOfferUnstableVersionsEnabled` равно false |
+| `unstable.json` | Для каждого тега                            | `isOfferUnstableVersionsEnabled` равно true                |
 
-Both files live on the `gh-pages` branch of the repository and are also deployed to GitHub Pages by the release workflow. GitHub Pages must be enabled for the repository with source set to `GitHub Actions` rather than `Deploy from a branch`.
+Оба файла находятся в ветке `gh-pages` репозитория и также разворачиваются на GitHub Pages workflow'ом релиза. Для репозитория должен быть включён GitHub Pages с источником `GitHub Actions`, а не `Deploy from a branch`.
 
-## Signing Keys
+## Ключи подписи
 
-The Tauri updater requires a minisign key pair to verify update authenticity.
+Tauri updater требует пару ключей minisign для проверки подлинности обновления.
 
-Generate the key pair once:
+Сгенерируйте пару ключей один раз:
 
 ```bash
 npm run tauri signer generate -- -w transcriber-updater.key
 ```
 
-- `transcriber-updater.key` — private key. **Never commit this file.** Store it securely.
-- `transcriber-updater.key.pub` — public key. Committed to the repository and copied into `tauri.conf.json` under `plugins.updater.pubkey`.
+- `transcriber-updater.key` — приватный ключ. **Никогда не коммитьте этот файл.** Храните его в безопасном месте.
+- `transcriber-updater.key.pub` — публичный ключ. Коммитится в репозиторий и копируется в `tauri.conf.json` под `plugins.updater.pubkey`.
 
-Add the private key and its password to GitHub repository secrets:
+Добавьте приватный ключ и его пароль в секреты репозитория GitHub:
 
-- `TAURI_SIGNING_PRIVATE_KEY` — contents of `transcriber-updater.key`.
-- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — the password chosen during key generation.
+- `TAURI_SIGNING_PRIVATE_KEY` — содержимое `transcriber-updater.key`.
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — пароль, выбранный при генерации ключа.
 
-**Losing the private key means existing installations can never be updated automatically.** Back it up in a secure location.
+**Потеря приватного ключа означает, что существующие установки никогда не смогут обновиться автоматически.** Сохраните резервную копию в надёжном месте.
 
-## Update Delivery in the App
+## Доставка обновлений в приложении
 
-The Rust side lives in `src-tauri/src/updater.rs`. Two Tauri commands are exposed:
+Rust-часть находится в `src-tauri/src/updater.rs`. Предоставляются две команды Tauri:
 
-- `check_for_update(offer_unstable: bool)` — queries the appropriate endpoint, stores the discovered `Update` in `PendingUpdate` managed state, returns `UpdateInfo { version, notes }` or `null`.
-- `download_and_install_update()` — takes the stored `Update`, downloads it, emits `updater://progress` events with `{ downloaded, total }` payload, then calls `app.restart()`.
+- `check_for_update(offer_unstable: bool)` — запрашивает соответствующий эндпоинт, сохраняет найденный `Update` в управляемом состоянии `PendingUpdate`, возвращает `UpdateInfo { version, notes }` или `null`.
+- `download_and_install_update()` — берёт сохранённый `Update`, скачивает его, генерирует события `updater://progress` с payload `{ downloaded, total }`, затем вызывает `app.restart()`.
 
-The frontend bridges these via `src/shared/updaterApi.ts`. Shared frontend state for update discovery, cached pending version, and install progress lives in `src/stores/updaterStore.ts`, while the settings modal visibility/active section live in `src/stores/uiStore.ts`.
+Фронтенд связывается с ними через `src/shared/updaterApi.ts`. Общее состояние фронтенда для обнаружения обновлений, кешированной ожидающей версии и прогресса установки находится в `src/stores/updaterStore.ts`, а видимость/активная секция модального окна настроек — в `src/stores/uiStore.ts`.
 
-On startup, `UpdateChecker` in `App.tsx` runs a silent check once after settings load only when `isUpdateNotificationsEnabled` is true. If an update is found, a bottom-right notification appears with a `Download` action, Ant Design's built-in 10-second progress bar (`showProgress: true`), and `pauseOnHover: true`. Clicking `Download` does not start the updater; it opens the existing `About` settings tab.
+При запуске `UpdateChecker` в `App.tsx` выполняет одну тихую проверку после загрузки настроек, но только если `isUpdateNotificationsEnabled` равно true. Если обновление найдено, в правом нижнем углу появляется уведомление с действием `Download`, встроенным в Ant Design 10-секундным индикатором прогресса (`showProgress: true`) и `pauseOnHover: true`. Клик по `Download` не запускает updater — он открывает существующую вкладку настроек `About`.
 
-The full update UI (manual check button, cached pending version, install button, download progress, update-notification switch, unstable-channel switch) lives in `src/app/AppSettingsModal/AboutSettingsTab`. Entering the `About` tab always triggers a fresh update check, but the cached result from `updaterStore` is shown immediately so the install action is already visible if startup detection found a version earlier.
+Полный UI обновления (кнопка ручной проверки, кешированная ожидающая версия, кнопка установки, прогресс загрузки, переключатель уведомлений об обновлениях, переключатель нестабильного канала) находится в `src/app/AppSettingsModal/AboutSettingsTab`. Переход на вкладку `About` всегда запускает свежую проверку обновлений, но кешированный результат из `updaterStore` показывается сразу, поэтому действие установки уже видно, если запуск обнаружил версию ранее.
 
-When `isOfferUnstableVersionsEnabled` is true, the app still checks `unstable.json` exactly as before. That manifest always points to the newest published release overall, so users on the unstable channel can be offered a stable release when it is the latest one available.
+Когда `isOfferUnstableVersionsEnabled` равно true, приложение по-прежнему проверяет `unstable.json` точно так же, как раньше. Этот манифест всегда указывает на самый новый опубликованный релиз в целом, поэтому пользователям на нестабильном канале может быть предложен стабильный релиз, если именно он является последним доступным.
 
-## CHANGELOG Format
+## Формат CHANGELOG
 
-`CHANGELOG.md` uses [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. Each release section starts with `## [X.Y.Z] - YYYY-MM-DD`. The `scripts/extract-changelog.mjs` script extracts text between the matching `## [X.Y.Z]` heading and the next `## ` heading; the result is used as the GitHub Release body.
+`CHANGELOG.md` использует формат [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Каждый раздел релиза начинается с `## [X.Y.Z] - YYYY-MM-DD`. Скрипт `scripts/extract-changelog.mjs` извлекает текст между соответствующим заголовком `## [X.Y.Z]` и следующим заголовком `## `; результат используется как тело GitHub Release.
 
-## Canary Branding for Pre-releases
+## Брендинг Canary для pre-release
 
-Pre-release builds (tags containing `-`, e.g. `v0.1.0-alpha.1`) are built with a separate canary
-variant that differs visually from stable builds while remaining the same application (same
-`productName` and `identifier` so the installer path and user data are shared).
+Pre-release сборки (теги, содержащие `-`, например `v0.1.0-alpha.1`) собираются в отдельном варианте canary, который визуально отличается от stable-сборок, оставаясь при этом тем же приложением (те же `productName` и `identifier`, поэтому путь установщика и данные пользователя общие).
 
-Canary-specific changes applied during build:
+Изменения, специфичные для canary, применяемые во время сборки:
 
-| Aspect           | Value                              |
-| ---------------- | ---------------------------------- |
-| Bundle icons     | `src-tauri/icons-canary/`          |
-| Window title     | `Transcriber Canary`               |
-| Frontend channel | `VITE_APP_CHANNEL=canary`          |
-| About tab badge  | «Canary» tag shown next to version |
+| Аспект                 | Значение                     |
+| ---------------------- | ---------------------------- |
+| Иконки бандла          | `src-tauri/icons-canary/`    |
+| Заголовок окна         | `Transcriber Canary`         |
+| Канал фронтенда        | `VITE_APP_CHANNEL=canary`    |
+| Бейдж на вкладке About | тег «Canary» рядом с версией |
 
-### Config override
+### Переопределение конфигурации
 
-`src-tauri/tauri.canary.conf.json` is a partial Tauri config that overrides only the window title
-and `bundle.icon`. It is applied via `--config src-tauri/tauri.canary.conf.json`.
+`src-tauri/tauri.canary.conf.json` — это частичный конфиг Tauri, который переопределяет только заголовок окна и `bundle.icon`. Он применяется через `--config src-tauri/tauri.canary.conf.json`.
 
-Important: because the override also redefines `app.windows`, shared structural window fields must
-be repeated there explicitly instead of assuming they will safely inherit from `tauri.conf.json`.
-Keep these in sync with the base config when changing shell behavior:
+Важно: поскольку переопределение также заново определяет `app.windows`, общие структурные поля окна нужно явно повторить там, а не полагаться на то, что они безопасно унаследуются из `tauri.conf.json`. Держите их синхронизированными с базовым конфигом при изменении поведения оболочки:
 
 - `decorations`
 - `shadow`
@@ -119,23 +114,23 @@ Keep these in sync with the base config when changing shell behavior:
 - `minWidth` / `minHeight`
 - `visible`
 
-### CI automation
+### Автоматизация CI
 
-In `.github/workflows/release.yml`, the `Build and publish Tauri release` step sets:
+В `.github/workflows/release.yml` шаг `Build and publish Tauri release` устанавливает:
 
-- `env.VITE_APP_CHANNEL` — `canary` for pre-release tags, `stable` otherwise.
-- `with.args` — `--config src-tauri/tauri.canary.conf.json` for pre-release tags, empty otherwise.
+- `env.VITE_APP_CHANNEL` — `canary` для pre-release тегов, иначе `stable`.
+- `with.args` — `--config src-tauri/tauri.canary.conf.json` для pre-release тегов, иначе пусто.
 
-Pre-releases continue to flow into the `unstable` update channel as before.
+Pre-release релизы, как и прежде, продолжают попадать в канал обновлений `unstable`.
 
-### Local canary build
+### Локальная сборка canary
 
 ```bash
 npm run build:tauri:canary
 ```
 
-This uses `cross-env` to set `VITE_APP_CHANNEL=canary` and passes the canary config override to `tauri build`.
+Это использует `cross-env` для установки `VITE_APP_CHANNEL=canary` и передаёт переопределение конфига canary в `tauri build`.
 
-## SmartScreen Note
+## Примечание про SmartScreen
 
-The minisign signature verifies update integrity within the Tauri updater. It is **not** an Authenticode code-signing certificate. Without an Authenticode certificate, Windows SmartScreen may show a warning when users first install (but not on silent updates). Code-signing is a separate, paid step not covered by this pipeline.
+Подпись minisign проверяет целостность обновления внутри Tauri updater. Это **не** сертификат подписи кода Authenticode. Без сертификата Authenticode Windows SmartScreen может показать предупреждение при первой установке пользователями (но не при тихих обновлениях). Подпись кода — это отдельный платный шаг, не входящий в этот пайплайн.

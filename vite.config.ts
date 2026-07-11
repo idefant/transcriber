@@ -9,7 +9,7 @@ import checker from 'vite-plugin-checker';
 const dirname =
   typeof __dirname === 'undefined' ? path.dirname(fileURLToPath(import.meta.url)) : __dirname;
 
-// More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
+// Подробнее: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default defineConfig({
   build: {
     rollupOptions: {
@@ -63,8 +63,8 @@ export default defineConfig({
       {
         extends: true,
         plugins: [
-          // The plugin will run tests for the stories defined in your Storybook config
-          // See options at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon#storybooktest
+          // Этот плагин запускает тесты для историй (stories), определённых в конфигурации Storybook
+          // Опции см. здесь: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon#storybooktest
           storybookTest({
             configDir: path.join(dirname, '.storybook'),
           }),

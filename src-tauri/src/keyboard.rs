@@ -9,9 +9,9 @@ pub async fn paste_text(app: &tauri::AppHandle, text: &str) -> AppResult<()> {
     write_clipboard(&[text_entry(text)], ClipboardHistoryMode::Hidden)
         .map_err(|error| error.into_app_error(app))?;
     let send_result = send_ctrl_v(app);
-    // Give the target application time to process the paste before the
-    // clipboard is restored. SendInput is asynchronous from the recipient's
-    // perspective, so a brief pause is required.
+    // Даём целевому приложению время обработать вставку, прежде чем буфер
+    // обмена будет восстановлен. SendInput асинхронен с точки зрения
+    // получателя, поэтому требуется небольшая пауза.
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     restore_clipboard(previous);
     send_result
@@ -39,8 +39,8 @@ pub fn copy_text(app: &tauri::AppHandle, _text: &str) -> AppResult<()> {
     )))
 }
 
-/// Windows clipboard formats that tell the clipboard monitor (Win+V history,
-/// cloud sync) to ignore the current entry.
+/// Форматы буфера обмена Windows, которые указывают монитору буфера обмена
+/// (история Win+V, облачная синхронизация) игнорировать текущую запись.
 #[cfg(target_os = "windows")]
 const EXCLUDE_FROM_MONITOR_FORMAT: &str = "ExcludeClipboardContentFromMonitorProcessing";
 
@@ -53,9 +53,9 @@ enum ClipboardHistoryMode {
     Visible,
 }
 
-/// One clipboard format and its raw bytes. `data` is `None` when the format was
-/// present with a null handle, which is how marker formats carry meaning through
-/// their presence alone.
+/// Один формат буфера обмена и его сырые байты. `data` равно `None`, когда
+/// формат присутствовал с нулевым дескриптором — так формат-маркер несёт
+/// смысл самим фактом своего присутствия.
 #[cfg(target_os = "windows")]
 struct ClipboardEntry {
     format: u32,
@@ -94,11 +94,12 @@ fn text_entry(text: &str) -> ClipboardEntry {
     }
 }
 
-/// Opens the clipboard, retrying because another application can hold it open
-/// while it processes a paste.
+/// Открывает буфер обмена, повторяя попытки, потому что другое приложение
+/// может удерживать его открытым во время обработки вставки.
 ///
-/// `Clipboard::new_attempts` only yields the scheduler slice between tries, which
-/// is too short to outlast a busy paste target, so the waiting is done here.
+/// `Clipboard::new_attempts` лишь уступает квант планировщика между
+/// попытками, а этого слишком мало, чтобы пережить занятую цель вставки,
+/// поэтому ожидание реализовано здесь.
 #[cfg(target_os = "windows")]
 fn open_clipboard() -> Option<clipboard_win::Clipboard> {
     for attempt in 0..5u32 {
@@ -114,39 +115,42 @@ fn open_clipboard() -> Option<clipboard_win::Clipboard> {
     None
 }
 
-/// Copies every restorable clipboard format into memory so the clipboard can be
-/// put back exactly as it was. Returns `None` when the clipboard could not be
-/// opened at all; the caller must then leave the clipboard untouched rather than
-/// destroy contents it failed to read.
+/// Копирует в память все восстановимые форматы буфера обмена, чтобы затем
+/// вернуть буфер обмена ровно в исходное состояние. Возвращает `None`, если
+/// буфер обмена вообще не удалось открыть; в этом случае вызывающий код
+/// должен оставить буфер обмена нетронутым, а не уничтожать содержимое,
+/// которое не удалось прочитать.
 #[cfg(target_os = "windows")]
 fn read_clipboard_snapshot() -> Option<Vec<ClipboardEntry>> {
     use clipboard_win::{formats, raw};
 
     let _clipboard = open_clipboard()?;
 
-    // Enumerate every format first and read the data afterwards. `GetClipboardData`
-    // can trigger delayed rendering in the owning application, which writes to the
-    // clipboard and would invalidate an in-flight enumeration.
+    // Сначала перечисляем все форматы, а данные читаем уже после. `GetClipboardData`
+    // может вызвать отложенную отрисовку (delayed rendering) в приложении-владельце,
+    // которое запишет данные в буфер обмена и тем самым сделает недействительным
+    // перечисление, выполняемое в данный момент.
     let available: Vec<u32> = raw::EnumFormats::new().collect();
 
-    // The markers are re-applied on restore, so carrying them through the snapshot
-    // would only set the same formats twice.
+    // Маркеры заново проставляются при восстановлении, поэтому переносить их
+    // через снимок означало бы лишь дважды установить одни и те же форматы.
     let markers = [
         registered_format(EXCLUDE_FROM_MONITOR_FORMAT),
         registered_format(CAN_INCLUDE_IN_HISTORY_FORMAT),
     ];
 
-    // An image is always enumerated as both CF_DIB and CF_DIBV5, whichever one the
-    // source placed, and reading either costs a full-size conversion in Windows —
-    // around 50 ms apiece for a 4K screenshot. Keep CF_DIB and let Windows
-    // synthesize the rest of the image formats back from it.
+    // Изображение всегда перечисляется одновременно как CF_DIB и CF_DIBV5 —
+    // какой бы из них ни поместил источник, — а чтение любого из них обходится
+    // Windows в полноразмерное преобразование: около 50 мс на 4K-скриншот.
+    // Оставляем CF_DIB и даём Windows синтезировать остальные форматы
+    // изображения обратно из него.
     //
-    // CF_DIB is the safe half of the pair. Its BITMAPINFOHEADER is always followed
-    // by the three BI_BITFIELDS masks, so the pixel offset is unambiguous. A
-    // BITMAPV5HEADER already carries those masks inside the header, yet the buffer
-    // Windows synthesizes still appends them; writing those bytes back as a native
-    // CF_DIBV5 makes readers treat the 12 mask bytes as pixel data and shifts the
-    // whole image three pixels sideways.
+    // CF_DIB — безопасная половина этой пары. За его BITMAPINFOHEADER всегда
+    // следуют три маски BI_BITFIELDS, поэтому смещение пикселей однозначно.
+    // BITMAPV5HEADER уже несёт эти маски внутри заголовка, но буфер, который
+    // синтезирует Windows, всё равно добавляет их же; если записать эти байты
+    // обратно как нативный CF_DIBV5, читатели примут 12 байт масок за
+    // пиксельные данные и сдвинут всё изображение на три пикселя вбок.
     let has_dib = available.contains(&formats::CF_DIB);
 
     let entries = available
@@ -165,10 +169,10 @@ fn read_clipboard_snapshot() -> Option<Vec<ClipboardEntry>> {
     Some(entries)
 }
 
-/// Restores a snapshot taken by [`read_clipboard_snapshot`]. An empty snapshot
-/// restores an empty clipboard. The restored entry is marked as hidden so it does
-/// not create a duplicate Win+V history entry next to the one the original copy
-/// already produced.
+/// Восстанавливает снимок, сделанный [`read_clipboard_snapshot`]. Пустой снимок
+/// восстанавливает пустой буфер обмена. Восстановленная запись помечается как
+/// скрытая, чтобы не создавать дублирующую запись в истории Win+V рядом с той,
+/// что уже была создана исходным копированием.
 #[cfg(target_os = "windows")]
 fn restore_clipboard(previous: Option<Vec<ClipboardEntry>>) {
     let Some(entries) = previous else {
@@ -188,10 +192,11 @@ fn restore_clipboard(previous: Option<Vec<ClipboardEntry>>) {
     }
 }
 
-/// Reads one format as a raw memory block. Returns `None` for formats with a null
-/// handle and for handles the memory manager does not recognise as an `HGLOBAL`.
+/// Читает один формат как сырой блок памяти. Возвращает `None` для форматов
+/// с нулевым дескриптором и для дескрипторов, которые менеджер памяти не
+/// распознаёт как `HGLOBAL`.
 ///
-/// The clipboard must be open.
+/// Буфер обмена должен быть открыт.
 #[cfg(target_os = "windows")]
 fn read_clipboard_format(format: u32) -> Option<Vec<u8>> {
     let mut data = Vec::new();
@@ -202,13 +207,13 @@ fn read_clipboard_format(format: u32) -> Option<Vec<u8>> {
     }
 }
 
-/// Formats that cannot be copied byte for byte: GDI handles, metafiles,
-/// owner-drawn display formats, and the private ranges whose memory the system
-/// does not manage.
+/// Форматы, которые нельзя скопировать побайтово: дескрипторы GDI, метафайлы,
+/// форматы отображения, отрисовываемые владельцем (owner-drawn), и приватные
+/// диапазоны, память которых система не отслеживает.
 ///
-/// Images still survive a snapshot. Windows enumerates `CF_DIB`/`CF_DIBV5`
-/// alongside `CF_BITMAP` and synthesizes the bitmap and palette handles back from
-/// the DIB block that is restored here.
+/// Изображения при этом переживают снимок. Windows перечисляет `CF_DIB`/`CF_DIBV5`
+/// вместе с `CF_BITMAP` и синтезирует дескрипторы bitmap и палитры обратно из
+/// блока DIB, который восстанавливается здесь.
 #[cfg(target_os = "windows")]
 fn is_restorable_format(format: u32) -> bool {
     use clipboard_win::formats::{
@@ -261,22 +266,22 @@ fn write_clipboard(
     Ok(())
 }
 
-/// Opts the current clipboard entry out of the Windows clipboard monitor.
+/// Исключает текущую запись буфера обмена из монитора буфера обмена Windows.
 ///
-/// The clipboard must be open.
+/// Буфер обмена должен быть открыт.
 #[cfg(target_os = "windows")]
 fn exclude_from_clipboard_history() {
     use clipboard_win::raw;
 
-    // "ExcludeClipboardContentFromMonitorProcessing": presence of the format is
-    // enough, no data payload is required.
+    // "ExcludeClipboardContentFromMonitorProcessing": достаточно самого
+    // присутствия формата, полезная нагрузка с данными не требуется.
     let exclude_format = registered_format(EXCLUDE_FROM_MONITOR_FORMAT);
 
     if exclude_format != 0 {
         set_empty_format(exclude_format);
     }
 
-    // "CanIncludeInClipboardHistory": set DWORD 0 to opt out.
+    // "CanIncludeInClipboardHistory": установить DWORD 0, чтобы отключить.
     let no_history_format = registered_format(CAN_INCLUDE_IN_HISTORY_FORMAT);
 
     if no_history_format != 0 {
@@ -284,14 +289,16 @@ fn exclude_from_clipboard_history() {
     }
 }
 
-/// Materializes CF_BITMAP from the CF_DIB that was just restored.
+/// Материализует CF_BITMAP из только что восстановленного CF_DIB.
 ///
-/// The original clipboard usually carried a real `HBITMAP`, which cannot be copied
-/// into a snapshot, so CF_BITMAP now has to be synthesized. Windows derives it from
-/// whichever DIB format is present, and its CF_DIBV5 path treats the three
-/// BI_BITFIELDS masks as pixel data, which shifts the image three pixels sideways.
-/// Reading CF_BITMAP here forces the correct CF_DIB-derived handle and caches it,
-/// before a paste target can materialize CF_DIBV5 and poison the conversion.
+/// Исходный буфер обмена обычно нёс настоящий `HBITMAP`, который нельзя
+/// скопировать в снимок, поэтому CF_BITMAP теперь приходится синтезировать.
+/// Windows выводит его из того формата DIB, что присутствует, а её путь через
+/// CF_DIBV5 трактует три маски BI_BITFIELDS как пиксельные данные, что
+/// сдвигает изображение на три пикселя вбок. Чтение CF_BITMAP здесь
+/// принудительно получает и кэширует правильный дескриптор, выведенный из
+/// CF_DIB, прежде чем цель вставки успеет материализовать CF_DIBV5 и испортить
+/// преобразование.
 #[cfg(target_os = "windows")]
 fn force_bitmap_synthesis() {
     use clipboard_win::{formats, raw};
@@ -303,19 +310,21 @@ fn force_bitmap_synthesis() {
     let _ = raw::get_clipboard_data(formats::CF_BITMAP);
 }
 
-/// Returns the id of a registered clipboard format, or `0` when registration fails.
+/// Возвращает id зарегистрированного формата буфера обмена или `0`, если
+/// регистрация не удалась.
 #[cfg(target_os = "windows")]
 fn registered_format(name: &str) -> u32 {
     clipboard_win::raw::register_format(name).map_or(0, |format| format.get())
 }
 
-/// Places a format on the clipboard with a null handle, marking it as present with
-/// no payload.
+/// Помещает в буфер обмена формат с нулевым дескриптором, отмечая его как
+/// присутствующий без полезной нагрузки.
 ///
-/// This stays on the raw Win32 call because `clipboard_win::raw::set_without_clear`
-/// silently succeeds without writing anything when the data slice is empty.
+/// Здесь используется именно необработанный вызов Win32, потому что
+/// `clipboard_win::raw::set_without_clear` при пустом срезе данных молча
+/// завершается успешно, ничего не записав.
 ///
-/// The clipboard must be open.
+/// Буфер обмена должен быть открыт.
 #[cfg(target_os = "windows")]
 fn set_empty_format(format: u32) {
     use windows_sys::Win32::System::DataExchange::SetClipboardData;

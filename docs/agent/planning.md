@@ -1,4 +1,4 @@
-# Planning
+# Планирование
 
-- Always write plans in Russian, including the full contents of `<proposed_plan>` blocks.
-- Keep technical identifiers, file paths, commands, API names, and code symbols in their original form.
+- Всегда пишите планы на русском языке, включая полное содержимое блоков `<proposed_plan>`.
+- Сохраняйте технические идентификаторы, пути к файлам, команды, названия API и символы кода в исходном виде.

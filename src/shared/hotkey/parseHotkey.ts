@@ -1,6 +1,6 @@
 import type { ModifierSide, ParsedHotkey } from './types';
 
-// Maps hotkey string tokens → canonical key names. Mirrors Rust parse_main_key aliases.
+// Отображает строковые токены хоткея в канонические имена клавиш. Повторяет алиасы из Rust parse_main_key.
 const KEY_ALIASES: Record<string, string> = {
   space: 'Space',
   enter: 'Enter',
@@ -58,14 +58,14 @@ const resolveMainKey = (token: string): string | undefined => {
 };
 
 /**
- * Parses a hotkey string such as `"Ctrl+Space"` or `"LCtrl+Z"` into a structured object.
- * Returns `undefined` if the string has no valid main key.
+ * Разбирает строку хоткея, например `"Ctrl+Space"` или `"LCtrl+Z"`, в структурированный объект.
+ * Возвращает `undefined`, если в строке нет допустимой основной клавиши.
  *
- * Modifier semantics:
- * - `"Ctrl"` / `"Alt"` / `"Shift"` / `"Win"` → side `'either'`
- * - `"LCtrl"` / `"LAlt"` / `"LShift"` / `"LWin"` → side `'left'`
- * - `"RCtrl"` / `"RAlt"` / `"RShift"` / `"RWin"` → side `'right'`
- * - absent → side `'none'`
+ * Семантика модификаторов:
+ * - `"Ctrl"` / `"Alt"` / `"Shift"` / `"Win"` → сторона `'either'`
+ * - `"LCtrl"` / `"LAlt"` / `"LShift"` / `"LWin"` → сторона `'left'`
+ * - `"RCtrl"` / `"RAlt"` / `"RShift"` / `"RWin"` → сторона `'right'`
+ * - отсутствует → сторона `'none'`
  */
 export const parseHotkey = (value: string): ParsedHotkey | undefined => {
   const parts = value

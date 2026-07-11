@@ -12,7 +12,7 @@ use crate::{
 const PROCESSING_FILE_NAME: &str = "processing.json";
 const PROMPTS_JSON: &str = include_str!("../../resources/promps.json");
 
-// ── Stored / public structs ───────────────────────────────────────────────────
+// ── Хранимые / публичные структуры ────────────────────────────────────────────
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,7 +25,7 @@ pub struct SttConfig {
     pub language: String,
     #[serde(default)]
     pub use_custom_prompt: bool,
-    /// Custom system prompt override. `None` uses the default prompt.
+    /// Переопределение системного промпта. `None` использует промпт по умолчанию.
     #[serde(default, alias = "prompt")]
     pub system_prompt: Option<String>,
 }
@@ -43,7 +43,7 @@ impl Default for SttConfig {
 }
 
 impl SttConfig {
-    /// Effective system prompt template (still contains `{{...}}` placeholders).
+    /// Действующий шаблон системного промпта (всё ещё содержит плейсхолдеры `{{...}}`).
     pub fn effective_system_prompt(&self) -> AppResult<String> {
         if self.use_custom_prompt {
             match &self.system_prompt {
@@ -67,16 +67,16 @@ pub struct PostProcessConfig {
     pub model_key: Option<String>,
     #[serde(default)]
     pub use_custom_prompts: bool,
-    /// Custom system prompt override. `None` uses the default prompt.
+    /// Переопределение системного промпта. `None` использует промпт по умолчанию.
     #[serde(default, alias = "prompt")]
     pub system_prompt: Option<String>,
-    /// Custom user prompt template override. `None` uses the default template.
+    /// Переопределение шаблона пользовательского промпта. `None` использует шаблон по умолчанию.
     #[serde(default)]
     pub user_prompt_template: Option<String>,
 }
 
 impl PostProcessConfig {
-    /// Effective system prompt template (still contains `{{...}}` placeholders).
+    /// Действующий шаблон системного промпта (всё ещё содержит плейсхолдеры `{{...}}`).
     pub fn effective_system_prompt(&self, language: &EffectiveUiLanguage) -> AppResult<String> {
         if self.use_custom_prompts {
             match &self.system_prompt {
@@ -88,7 +88,7 @@ impl PostProcessConfig {
         }
     }
 
-    /// Effective user prompt template (still contains `{{...}}` placeholders).
+    /// Действующий шаблон пользовательского промпта (всё ещё содержит плейсхолдеры `{{...}}`).
     pub fn effective_user_template(&self) -> AppResult<String> {
         if self.use_custom_prompts {
             match &self.user_prompt_template {
@@ -161,7 +161,7 @@ where
     }
 }
 
-// ── Input structs (partial updates) ──────────────────────────────────────────
+// ── Входные структуры (частичные обновления) ──────────────────────────────────
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -191,7 +191,7 @@ pub struct PostProcessConfigInput {
     user_prompt_template: NullableInput<String>,
 }
 
-// ── Tauri commands ────────────────────────────────────────────────────────────
+// ── Команды Tauri ──────────────────────────────────────────────────────────────
 
 #[tauri::command]
 pub fn get_processing_config(app: tauri::AppHandle) -> Result<ProcessingConfig, String> {
@@ -233,7 +233,7 @@ pub fn update_post_process_config(
     update_post_process_config_inner(&app, input).map_err(AppError::into_message)
 }
 
-// ── Inner functions ───────────────────────────────────────────────────────────
+// ── Внутренние функции ─────────────────────────────────────────────────────────
 
 fn update_stt_config_inner(
     app: &tauri::AppHandle,

@@ -20,7 +20,7 @@ export const useCatalogStore = create<CatalogState>((set) => ({
       const catalog = await catalogApi.getModelCatalog();
       set({ catalog });
     } catch {
-      // Catalog is static; keep empty array on error.
+      // Каталог статический; при ошибке оставляем пустой массив.
     } finally {
       set({ isLoading: false });
     }

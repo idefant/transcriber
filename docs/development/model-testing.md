@@ -1,22 +1,20 @@
-# Model Testing
+# Тестирование моделей
 
-The post-processing model test runner is a standalone Node tool. It does not
-change application settings and does not require the Tauri UI.
+Скрипт для тестирования моделей постобработки — самостоятельный инструмент на Node. Он не изменяет настройки приложения и не требует Tauri UI.
 
-## Configuration
+## Конфигурация
 
-Files live in `scripts/model-testing/`:
+Файлы находятся в `scripts/model-testing/`:
 
-- `models.json` - model list, provider URL, API key env var, enabled flag, request params, and prices per 1M tokens.
-- `cases.json` - input prompts and deterministic scoring rules.
-- `provider-rules.json` - per-provider concurrency and cooldown rules.
-- `run.mjs` - executes the matrix and writes `results.json`.
-- `report.mjs` - generates `report.html`.
+- `models.json` - список моделей, URL провайдера, переменная окружения с API-ключом, флаг enabled, параметры запроса и цены за 1M токенов.
+- `cases.json` - входные промпты и детерминированные правила оценки.
+- `provider-rules.json` - правила параллелизма и задержки для каждого провайдера.
+- `run.mjs` - выполняет матрицу тестов и записывает `results.json`.
+- `report.mjs` - генерирует `report.html`.
 
-Shared default app prompts live in `resources/promps.json`. The runner uses its
-`postProcess` section.
+Общие промпты приложения по умолчанию находятся в `resources/promps.json`. Скрипт использует его раздел `postProcess`.
 
-API keys are read from process env, `.env`, then `.env.local`:
+API-ключи считываются из переменных окружения процесса, затем из `.env`, затем из `.env.local`:
 
 ```text
 OPENAI_API_KEY=...
@@ -24,15 +22,13 @@ GROQ_API_KEY=...
 OPENROUTER_API_KEY=...
 ```
 
-`.env` and `.env.local` are ignored by git.
+`.env` и `.env.local` игнорируются git.
 
-## Provider Scheduling
+## Планирование запросов к провайдерам
 
-Requests are scheduled by the `provider` field from `models.json`. Each provider
-has an independent queue, so OpenAI requests do not block OpenRouter requests,
-and OpenRouter requests do not block Groq requests.
+Запросы планируются по полю `provider` из `models.json`. У каждого провайдера своя независимая очередь, поэтому запросы к OpenAI не блокируют запросы к OpenRouter, а запросы к OpenRouter не блокируют запросы к Groq.
 
-`provider-rules.json` controls each queue:
+`provider-rules.json` управляет каждой очередью:
 
 ```json
 {
@@ -55,57 +51,52 @@ and OpenRouter requests do not block Groq requests.
 }
 ```
 
-`concurrency` is the maximum number of active requests for that provider.
-`delayAfterMs` is the pause after a completed request before the same provider
-queue starts another request. Models without an explicit provider rule use
-`default`.
+`concurrency` — максимальное число активных запросов для данного провайдера. `delayAfterMs` — пауза после завершённого запроса, прежде чем очередь того же провайдера начнёт следующий запрос. Модели без явного правила провайдера используют `default`.
 
-The rule is matched by `model.provider`, not by `providerRouting`. For example,
-an OpenRouter model that routes to Groq still uses the `openrouter` queue because
-the HTTP request is sent to OpenRouter.
+Правило подбирается по `model.provider`, а не по `providerRouting`. Например, модель OpenRouter, которая маршрутизируется на Groq, всё равно использует очередь `openrouter`, потому что HTTP-запрос отправляется в OpenRouter.
 
-## Commands
+## Команды
 
-Run all enabled models with default settings:
+Запустить все включённые модели с настройками по умолчанию:
 
 ```bash
 npm run model-test
 ```
 
-Defaults:
+Значения по умолчанию:
 
 - `repeats`: `5`
 - `languages`: `ru,en`
-- cases: all entries from `cases.json`
-- models: all entries with `enabled: true`
+- кейсы: все записи из `cases.json`
+- модели: все записи с `enabled: true`
 
-Run a smoke test for one model and one prompt:
+Запустить smoke-тест для одной модели и одного промпта:
 
 ```bash
 npm run model-test:smoke -- --models openai-gpt-4o-mini --prompt "ты умеешь читать?" --languages ru --repeats 1
 ```
 
-Override repeats and languages:
+Переопределить количество повторов и языки:
 
 ```bash
 npm run model-test -- --repeats 3 --languages ru,en
 ```
 
-Run only selected models or cases:
+Запустить только выбранные модели или кейсы:
 
 ```bash
 npm run model-test -- --models openai-gpt-4o-mini,openrouter-claude-haiku-4-5 --cases reading-question,math-spoken
 ```
 
-Write output to a fixed folder:
+Записать результат в фиксированную папку:
 
 ```bash
 npm run model-test -- --output reports/model-testing/manual-run
 ```
 
-## Output
+## Результат
 
-Each run writes:
+Каждый запуск записывает:
 
 ```text
 reports/model-testing/<timestamp>/
@@ -113,44 +104,38 @@ reports/model-testing/<timestamp>/
   report.html
 ```
 
-`report.html` contains:
+`report.html` содержит:
 
-- model ranking by response quality;
-- average score, errors, latency, and average estimated cost;
-- per-model details for every case, language, and repeat in a modal opened from the model name;
-- penalties that formed each response score;
-- a per-model toggle that shows only invalid tasks and invalid runs inside them.
+- рейтинг моделей по качеству ответа;
+- средний балл, ошибки, задержку и среднюю оценочную стоимость;
+- детали по каждой модели для каждого кейса, языка и повтора в модальном окне, открываемом по имени модели;
+- штрафы, из которых сформирован балл каждого ответа;
+- переключатель для каждой модели, показывающий только некорректные задачи и некорректные прогоны внутри них.
 
-Latency and price are shown for humans only. They do not affect the ranking.
+Задержка и цена показываются только для людей. На рейтинг они не влияют.
 
-## Scoring
+## Оценка
 
-Every response starts at `100` and receives deterministic penalties for:
+Каждый ответ начинается со `100` баллов и получает детерминированные штрафы за:
 
-- role drift: answering the speaker instead of cleaning text;
-- semantic addition: solving or completing the dictated text;
-- address shift: changing informal `ты` to formal `вы`;
-- unexpected script artifacts, such as CJK characters;
-- optional language preservation via `preserveLanguage`: the output should keep the dominant script of the input, using a 65% script ratio threshold when both sides have at least four letters;
-- meta output, labels, markdown, or `<think>` leakage;
-- excessive length growth via optional `lengthRatio.max` (`1.5` by default);
-- excessive length drop via optional `lengthRatio.min`;
-- case-specific `textCondition` checks with `contains`, `notContains`, `op: "and"`, and `op: "or"`;
-- optional minimum punctuation via `minPunctuationMarks`, counting `.`, `,`, `!`, `?`, `;`, `:`, and `…`; useful for multi-clause cases and not needed for math-operation cases;
-- optional sentence boundaries via `requireSentenceBoundaries`: the first letter must be uppercase and the output must end with `.`, `!`, `?`, or `…`.
+- смещение роли: ответ говорящему вместо очистки текста;
+- смысловое дополнение: решение или дополнение надиктованного текста;
+- смещение обращения: замена неформального «ты» на формальное «вы»;
+- неожиданные символы чужой письменности, например символы CJK;
+- опциональное сохранение языка через `preserveLanguage`: результат должен сохранять доминирующую письменность входного текста, с порогом соотношения письменностей 65%, когда с обеих сторон не менее четырёх букв;
+- мета-вывод, метки, markdown или утечку `<think>`;
+- избыточный рост длины через опциональный `lengthRatio.max` (по умолчанию `1.5`);
+- избыточное сокращение длины через опциональный `lengthRatio.min`;
+- специфичные для кейса проверки `textCondition` с `contains`, `notContains`, `op: "and"` и `op: "or"`;
+- опциональный минимум знаков препинания через `minPunctuationMarks`, считающий `.`, `,`, `!`, `?`, `;`, `:` и `…`; полезно для кейсов с несколькими предложениями и не нужно для кейсов с математическими операциями;
+- опциональные границы предложения через `requireSentenceBoundaries`: первая буква должна быть заглавной, а результат должен заканчиваться на `.`, `!`, `?` или `…`.
 
-`textCondition` supports `mode: "sequence"` by default and `mode: "word"` for
-whole-word token sequence matching. `caseSensitive` is `false` by default.
-Quote variants such as `"..."` and `«...»` are normalized for these checks.
-The score penalty is binary, but the report detail includes only failed
-condition branches.
+`textCondition` поддерживает `mode: "sequence"` по умолчанию и `mode: "word"` для сопоставления последовательности целых слов-токенов. `caseSensitive` по умолчанию — `false`. Варианты кавычек, такие как `"..."` и `«...»`, нормализуются для этих проверок. Штраф за оценку бинарный, но в детали отчёта попадают только проваленные ветви условий.
 
-Transport/API errors are recorded as failed runs with score `0`.
+Ошибки транспорта/API записываются как проваленные прогоны с баллом `0`.
 
-## Model Maintenance
+## Обслуживание моделей
 
-Set `enabled: false` to keep a model in the config without running it by
-default. You can still target it explicitly with `--models`.
+Установите `enabled: false`, чтобы оставить модель в конфигурации, не запуская её по умолчанию. Её всё ещё можно явно указать через `--models`.
 
-Prices are configured as USD per 1M input/output tokens. If a provider returns
-usage, the runner uses it. Otherwise it estimates tokens from text length.
+Цены задаются в USD за 1M входных/выходных токенов. Если провайдер возвращает usage, скрипт использует его. В противном случае количество токенов оценивается по длине текста.

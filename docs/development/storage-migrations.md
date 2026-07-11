@@ -1,89 +1,68 @@
-# Storage Versioning and Migrations
+# Версионирование хранилища и миграции
 
-## Overview
+## Обзор
 
-The app stores domain data as separate JSON files in the Tauri `app_data_dir`
-(`com.transcriber.desktop`). The storage layer lives in
-`src-tauri/src/storage.rs`; the migration runner in
-`src-tauri/src/migrations.rs`.
+Приложение хранит доменные данные в виде отдельных JSON-файлов в Tauri `app_data_dir` (`com.transcriber.desktop`). Слой хранилища находится в `src-tauri/src/storage.rs`; исполнитель миграций — в `src-tauri/src/migrations.rs`.
 
-## Schema versioning
+## Версионирование схемы
 
-A lightweight metadata file `_meta.json` tracks the current schema version:
+Лёгкий файл метаданных `_meta.json` отслеживает текущую версию схемы:
 
 ```json
 { "schemaVersion": 1 }
 ```
 
-`migrations::run` is called once in `lib.rs::setup` before any domain stores
-are read. It checks `_meta.json` and runs any pending migration steps, then
-rewrites `_meta.json` with `CURRENT_SCHEMA_VERSION`.
+`migrations::run` вызывается один раз в `lib.rs::setup` до чтения любых доменных хранилищ. Она проверяет `_meta.json`, выполняет все ожидающие шаги миграции, а затем перезаписывает `_meta.json` значением `CURRENT_SCHEMA_VERSION`.
 
-### First-run detection
+### Определение первого запуска
 
-When `_meta.json` is absent:
+Когда `_meta.json` отсутствует:
 
-- **Domain files exist** → existing installation that predates versioning.
-  Treat as schema v1 (no migration needed, just stamp the meta file).
-- **No domain files** → fresh install. Stamp `CURRENT_SCHEMA_VERSION`
-  directly, skip all migration steps.
+- **Доменные файлы существуют** → уже существующая установка, появившаяся до введения версионирования. Считайте её схемой v1 (миграция не нужна, просто проставьте файл метаданных).
+- **Доменных файлов нет** → свежая установка. Сразу проставьте `CURRENT_SCHEMA_VERSION`, пропустив все шаги миграции.
 
-## Resilient loading
+## Отказоустойчивая загрузка
 
-Two loading functions exist; which one to use depends on how critical silent
-fallback is for the domain:
+Существует две функции загрузки; какую использовать, зависит от того, насколько критичен тихий fallback для данного домена:
 
-### `storage::load_json_or_default` — silent fallback
+### `storage::load_json_or_default` — тихий fallback
 
-1. File missing or empty → return `T::default()`.
-2. JSON parses successfully → return the value.
-3. JSON fails to parse → rename the file to
-   `<name>.corrupt-<YYYYMMDD-HHMMSS>` as a backup, return `T::default()`.
+1. Файл отсутствует или пуст → возвращается `T::default()`.
+2. JSON успешно парсится → возвращается значение.
+3. JSON не удаётся распарсить → файл переименовывается в `<name>.corrupt-<YYYYMMDD-HHMMSS>` как резервная копия, возвращается `T::default()`.
 
-Use for: `settings.json`, `processing.json`, `dictionary.json` — domains
-where the default is a sensible starting point and there are no cross-domain
-ID references that would break silently.
+Используется для: `settings.json`, `processing.json`, `dictionary.json` — доменов, где значение по умолчанию является разумной отправной точкой и нет междоменных ссылок по ID, которые могли бы молча сломаться.
 
-### `storage::load_json_strict` — backup + error on corrupt
+### `storage::load_json_strict` — резервная копия + ошибка при повреждении
 
-1. File missing or empty → return `T::default()` (e.g. fresh install).
-2. JSON parses successfully → return the value.
-3. JSON fails to parse → rename the file as a backup, return `Err` with a
-   descriptive message.
+1. Файл отсутствует или пуст → возвращается `T::default()` (например, свежая установка).
+2. JSON успешно парсится → возвращается значение.
+3. JSON не удаётся распарсить → файл переименовывается как резервная копия, возвращается `Err` с описательным сообщением.
 
-Use for: `providers.json`, `history.json` — domains where silent fallback
-to an empty default would cause cascading failures (dangling provider IDs
-in processing config) or significant data loss (transcription history).
+Используется для: `providers.json`, `history.json` — доменов, где тихий откат к пустому значению по умолчанию вызвал бы каскадные сбои (повисшие ID провайдеров в конфигурации обработки) или значительную потерю данных (история транскрипции).
 
-When `load_json_strict` errors, the error propagates through the Tauri
-command as a rejected Promise, and the frontend store shows an error state
-in the relevant UI section. The corrupt file is preserved in the backup so
-the user can recover their data.
+Когда `load_json_strict` возвращает ошибку, она распространяется через команду Tauri как отклонённый Promise, а хранилище фронтенда показывает состояние ошибки в соответствующем разделе UI. Повреждённый файл сохраняется в резервной копии, чтобы пользователь мог восстановить свои данные.
 
-> ⚠️ Always write a migration step rather than relying on the fallback
-> when a domain's schema changes in a breaking way.
+> ⚠️ Всегда пишите шаг миграции вместо того, чтобы полагаться на fallback,
+> когда схема домена меняется несовместимым образом.
 
-## Atomic writes
+## Атомарная запись
 
-`storage::save_json` writes to `<name>.tmp` first, then `fs::rename` to the
-target. `rename` on the same filesystem volume is atomic — a crash mid-write
-cannot leave a partial file.
+`storage::save_json` сначала пишет в `<name>.tmp`, затем выполняет `fs::rename` в целевой файл. `rename` в пределах одного тома файловой системы атомарен — сбой посреди записи не может оставить частично записанный файл.
 
-## Adding a migration step
+## Добавление шага миграции
 
-1. Increment `CURRENT_SCHEMA_VERSION` in `src-tauri/src/migrations.rs`.
-2. Add a new arm to `run_migration_step`:
+1. Увеличьте `CURRENT_SCHEMA_VERSION` в `src-tauri/src/migrations.rs`.
+2. Добавьте новую ветку в `run_migration_step`:
 
 ```rust
 2 => migrate_to_v2(app),
 ```
 
-3. Implement `migrate_to_v2`:
-   - Read the old JSON with `fs::read_to_string` / `serde_json::from_str`.
-   - Transform the data.
-   - Write back with `storage::save_json`.
-   - If reading fails, either return an error (aborts startup) or back up and
-     reset, depending on acceptable data loss for that domain.
+3. Реализуйте `migrate_to_v2`:
+   - Прочитайте старый JSON с помощью `fs::read_to_string` / `serde_json::from_str`.
+   - Преобразуйте данные.
+   - Запишите обратно с помощью `storage::save_json`.
+   - Если чтение не удалось, либо верните ошибку (прерывает запуск), либо сделайте резервную копию и сброс — в зависимости от допустимой потери данных для этого домена.
 
-Migration steps run in order from `from_version + 1` to
-`CURRENT_SCHEMA_VERSION`. Each step must be idempotent if possible.
+Шаги миграции выполняются по порядку от `from_version + 1` до `CURRENT_SCHEMA_VERSION`. По возможности каждый шаг должен быть идемпотентным.

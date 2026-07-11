@@ -1,63 +1,52 @@
-# Cancel Hotkey Design
+# Дизайн хоткея отмены
 
-## Problem
+## Проблема
 
-The cancel hotkey (default: `Ctrl+Z`) must be suppressed only while a dictation session is active — from recording start to the end of post-processing. Outside a session, the cancel hotkey must pass through to other applications unchanged (so `Ctrl+Z` continues to work as Undo in text fields).
+Хоткей отмены (по умолчанию: `Ctrl+Z`) должен подавляться только пока активна сессия диктовки — от начала записи до конца постобработки. Вне сессии хоткей отмены должен без изменений проходить в другие приложения (чтобы `Ctrl+Z` продолжал работать как Undo в текстовых полях).
 
-A naive approach — install a new `WH_KEYBOARD_LL` hook when recording starts and
-uninstall it when the session ends — has problems: hook installation spawns a thread and
-a Windows message loop, and uninstalling from a different thread requires
-`UnhookWindowsHookEx`. This is expensive, adds teardown complexity, and creates a
-time window where the hook might not be fully registered before the first key event.
+Наивный подход — устанавливать новый хук `WH_KEYBOARD_LL` при начале записи и снимать его при завершении сессии — имеет проблемы: установка хука порождает поток и цикл сообщений Windows, а снятие из другого потока требует `UnhookWindowsHookEx`. Это дорого, усложняет освобождение ресурсов и создаёт временное окно, в котором хук может быть ещё не полностью зарегистрирован к моменту первого события клавиши.
 
-## Solution: arm/disarm pattern
+## Решение: паттерн arm/disarm (взвод/снятие с взвода)
 
-The app already runs a single persistent `WH_KEYBOARD_LL` hook for the dictation hotkey
-(installed once at startup, lives for the app's lifetime). The cancel hotkey reuses this
-same hook by adding a second gated state: `CANCEL_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>>`.
+Приложение уже использует единый постоянный хук `WH_KEYBOARD_LL` для хоткея диктовки (устанавливается один раз при запуске и живёт всё время работы приложения). Хоткей отмены переиспользует этот же хук, добавляя второе управляемое состояние: `CANCEL_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>>`.
 
-- `None` = disarmed. The hook ignores all keys for cancellation and passes them through.
-- `Some(config)` = armed. The hook matches and consumes the configured cancel key.
+- `None` = снят с взвода (disarmed). Хук игнорирует все клавиши для отмены и пропускает их дальше.
+- `Some(config)` = взведён (armed). Хук сопоставляет и поглощает настроенную клавишу отмены.
 
-`arm_cancel_hotkey` is called in `start_dictation_inner` right after the session enters
-`Recording`. `disarm_cancel_hotkey` is called in both `finish_session` (normal completion
-and async-cancel paths) and `cancel_dictation_inner` (immediate recording-cancel path).
+`arm_cancel_hotkey` вызывается в `start_dictation_inner` сразу после того, как сессия переходит в состояние `Recording`. `disarm_cancel_hotkey` вызывается как в `finish_session` (пути обычного завершения и асинхронной отмены), так и в `cancel_dictation_inner` (путь немедленной отмены записи).
 
-Disarming is idempotent: calling it from both sites is safe.
+Снятие с взвода идемпотентно: вызывать его из обоих мест безопасно.
 
-## Empty / disabled cancel hotkey
+## Пустой / отключённый хоткей отмены
 
-An empty `cancelHotkey` setting ("") means the cancel hotkey is disabled. `arm_cancel_hotkey`
-checks for an empty/whitespace value and stores `None` instead of parsing — so the hook
-never consumes any key. The empty string bypasses `normalize_hotkey` (which rejects empty
-input) in both `update_app_settings_inner` and `load_app_settings`.
+Пустое значение настройки `cancelHotkey` ("") означает, что хоткей отмены отключён. `arm_cancel_hotkey` проверяет значение на пустоту/пробелы и вместо разбора сохраняет `None` — так хук никогда не поглощает ни одной клавиши. Пустая строка обходит `normalize_hotkey` (которая отклоняет пустой ввод) как в `update_app_settings_inner`, так и в `load_app_settings`.
 
-## In-app (DOM) cancel path
+## Путь отмены внутри приложения (DOM)
 
-The native hook only fires when the app window is **not** focused (or when the OS routes the event through the hook thread before the webview sees it). When the main window is focused, the webview receives key events via DOM and the hook may not consume them reliably.
+Нативный хук срабатывает только тогда, когда окно приложения **не** в фокусе (либо когда ОС направляет событие через поток хука раньше, чем его увидит webview). Когда главное окно в фокусе, webview получает события клавиш через DOM, и хук может не поглощать их надёжно.
 
-To ensure cancel also works when the window is focused, `DictationHotkeyFallback` (the in-app DOM handler) listens for the `dictation-session` event emitted by the backend:
+Чтобы отмена работала и когда окно в фокусе, `DictationHotkeyFallback` (обработчик DOM внутри приложения) слушает событие `dictation-session`, отправляемое бэкендом:
 
-- `start_dictation_inner` emits `{ active: true, sessionId }` after the session enters `Recording`.
-- `finish_session` and `cancel_dictation_inner` emit `{ active: false, sessionId: null }` after disarming.
+- `start_dictation_inner` отправляет `{ active: true, sessionId }` после того, как сессия переходит в `Recording`.
+- `finish_session` и `cancel_dictation_inner` отправляют `{ active: false, sessionId: null }` после снятия с взвода.
 
-`DictationHotkeyFallback` sets an `isSessionActiveRef` flag and tracks the active `sessionId` from this event. On `keydown` for the cancel hotkey, it calls `cancel_dictation(sessionId)` only when `isSessionActiveRef.current === true`, then calls `event.preventDefault()` to suppress the native Undo action. Outside a session the key passes through untouched.
+`DictationHotkeyFallback` устанавливает флаг `isSessionActiveRef` и отслеживает активный `sessionId` из этого события. При `keydown` для хоткея отмены он вызывает `cancel_dictation(sessionId)` только когда `isSessionActiveRef.current === true`, а затем вызывает `event.preventDefault()`, чтобы подавить нативное действие Undo. Вне сессии клавиша проходит без изменений.
 
-`cancel_dictation` (`cancel_dictation_inner` on the Rust side) is idempotent — calling it from both the native hook path and the DOM path in the same event cycle is safe.
+`cancel_dictation` (`cancel_dictation_inner` на стороне Rust) идемпотентен — вызывать его как из пути нативного хука, так и из пути DOM в рамках одного и того же цикла событий безопасно.
 
-## Key priority
+## Приоритет клавиш
 
-If the dictation hotkey and the cancel hotkey are set to the same key, `try_consume_dictation_event` wins: `should_consume_event` tries dictation first and returns early on a match. This edge case is acceptable.
+Если хоткей диктовки и хоткей отмены настроены на одну и ту же клавишу, побеждает `try_consume_dictation_event`: `should_consume_event` сначала пробует диктовку и завершается досрочно при совпадении. Этот крайний случай допустим.
 
-## Async cancellation contract
+## Контракт асинхронной отмены
 
-The cancel hotkey is not allowed to be "UI-only". When cancellation happens during `Transcribing` or `Processing`, the backend must also abort the local async task that is currently waiting on the model request. Otherwise the old task can survive long enough to race with the next dictation session and emit stale overlay updates after the user already started over.
+Хоткею отмены не разрешено быть «только UI». Когда отмена происходит во время `Transcribing` или `Processing`, бэкенд также должен прервать локальную асинхронную задачу, которая в данный момент ожидает запрос к модели. Иначе старая задача может прожить достаточно долго, чтобы конкурировать со следующей сессией диктовки и отправить устаревшие обновления оверлея после того, как пользователь уже начал заново.
 
-This is a local cancellation guarantee, not a transport-level guarantee for the provider. Aborting the local task stops waiting in the app immediately, but the upstream server may still finish its own processing if it already accepted the request.
+Это гарантия локальной отмены, а не гарантия на уровне транспорта для провайдера. Прерывание локальной задачи немедленно останавливает ожидание в приложении, но удалённый сервер может всё равно завершить собственную обработку, если он уже принял запрос.
 
-The code therefore relies on two layers together:
+Поэтому код опирается на два уровня вместе:
 
-- cancel disarms the cancel hotkey and deactivates the session immediately;
-- cancel also aborts the local in-flight task, so the previous session no longer has a live completion path inside the app.
+- отмена немедленно снимает хоткей отмены с взвода и деактивирует сессию;
+- отмена также прерывает локальную выполняющуюся задачу, так что у предыдущей сессии больше нет живого пути завершения внутри приложения.
 
-If future work revisits request handling, do not regress to "keep the task alive and ignore the result later" without also proving that stale task completions cannot race with a new session.
+Если в будущем обработка запросов будет пересматриваться, не откатывайтесь к подходу «оставить задачу живой и проигнорировать результат позже» без доказательства того, что устаревшие завершения задач не могут конкурировать с новой сессией.

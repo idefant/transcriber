@@ -1,28 +1,28 @@
-# Command Execution
+# Выполнение команд
 
-Prefer Git Bash for project commands when it is available:
+Предпочитай Git Bash для команд проекта, если он доступен:
 
 ```text
 C:\Program Files\Git\bin\bash.exe
 ```
 
-## Rules
+## Правила
 
-- Use Bash for reading/searching files, inspecting text output, and running cross-platform commands.
-- Use PowerShell when the command is Windows-specific, for example Windows paths, registry/toolchain checks, or Tauri/Windows bundling details.
-- When PowerShell is used for text output or npm scripts, run the command through the UTF-8 wrapper:
+- Используй Bash для чтения/поиска файлов, просмотра текстового вывода и запуска кроссплатформенных команд.
+- Используй PowerShell, когда команда специфична для Windows, например пути Windows, проверки реестра/тулчейна или детали упаковки (bundling) Tauri/Windows.
+- Когда PowerShell используется для текстового вывода или npm-скриптов, запускай команду через UTF-8-обёртку:
 
   ```cmd
   .\scripts\powershell-utf8.cmd "Get-Content -Raw README.md"
   ```
 
-  From PowerShell, pass the wrapped command in single quotes so `$variables` are not expanded before the wrapper starts:
+  Из PowerShell передавай обёрнутую команду в одинарных кавычках, чтобы `$variables` не разворачивались до запуска обёртки:
 
   ```powershell
   .\scripts\powershell-utf8.cmd 'Get-Content -Raw README.md'
   ```
 
-- Inside that wrapper, `Get-Content` defaults to UTF-8. Without it, do not trust Cyrillic output from `Get-Content`; check the real UTF-8 file content instead.
-- Use `npm` for npm scripts by default.
-- In direct Windows PowerShell, `npm` can resolve to `npm.ps1` and fail when execution policy is restricted. Use Git Bash or `scripts/powershell-utf8.cmd` for `npm` commands; use `npm.cmd` only as a local fallback when PowerShell still blocks `npm`.
-- Do not rewrite files only because command output appears garbled in PowerShell.
+- Внутри этой обёртки `Get-Content` по умолчанию использует UTF-8. Без неё не доверяй кириллическому выводу `Get-Content`; вместо этого проверяй реальное содержимое файла в UTF-8.
+- По умолчанию используй `npm` для npm-скриптов.
+- В прямом Windows PowerShell `npm` может разрешаться в `npm.ps1` и завершаться ошибкой, если политика выполнения ограничена. Используй Git Bash или `scripts/powershell-utf8.cmd` для команд `npm`; используй `npm.cmd` только как локальный резервный вариант, если PowerShell всё ещё блокирует `npm`.
+- Не переписывай файлы только потому, что вывод команды выглядит искажённым в PowerShell.

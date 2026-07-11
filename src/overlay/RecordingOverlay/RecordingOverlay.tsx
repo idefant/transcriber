@@ -26,10 +26,10 @@ const MIC_LEVEL_SMOOTHING = 0.55;
 
 const lerp = (from: number, to: number, ratio: number): number => from + (to - from) * ratio;
 
-// Ease in and out so a coefficient settles into its new slot instead of sliding at a constant speed.
+// Плавное ускорение и замедление, чтобы коэффициент занимал новое место, а не двигался с постоянной скоростью.
 const smoothstep = (ratio: number): number => ratio * ratio * (3 - 2 * ratio);
 
-// The coefficients travel across the levels: 1,2,3 -> 3,1,2 -> 2,3,1.
+// Коэффициенты перемещаются между уровнями: 1,2,3 -> 3,1,2 -> 2,3,1.
 const rotateCoefficients = (step: number): ActivityLevels =>
   rotate(ACTIVITY_COEFFICIENTS, step) as ActivityLevels;
 
@@ -93,8 +93,8 @@ const RecordingOverlay: FC = () => {
   );
 
   useEffect(() => {
-    // A window created for a secondary monitor may mount after the `show-overlay`
-    // event was broadcast, so it recovers the current state on mount.
+    // Окно, созданное для второго монитора, может смонтироваться после отправки события
+    // `show-overlay`, поэтому при монтировании оно восстанавливает текущее состояние.
     void invoke<OverlayShowPayload | null>('get_overlay_state').then((payload) => {
       if (payload) {
         isNoticeHoverTrackedRef.current = false;

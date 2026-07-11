@@ -1,252 +1,252 @@
-# Development
+# Разработка
 
-This note collects project setup, local development, build commands, and development tools for Transcriber.
+В этой заметке собраны настройка проекта, локальная разработка, команды сборки и инструменты разработки для Transcriber.
 
-## Requirements
+## Требования
 
 - Node.js 24+
 - npm 11+
-- Rust stable toolchain
+- Стабильный toolchain Rust
 
-Use `npm` for project commands. In Windows PowerShell, `npm` can resolve to `npm.ps1`; if execution policy blocks it, use `npm.cmd` for the same command or run the command from Git Bash/Command Prompt.
+Используйте `npm` для команд проекта. В Windows PowerShell `npm` может разрешаться в `npm.ps1`; если политика выполнения блокирует это, используйте `npm.cmd` для той же команды или выполните команду из Git Bash/Command Prompt.
 
-## Install
+## Установка
 
 ```bash
 npm install
 ```
 
-The project includes `.npmrc` with `legacy-peer-deps=true`, so a plain install works with the current ESLint 10 plugin peer ranges.
+Проект включает `.npmrc` с `legacy-peer-deps=true`, поэтому обычная установка работает с текущими диапазонами peer-зависимостей плагинов ESLint 10.
 
-## Environment Variables
+## Переменные окружения
 
-Copy `.env.example` to `.env` and fill in the values:
+Скопируйте `.env.example` в `.env` и заполните значения:
 
 ```bash
 cp .env.example .env
 ```
 
-`.env` holds the API keys used by model testing (`scripts/model-testing`) and is gitignored — never commit real secrets. WebView2 remote debugging is intentionally not configured in `.env`; it is enabled by `npm run dev:tauri:debug` (see Development below), because `.env` does not reach the Tauri app process.
+`.env` содержит API-ключи, используемые для тестирования моделей (`scripts/model-testing`), и добавлен в gitignore — никогда не коммитьте реальные секреты. Удалённая отладка WebView2 намеренно не настраивается в `.env`; она включается командой `npm run dev:tauri:debug` (см. раздел «Разработка» ниже), потому что `.env` не доходит до процесса приложения Tauri.
 
-## Development
+## Разработка
 
-Start the Vite development server:
+Запустите сервер разработки Vite:
 
 ```bash
 npm run dev
 ```
 
-The dev server runs Vite with fast TypeScript transpilation. TypeScript, ESLint, and Stylelint diagnostics are shown in the terminal and in the browser overlay through `vite-plugin-checker`.
+Dev-сервер запускает Vite с быстрой транспиляцией TypeScript. Диагностика TypeScript, ESLint и Stylelint отображается в терминале и в оверлее браузера через `vite-plugin-checker`.
 
-Default local URL:
+URL по умолчанию для локального запуска:
 
 ```text
 http://localhost:5173
 ```
 
-Run the desktop application through Tauri:
+Запустите десктопное приложение через Tauri:
 
 ```bash
 npm run dev:tauri
 ```
 
-Run the desktop app with WebView2 remote debugging enabled. This opens a Chrome DevTools Protocol endpoint on port 9222 so Playwright (or the Playwright MCP) can attach for UI debugging and screenshots. Dev-only; never use it for production builds.
+Запустите десктопное приложение с включённой удалённой отладкой WebView2. Это открывает эндпоинт Chrome DevTools Protocol на порту 9222, чтобы Playwright (или Playwright MCP) мог подключиться для отладки UI и снятия скриншотов. Только для разработки; никогда не используйте это для продакшен-сборок.
 
 ```bash
 npm run dev:tauri:debug
 ```
 
-It works from any shell (PowerShell, CMD, Git Bash) because it uses `cross-env` to set the WebView2 debug argument rather than shell-specific syntax. The CDP attach workflow is described in [../agent/screenshot-testing.md](../agent/screenshot-testing.md).
+Это работает из любой оболочки (PowerShell, CMD, Git Bash), потому что для установки отладочного аргумента WebView2 используется `cross-env`, а не синтаксис, специфичный для конкретной оболочки. Процесс подключения CDP описан в [../agent/screenshot-testing.md](../agent/screenshot-testing.md).
 
 ### React DevTools
 
-Inspect React components (Components / Profiler panels) directly inside the app's DevTools. React DevTools is loaded into WebView2 as an unpacked browser extension. This is Windows-only (only WebView2 supports browser extensions) and dev-only: it is gated behind a debug build and `browserExtensionsEnabled` in `src-tauri/tauri.dev.conf.json`, so it never ships in production builds.
+Проверяйте компоненты React (панели Components / Profiler) прямо внутри DevTools приложения. React DevTools загружается в WebView2 как распакованное расширение браузера. Это доступно только на Windows (только WebView2 поддерживает расширения браузера) и только для разработки: доступ ограничен debug-сборкой и `browserExtensionsEnabled` в `src-tauri/tauri.dev.conf.json`, поэтому в продакшен-сборках оно никогда не поставляется.
 
-Provide the extension once; the folder is gitignored. Copy an installed Chrome React Developer Tools build into `src-tauri/extensions/react-devtools/`, for example from `C:\Users\<user>\AppData\Local\Google\Chrome\User Data\Default\Extensions\fmkadmapgofadopljbjfkapdkoienihi\<version>`.
+Предоставьте расширение один раз; папка добавлена в gitignore. Скопируйте установленную сборку Chrome React Developer Tools в `src-tauri/extensions/react-devtools/`, например из `C:\Users\<user>\AppData\Local\Google\Chrome\User Data\Default\Extensions\fmkadmapgofadopljbjfkapdkoienihi\<version>`.
 
-1. Run `npm run dev:tauri`. No extra flag is needed: both dev commands pass `--unsafely-disable-devtools-self-xss-warnings` via `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, so the DevTools console also accepts pasted code without the "allow pasting" self-XSS prompt.
-2. Open the in-app DevTools with F12.
-3. Use the **Components** and **Profiler** tabs.
+1. Выполните `npm run dev:tauri`. Дополнительный флаг не нужен: обе dev-команды передают `--unsafely-disable-devtools-self-xss-warnings` через `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, поэтому консоль DevTools также принимает вставленный код без запроса self-XSS «allow pasting».
+2. Откройте DevTools внутри приложения с помощью F12.
+3. Используйте вкладки **Components** и **Profiler**.
 
-The extension is registered through `extensions_path` on the recording overlay window (`src-tauri/src/overlay.rs`); because Chromium extensions live at the profile level, it is then available in the main window's DevTools as well. Both windows must use the same `browserExtensionsEnabled` value, otherwise WebView2 requires separate data directories for them. On a profile's very first run the overlay installs the extension after the main window has already mounted React, so the Components/Profiler tabs may be missing until you relaunch the app once; the extension then persists in the WebView2 profile and loads early enough on every later run.
+Расширение регистрируется через `extensions_path` на окне оверлея записи (`src-tauri/src/overlay.rs`); поскольку расширения Chromium существуют на уровне профиля, оно становится доступно и в DevTools главного окна. Оба окна должны использовать одинаковое значение `browserExtensionsEnabled`, иначе WebView2 потребует для них отдельные каталоги данных. При самом первом запуске профиля оверлей устанавливает расширение уже после того, как главное окно смонтировало React, поэтому вкладки Components/Profiler могут отсутствовать, пока вы не перезапустите приложение один раз; после этого расширение сохраняется в профиле WebView2 и загружается достаточно рано при каждом последующем запуске.
 
-## Tauri Build Variants
+## Варианты сборки Tauri
 
-The project uses three Tauri config files with different roles:
+Проект использует три конфигурационных файла Tauri с разными ролями:
 
-| File                               | Used by                                                                | Purpose                                |
-| ---------------------------------- | ---------------------------------------------------------------------- | -------------------------------------- |
-| `src-tauri/tauri.conf.json`        | `npm run build:tauri`, stable release builds, installed production app | Base production config                 |
-| `src-tauri/tauri.dev.conf.json`    | `npm run dev:tauri`, `npm run dev:tauri:debug`                         | Dev-only overrides for the desktop app |
-| `src-tauri/tauri.canary.conf.json` | `npm run build:tauri:canary`, GitHub Actions prerelease tags           | Canary/pre-release overrides           |
+| Файл                               | Используется в                                                                        | Назначение                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `src-tauri/tauri.conf.json`        | `npm run build:tauri`, стабильные релизные сборки, установленное продакшен-приложение | Базовая продакшен-конфигурация                               |
+| `src-tauri/tauri.dev.conf.json`    | `npm run dev:tauri`, `npm run dev:tauri:debug`                                        | Переопределения только для разработки десктопного приложения |
+| `src-tauri/tauri.canary.conf.json` | `npm run build:tauri:canary`, теги предрелизов GitHub Actions                         | Переопределения для canary/предрелизных сборок               |
 
-The important distinction is that `npm run build` is **not** a desktop build. It only runs TypeScript checks and produces the frontend bundle in `dist`. Window options such as `decorations`, bundle metadata, updater settings, and NSIS packaging are only applied when a real Tauri build runs.
+Важное отличие в том, что `npm run build` — это **не** десктопная сборка. Она только запускает проверки TypeScript и создаёт фронтенд-бандл в `dist`. Параметры окна, такие как `decorations`, метаданные бандла, настройки обновления и упаковка NSIS, применяются только при реальной сборке Tauri.
 
-### Command Matrix
+### Матрица команд
 
-| Command                      | What it builds or starts                              | Tauri config                                          |
-| ---------------------------- | ----------------------------------------------------- | ----------------------------------------------------- |
-| `npm run dev`                | Vite dev server only                                  | none                                                  |
-| `npm run dev:tauri`          | Desktop app in dev mode                               | `tauri.conf.json` + `tauri.dev.conf.json` override    |
-| `npm run dev:tauri:debug`    | Desktop app in dev mode with WebView2 CDP port `9222` | `tauri.conf.json` + `tauri.dev.conf.json` override    |
-| `npm run build`              | Frontend production bundle only                       | none                                                  |
-| `npm run build:tauri`        | Stable desktop bundle / installer                     | `tauri.conf.json`                                     |
-| `npm run build:tauri:canary` | Canary desktop bundle / installer                     | `tauri.conf.json` + `tauri.canary.conf.json` override |
+| Команда                      | Что собирает или запускает                                      | Конфигурация Tauri                                           |
+| ---------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------ |
+| `npm run dev`                | Только dev-сервер Vite                                          | нет                                                          |
+| `npm run dev:tauri`          | Десктопное приложение в dev-режиме                              | `tauri.conf.json` + переопределение `tauri.dev.conf.json`    |
+| `npm run dev:tauri:debug`    | Десктопное приложение в dev-режиме с портом CDP WebView2 `9222` | `tauri.conf.json` + переопределение `tauri.dev.conf.json`    |
+| `npm run build`              | Только продакшен-бандл фронтенда                                | нет                                                          |
+| `npm run build:tauri`        | Стабильный десктопный бандл / установщик                        | `tauri.conf.json`                                            |
+| `npm run build:tauri:canary` | Canary-бандл десктопного приложения / установщик                | `tauri.conf.json` + переопределение `tauri.canary.conf.json` |
 
-### Config Responsibilities
+### Зоны ответственности конфигураций
 
-- `tauri.conf.json` is the canonical production baseline. Shared window behavior such as undecorated titlebar, size limits, updater public key, bundle targets, and default icons belongs here.
-- `tauri.dev.conf.json` should only contain development-only differences, for example a different app title/identifier and `browserExtensionsEnabled` for React DevTools.
-- `tauri.canary.conf.json` should only contain prerelease branding and other intentional canary-specific differences.
+- `tauri.conf.json` — каноническая продакшен-база. Здесь находится общее поведение окна: заголовок без оформления (undecorated), ограничения размера, публичный ключ обновления, цели сборки бандла и иконки по умолчанию.
+- `tauri.dev.conf.json` должен содержать только отличия, специфичные для разработки, например другой заголовок/идентификатор приложения и `browserExtensionsEnabled` для React DevTools.
+- `tauri.canary.conf.json` должен содержать только предрелизный брендинг и другие намеренные отличия, специфичные для canary.
 
-### Merge Gotcha: `app.windows`
+### Подводный камень слияния: `app.windows`
 
-Tauri config overrides are not deep-merged in a way that safely preserves every nested window field for array items. In practice, if an override file redefines `app.windows`, treat each overridden window object as needing all required shared fields to be repeated explicitly.
+Переопределения конфигурации Tauri не выполняют глубокое слияние (deep-merge) так, чтобы безопасно сохранять каждое вложенное поле окна для элементов массива. На практике, если файл переопределения переопределяет `app.windows`, считайте, что каждый переопределённый объект окна требует явного повторения всех обязательных общих полей.
 
-For this project that means a canary/dev override must keep structural window flags in sync with the base config, for example:
+Для этого проекта это означает, что переопределение canary/dev должно держать структурные флаги окна синхронизированными с базовой конфигурацией, например:
 
 - `decorations: false`
 - `shadow: true`
 - `minWidth` / `minHeight`
 - `visible`
 
-Otherwise a prerelease or dev build can silently drift from stable behavior even if the base `tauri.conf.json` is correct.
+Иначе предрелизная или dev-сборка может незаметно разойтись со стабильным поведением, даже если базовый `tauri.conf.json` корректен.
 
-## Build
+## Сборка
 
-Build the frontend production bundle:
+Соберите продакшен-бандл фронтенда:
 
 ```bash
 npm run build
 ```
 
-The build script runs TypeScript checks first and then creates a production bundle in `dist`.
+Скрипт сборки сначала запускает проверки TypeScript, а затем создаёт продакшен-бандл в `dist`.
 
-Preview the production build:
+Просмотрите продакшен-сборку:
 
 ```bash
 npm run preview
 ```
 
-Build the desktop bundle:
+Соберите десктопный бандл:
 
 ```bash
 npm run build:tauri
 ```
 
-## Available Commands
+## Доступные команды
 
 ```bash
-# Start the Vite development server.
+# Запустить сервер разработки Vite.
 npm run dev
 
-# Start the Tauri desktop app in development mode (uses tauri.dev.conf.json override; loads React DevTools and disables the DevTools console self-XSS prompt).
+# Запустить десктопное приложение Tauri в режиме разработки (использует переопределение tauri.dev.conf.json; загружает React DevTools и отключает запрос self-XSS в консоли DevTools).
 npm run dev:tauri
 
-# Start the Tauri desktop app with WebView2 remote debugging on port 9222 (for Playwright/MCP screenshots).
+# Запустить десктопное приложение Tauri с удалённой отладкой WebView2 на порту 9222 (для скриншотов Playwright/MCP).
 npm run dev:tauri:debug
 
-# Run typecheck and build the production bundle.
+# Запустить проверку типов и собрать продакшен-бандл.
 npm run build
 
-# Build the Tauri desktop bundle.
+# Собрать десктопный бандл Tauri.
 npm run build:tauri
 
-# Run the Tauri CLI.
+# Запустить Tauri CLI.
 npm run tauri
 
-# Serve the production build locally.
+# Локально раздать продакшен-сборку.
 npm run preview
 
-# Check TypeScript without emitting files.
+# Проверить TypeScript без генерации файлов.
 npm run typecheck
 
-# Run ESLint.
+# Запустить ESLint.
 npm run lint
 
-# Run ESLint and apply safe fixes.
+# Запустить ESLint и применить безопасные исправления.
 npm run lint:fix
 
-# Run Stylelint for CSS and SCSS files.
+# Запустить Stylelint для файлов CSS и SCSS.
 npm run stylelint
 
-# Run Stylelint and apply safe fixes.
+# Запустить Stylelint и применить безопасные исправления.
 npm run stylelint:fix
 
-# Format the project with Prettier.
+# Отформатировать проект с помощью Prettier.
 npm run format
 
-# Check Prettier formatting without writing changes.
+# Проверить форматирование Prettier без записи изменений.
 npm run format:check
 
-# Check text files for common UTF-8/Windows-codepage mojibake sequences.
+# Проверить текстовые файлы на типичные искажения кодировки UTF-8/Windows-кодовой страницы (mojibake).
 npm run encoding:check
 
-# Run rustfmt --check and clippy with warnings denied.
+# Запустить rustfmt --check и clippy с запретом предупреждений.
 npm run rust:check
 
-# Run the full quality gate: TypeScript, ESLint, Stylelint, Prettier check, encoding check, Rust checks, and production build.
+# Запустить полную проверку качества: TypeScript, ESLint, Stylelint, проверка Prettier, проверка кодировки, проверки Rust и продакшен-сборка.
 npm run check
 ```
 
-## Release Pipeline
+## Пайплайн релиза
 
-The tag-driven CI/CD workflow, update channels (stable/unstable), minisign key setup, and how the Tauri updater delivers updates are documented in [release-pipeline.md](release-pipeline.md).
+Управляемый тегами workflow CI/CD, каналы обновлений (stable/unstable), настройка ключей minisign и то, как обновления доставляет Tauri updater, описаны в [release-pipeline.md](release-pipeline.md).
 
-## Storage Migrations
+## Миграции хранилища
 
-The `_meta.json` versioning scheme, `migrations::run` call order, first-run detection, `load_json_or_default` vs `load_json_strict`, atomic `save_json`, and how to add a migration step are documented in [storage-migrations.md](storage-migrations.md).
+Схема версионирования `_meta.json`, порядок вызовов `migrations::run`, определение первого запуска, `load_json_or_default` в сравнении с `load_json_strict`, атомарный `save_json` и то, как добавить шаг миграции, описаны в [storage-migrations.md](storage-migrations.md).
 
-## Model Testing
+## Тестирование моделей
 
-Post-processing model evals are documented in [model-testing.md](model-testing.md).
+Оценки моделей постобработки описаны в [model-testing.md](model-testing.md).
 
-## Debug Logging
+## Отладочное логирование
 
-Local model-call debug logging is documented in [debug-logging.md](debug-logging.md).
+Локальное отладочное логирование вызовов моделей описано в [debug-logging.md](debug-logging.md).
 
-## Hotkey Architecture
+## Архитектура хоткеев
 
-The two-path hotkey system (native hook + in-app DOM handler), left/right modifier format, and dev/prod settings divergence are documented in [hotkeys.md](hotkeys.md).
+Двухпутевая система хоткеев (нативный хук + обработчик DOM внутри приложения), формат левых/правых модификаторов и расхождение настроек dev/prod описаны в [hotkeys.md](hotkeys.md).
 
-## Cancel Hotkey
+## Хоткей отмены
 
-The arm/disarm pattern, in-app DOM cancel path, and session gating are documented in [cancel-hotkey.md](cancel-hotkey.md).
+Паттерн arm/disarm (взвод/снятие с взвода), путь отмены через DOM внутри приложения и блокировка по состоянию сессии описаны в [cancel-hotkey.md](cancel-hotkey.md).
 
-## Clipboard Snapshot and Restore
+## Снимок и восстановление буфера обмена
 
-Why dictation paste snapshots every clipboard format, which formats cannot be copied, why only `CF_DIB` is kept out of the DIB pair, why `CF_BITMAP` synthesis is forced after a restore, and what `clipboard-win` does not cover are documented in [clipboard-restore.md](clipboard-restore.md).
+Почему вставка диктовки делает снимок каждого формата буфера обмена, какие форматы нельзя скопировать, почему из пары DIB сохраняется только `CF_DIB`, почему синтез `CF_BITMAP` принудительно выполняется после восстановления и что не покрывает `clipboard-win`, описано в [clipboard-restore.md](clipboard-restore.md).
 
-## State Management
+## Управление состоянием
 
-The Zustand store architecture, canonical sort order rule, history event subscription, and component-local vs. store state decisions are documented in [state-management.md](state-management.md).
+Архитектура Zustand-стора, каноническое правило порядка сортировки, подписка на события истории и решения о том, где хранить состояние — локально в компоненте или в сторе, описаны в [state-management.md](state-management.md).
 
-## Resettable Default-Backed Fields
+## Сбрасываемые поля со значением по умолчанию
 
-The shared contract for settings fields that store `string | null`, show a built-in default when unset, and support reset-to-default behavior is documented in [resettable-default-fields.md](resettable-default-fields.md).
+Общий контракт для полей настроек, которые хранят `string | null`, показывают встроенное значение по умолчанию, когда не заданы, и поддерживают сброс к значению по умолчанию, описан в [resettable-default-fields.md](resettable-default-fields.md).
 
-## Configuration Error Notifications
+## Уведомления об ошибках конфигурации
 
-The pre-flight readiness check before recording and hotkey repeat, why it reuses the snapshot builders plus `resolve_provider_api_key`, the native WinRT toast (and why the official notification plugin was rejected), and the `open-settings` click flow are documented in [config-error-notifications.md](config-error-notifications.md).
+Предварительная проверка готовности перед записью и повтором по хоткею, почему она переиспользует построители снимков (snapshot builders) вместе с `resolve_provider_api_key`, нативный toast WinRT (и почему официальный плагин уведомлений был отклонён), а также поток клика `open-settings` описаны в [config-error-notifications.md](config-error-notifications.md).
 
-## Recording Prewarm
+## Предварительный прогрев записи
 
-Why the capture stream is built once at startup and reused (paused) across sessions, how this removes the `build_input_stream` latency from the dictation-start hot path, the mute/settings-read moves off that path, default-device rebuilds, why the microphone indicator stays honest, and the mutex lock ordering are documented in [recording-prewarm.md](recording-prewarm.md).
+Почему поток захвата собирается один раз при запуске и переиспользуется (в приостановленном состоянии) между сессиями, как это убирает задержку `build_input_stream` из горячего пути старта диктовки, перенос mute/чтения настроек с этого пути, пересборка при смене устройства по умолчанию, почему индикатор микрофона остаётся достоверным, и порядок блокировки mutex описаны в [recording-prewarm.md](recording-prewarm.md).
 
-## Alt and the Window Menu Loop
+## Alt и цикл меню окна
 
-Why an undecorated window still keeps `WS_SYSMENU`, how a lone Alt tap drops it into the modal menu loop and swallows the next in-app hotkey, and why the `SC_KEYMENU` interception has to live in the app's own window subclass are documented in [alt-menu-key.md](alt-menu-key.md).
+Почему окно без оформления (undecorated) всё равно сохраняет `WS_SYSMENU`, как одиночное нажатие Alt переводит его в модальный цикл меню и поглощает следующий хоткей внутри приложения, и почему перехват `SC_KEYMENU` должен находиться в собственном подклассе окна приложения, описано в [alt-menu-key.md](alt-menu-key.md).
 
-## Tray Window Toggle
+## Переключение окна из трея
 
-Why the tray left-click cannot rely on `is_visible()` or `is_focused()` alone, why monitors are not compared while virtual desktops are, how `set_focus()` switches a virtual desktop, and the COM apartment rules for `IVirtualDesktopManager` are documented in [tray-window-toggle.md](tray-window-toggle.md).
+Почему клик левой кнопкой по иконке в трее не может полагаться только на `is_visible()` или `is_focused()`, почему мониторы не сравниваются, а виртуальные рабочие столы — сравниваются, как `set_focus()` переключает виртуальный рабочий стол, и правила COM apartment для `IVirtualDesktopManager` описаны в [tray-window-toggle.md](tray-window-toggle.md).
 
-## Git Hooks
+## Git-хуки
 
-Husky runs two layers before commits:
+Husky запускает два уровня перед коммитами:
 
-- `lint-staged` for staged frontend/docs files:
-- JS/TS files: ESLint fix + Prettier
-- CSS/SCSS files: Stylelint fix + Prettier
-- HTML/JSON/Markdown/YAML files: Prettier
-- `npm run rust:check` for the Tauri crate as a whole (`cargo fmt --check` + `cargo clippy --all-targets -- -D warnings`)
+- `lint-staged` для застейдженных файлов фронтенда/документации:
+- Файлы JS/TS: ESLint fix + Prettier
+- Файлы CSS/SCSS: Stylelint fix + Prettier
+- Файлы HTML/JSON/Markdown/YAML: Prettier
+- `npm run rust:check` для крейта Tauri целиком (`cargo fmt --check` + `cargo clippy --all-targets -- -D warnings`)

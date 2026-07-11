@@ -4,73 +4,75 @@
 
 Общайся с пользователем и строй планы исключительно на русском языке.
 
+Всю документацию (файлы в `docs/`, `AGENTS.md`), докстринги и комментарии в коде пиши на русском языке. Идентификаторы, пути, команды, названия библиотек и код внутри примеров оставляй как есть. Исключения — `CHANGELOG.md` и `README.md`: они остаются на английском.
+
 ## Icons
 
-Use `lucide-react` icon exports with the `Icon` suffix, for example `CameraIcon`, not `Camera`.
+Используй иконки из `lucide-react` с суффиксом `Icon`, например `CameraIcon`, а не `Camera`.
 
-## Utilities
+## Утилиты
 
-Do not hand-roll a helper when `lodash-es` already provides it. Import named functions from the package root:
+Не пиши свой хелпер вручную, если `lodash-es` уже это предоставляет. Импортируй именованные функции из корня пакета:
 
 ```ts
 import { clamp, debounce } from 'lodash-es';
 ```
 
-- Before writing a helper, check whether `lodash-es` covers it, for example `clamp`, `debounce`, `throttle`, `partition`, `groupBy`, `keyBy`, `uniqBy`, `orderBy`, `isEqual`, `cloneDeep`, `pick`, `omit`, `chunk`, `range`, `takeRight`, `dropRight`.
-- When `lodash-es` has no equivalent, put the helper in `src/shared/utils` and re-export it from that barrel instead of redefining it next to a component. It already provides `mod` (Euclidean modulo) and `rotate` (cyclic array shift), which lodash lacks.
-- Reusable hooks live in `src/shared/hooks`. Prefer `useDebouncedCallback` over hand-written `setTimeout`/`clearTimeout` plumbing in a component; it keeps the debounced instance stable across renders and returns `run`, `cancel`, and `flush`.
-- Never import the CommonJS `lodash` package, a default export (`import _ from 'lodash-es'`), or per-method paths such as `lodash-es/clamp`. Only `import { func } from 'lodash-es';` keeps the Vite ESM build tree-shakeable.
-- Leave already-simple native code alone. Do not rewrite `Math.floor(x)`, `Math.max(a, b)`, `arr.map(...)`, `arr.length === 0`, or `Object.keys(o)` into `floor`, `max`, `map`, `isEmpty`, or `keys`.
-- Reach for `lodash-es` when the native version needs a named helper, a manual loop, or several chained steps to express one idea. Replacing a one-line native call with a lodash call is not an improvement.
-- Iteratee-based helpers (`partition`, `groupBy`, `keyBy`, `sortBy`, `orderBy`, `uniqBy`) drag in lodash's `baseIteratee` graph, which costs roughly 15 kB in the bundle. Use them when they replace real logic, not when they merely restate a single `filter` or `map`.
+- Прежде чем писать хелпер, проверь, покрывает ли это `lodash-es`, например `clamp`, `debounce`, `throttle`, `partition`, `groupBy`, `keyBy`, `uniqBy`, `orderBy`, `isEqual`, `cloneDeep`, `pick`, `omit`, `chunk`, `range`, `takeRight`, `dropRight`.
+- Если у `lodash-es` нет аналога, помести хелпер в `src/shared/utils` и реэкспортируй его из этого barrel-файла, вместо того чтобы переопределять его рядом с компонентом. Там уже есть `mod` (евклидов модуль) и `rotate` (циклический сдвиг массива), которых нет в lodash.
+- Переиспользуемые хуки лежат в `src/shared/hooks`. Предпочитай `useDebouncedCallback` вместо самописной обвязки `setTimeout`/`clearTimeout` в компоненте; он держит debounced-инстанс стабильным между рендерами и возвращает `run`, `cancel` и `flush`.
+- Никогда не импортируй CommonJS-пакет `lodash`, дефолтный экспорт (`import _ from 'lodash-es'`) или пути к отдельным методам вроде `lodash-es/clamp`. Только `import { func } from 'lodash-es';` сохраняет Vite ESM-сборку tree-shakeable.
+- Не трогай уже простой нативный код. Не переписывай `Math.floor(x)`, `Math.max(a, b)`, `arr.map(...)`, `arr.length === 0` или `Object.keys(o)` в `floor`, `max`, `map`, `isEmpty` или `keys`.
+- Используй `lodash-es`, когда нативному варианту нужен именованный хелпер, ручной цикл или несколько последовательных шагов, чтобы выразить одну идею. Замена однострочного нативного вызова на вызов lodash не является улучшением.
+- Хелперы на основе iteratee (`partition`, `groupBy`, `keyBy`, `sortBy`, `orderBy`, `uniqBy`) тянут за собой граф `baseIteratee` из lodash, что стоит примерно 15 кБ в бандле. Используй их, когда они заменяют реальную логику, а не когда они лишь повторяют одиночный `filter` или `map`.
 
-## Comments
+## Комментарии
 
-Document exported symbols with JSDoc block comments, not `//`. Editors surface a JSDoc docstring on hover and in autocomplete, while a line comment above an export is invisible at the call site:
+Документируй экспортируемые символы блочными комментариями JSDoc, а не `//`. Редакторы показывают JSDoc-докстринг при наведении и в автодополнении, тогда как строчный комментарий над экспортом не виден в месте вызова:
 
 ```ts
-/** Runs a waiting call right now instead of waiting out the delay. Does nothing when idle. */
+/** Немедленно выполняет отложенный вызов вместо того, чтобы ждать окончания задержки. Ничего не делает в состоянии простоя. */
 flush: () => void;
 ```
 
-- Use `//` for explanations inside a function body and above non-exported internals.
-- Do not restate the signature. Document what the caller cannot see: edge cases, units, invariants, and the reason the code exists.
-- Add `@example` when the behavior is easier to show than to describe, for example a return value that is not obvious from the name.
+- Используй `//` для пояснений внутри тела функции и над неэкспортируемыми внутренними деталями.
+- Не повторяй сигнатуру. Документируй то, что не видно вызывающему коду: граничные случаи, единицы измерения, инварианты и причину существования кода.
+- Добавляй `@example`, когда поведение проще показать, чем описать, например когда возвращаемое значение не очевидно из названия.
 
-## Tests
+## Тесты
 
-Do not write or add tests unless the user explicitly asks for tests.
-Do not proactively suggest tests unless they are explicitly required by the task or the risk/complexity is high enough that skipping tests would be unreasonable.
+Не пиши и не добавляй тесты, если пользователь явно об этом не попросил.
+Не предлагай тесты по своей инициативе, если они явно не требуются задачей или риск/сложность не настолько высоки, что пропустить тесты было бы неразумно.
 
-## Before starting any task
+## Перед началом любой задачи
 
-- If the task involves **planning or proposing an approach**: Read [docs/agent/planning.md](docs/agent/planning.md) before writing a plan.
-- If the task involves **complex codebase decisions or known tricky areas**: Read [docs/agent/development-docs-maintenance.md](docs/agent/development-docs-maintenance.md) and check the relevant page in `docs/development/` before re-analysing the problem.
+- Если задача связана с **планированием или предложением подхода**: прочитай [docs/agent/planning.md](docs/agent/planning.md), прежде чем писать план.
+- Если задача связана со **сложными решениями по кодовой базе или известными нетривиальными зонами**: прочитай [docs/agent/development-docs-maintenance.md](docs/agent/development-docs-maintenance.md) и проверь соответствующую страницу в `docs/development/`, прежде чем заново анализировать проблему.
 
-## Before writing or editing code
+## Перед написанием или редактированием кода
 
-You MUST Read the relevant rules file before touching related code. Do not rely on memory or assumptions.
+Ты ОБЯЗАН прочитать соответствующий файл правил, прежде чем трогать связанный код. Не полагайся на память или предположения.
 
-- Before creating or editing **any component**: Read [docs/agent/component-structure.md](docs/agent/component-structure.md).
-- Before creating or moving **any file or folder**: Read [docs/agent/file-structure.md](docs/agent/file-structure.md).
-- Before writing or editing **any `.scss` file**: Read [docs/agent/scss-style-rules.md](docs/agent/scss-style-rules.md).
-- Before writing or editing **any `.md` file**: Read [docs/agent/markdown-style-rules.md](docs/agent/markdown-style-rules.md).
-- Before running **any shell command**: Read [docs/agent/command-execution.md](docs/agent/command-execution.md).
-- Before reading or writing **any file with Cyrillic text**: Read [docs/agent/encoding.md](docs/agent/encoding.md).
-- Before implementing a change that **adds, removes, or alters user-visible behavior**: Read [docs/agent/functional-spec-maintenance.md](docs/agent/functional-spec-maintenance.md) and compare the change against `docs/functional-spec/index.md`.
+- Перед созданием или редактированием **любого компонента**: прочитай [docs/agent/component-structure.md](docs/agent/component-structure.md).
+- Перед созданием или перемещением **любого файла или папки**: прочитай [docs/agent/file-structure.md](docs/agent/file-structure.md).
+- Перед написанием или редактированием **любого файла `.scss`**: прочитай [docs/agent/scss-style-rules.md](docs/agent/scss-style-rules.md).
+- Перед написанием или редактированием **любого файла `.md`**: прочитай [docs/agent/markdown-style-rules.md](docs/agent/markdown-style-rules.md).
+- Перед выполнением **любой команды оболочки**: прочитай [docs/agent/command-execution.md](docs/agent/command-execution.md).
+- Перед чтением или записью **любого файла с кириллическим текстом**: прочитай [docs/agent/encoding.md](docs/agent/encoding.md).
+- Перед внесением изменения, которое **добавляет, убирает или меняет видимое пользователю поведение**: прочитай [docs/agent/functional-spec-maintenance.md](docs/agent/functional-spec-maintenance.md) и сравни изменение с `docs/functional-spec/index.md`.
 
-## After finishing changes
+## После завершения изменений
 
-After every task that touches code, styles, config, or documentation, you MUST:
+После каждой задачи, затрагивающей код, стили, конфигурацию или документацию, ты ОБЯЗАН:
 
-1. Read [docs/agent/after-work-checks.md](docs/agent/after-work-checks.md) and run every check listed there.
-2. Report which checks were run and whether anything failed or was skipped.
+1. Прочитать [docs/agent/after-work-checks.md](docs/agent/after-work-checks.md) и прогнать каждую указанную там проверку.
+2. Сообщить, какие проверки были запущены и не провалилась ли или не была ли пропущена какая-либо из них.
 
-Do not consider the task complete until the checks have been run.
+Не считай задачу завершённой, пока проверки не были выполнены.
 
-## For visual, layout, or theme changes
+## Для визуальных изменений, изменений раскладки или темы
 
-After any change to layout, styles, Ant Design tokens, or modal/navigation structure, you MUST:
+После любого изменения раскладки, стилей, токенов Ant Design или структуры модалок/навигации ты ОБЯЗАН:
 
-1. Read [docs/agent/screenshot-testing.md](docs/agent/screenshot-testing.md).
-2. Follow the full workflow and checklist described there.
+1. Прочитать [docs/agent/screenshot-testing.md](docs/agent/screenshot-testing.md).
+2. Следовать полному воркфлоу и чек-листу, описанным там.
