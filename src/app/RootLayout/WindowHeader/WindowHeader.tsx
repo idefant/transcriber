@@ -121,6 +121,7 @@ const WindowHeader: FC<WindowHeaderProps> = ({ title }) => {
           aria-label={t('common.windowControls.minimize')}
           className={styles.controlButton}
           disabled={!windowState.isMinimizable}
+          tabIndex={-1}
           title={t('common.windowControls.minimize')}
           type="button"
           onClick={() => {
@@ -137,6 +138,7 @@ const WindowHeader: FC<WindowHeaderProps> = ({ title }) => {
           }
           className={styles.controlButton}
           disabled={!windowState.isMaximizable || !windowState.isResizable}
+          tabIndex={-1}
           title={
             windowState.isMaximized
               ? t('common.windowControls.restore')
@@ -157,6 +159,7 @@ const WindowHeader: FC<WindowHeaderProps> = ({ title }) => {
           aria-label={t('common.windowControls.close')}
           className={`${styles.controlButton} ${styles.closeButton}`}
           disabled={!windowState.isClosable}
+          tabIndex={-1}
           title={t('common.windowControls.close')}
           type="button"
           onClick={() => {
