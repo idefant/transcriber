@@ -17,31 +17,58 @@ const BASELINE_ACTIVITY_LEVELS: ActivityLevels = [
   MIN_ACTIVITY_LEVEL,
 ];
 const SILENCE_GATE = 0.003;
+const ACTIVITY_COEFFICIENTS: ActivityLevels = [0.52, 1, 0.74];
+const ROTATION_STEP_MS = 400;
+const MIC_LEVEL_SMOOTHING = 0.55;
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
-const blendActivityLevels = (
-  [left, center, right]: ActivityLevels,
-  [nextLeft, nextCenter, nextRight]: ActivityLevels,
-): ActivityLevels => [
-  left * 0.45 + nextLeft * 0.55,
-  center * 0.45 + nextCenter * 0.55,
-  right * 0.45 + nextRight * 0.55,
-];
+const lerp = (from: number, to: number, ratio: number): number => from + (to - from) * ratio;
 
-const createRecordingActivityLevels = (micLevel: number): ActivityLevels => {
+// Ease in and out so a coefficient settles into its new slot instead of sliding at a constant speed.
+const smoothstep = (ratio: number): number => ratio * ratio * (3 - 2 * ratio);
+
+// The coefficients travel across the levels: 1,2,3 -> 3,1,2 -> 2,3,1.
+const rotateCoefficients = (step: number): ActivityLevels => {
+  const [first, second, third] = ACTIVITY_COEFFICIENTS;
+  const shift = ((step % 3) + 3) % 3;
+
+  if (shift === 1) return [third, first, second];
+  if (shift === 2) return [second, third, first];
+
+  return [first, second, third];
+};
+
+const createRotatedCoefficients = (elapsedMs: number): ActivityLevels => {
+  const progress = elapsedMs / ROTATION_STEP_MS;
+  const step = Math.floor(progress);
+  const blend = smoothstep(progress - step);
+  const [fromLeft, fromCenter, fromRight] = rotateCoefficients(step);
+  const [toLeft, toCenter, toRight] = rotateCoefficients(step + 1);
+
+  return [
+    lerp(fromLeft, toLeft, blend),
+    lerp(fromCenter, toCenter, blend),
+    lerp(fromRight, toRight, blend),
+  ];
+};
+
+const calculateMicStrength = (micLevel: number): number => {
   if (micLevel <= SILENCE_GATE) {
-    return BASELINE_ACTIVITY_LEVELS;
+    return 0;
   }
 
   const normalized = clamp01((micLevel - SILENCE_GATE) / (1 - SILENCE_GATE));
-  const strength = clamp01(Math.pow(normalized, 0.35) * 1.4);
 
-  return [
-    clamp01(MIN_ACTIVITY_LEVEL + ACTIVITY_LEVEL_RANGE * strength * 0.72),
-    clamp01(MIN_ACTIVITY_LEVEL + ACTIVITY_LEVEL_RANGE * strength),
-    clamp01(MIN_ACTIVITY_LEVEL + ACTIVITY_LEVEL_RANGE * strength * 0.84),
-  ];
+  return clamp01(Math.pow(normalized, 0.35) * 1.4);
+};
+
+const createRecordingActivityLevels = (strength: number, elapsedMs: number): ActivityLevels => {
+  const [left, center, right] = createRotatedCoefficients(elapsedMs);
+  const toLevel = (coefficient: number): number =>
+    clamp01(MIN_ACTIVITY_LEVEL + ACTIVITY_LEVEL_RANGE * strength * coefficient);
+
+  return [toLevel(left), toLevel(center), toLevel(right)];
 };
 
 const RecordingOverlay: FC = () => {
@@ -51,16 +78,24 @@ const RecordingOverlay: FC = () => {
   const [activityLevels, setActivityLevels] = useState<ActivityLevels>(BASELINE_ACTIVITY_LEVELS);
   const [recordId, setRecordId] = useState<string | null>(null);
   const isNoticeHoverTrackedRef = useRef(false);
+  const micStrengthRef = useRef(0);
+  const rotationStartedAtRef = useRef(0);
+
+  const resetActivityLevels = useCallback(() => {
+    micStrengthRef.current = 0;
+    rotationStartedAtRef.current = performance.now();
+    setActivityLevels(BASELINE_ACTIVITY_LEVELS);
+  }, []);
 
   const applyOverlayState = useCallback(
     (nextState: OverlayState, nextVariant: OverlayVariant, nextRecordId: string | null) => {
       setState(nextState);
       setVariant(nextVariant);
       setRecordId(nextRecordId);
-      setActivityLevels(BASELINE_ACTIVITY_LEVELS);
+      resetActivityLevels();
       setIsVisible(true);
     },
-    [],
+    [resetActivityLevels],
   );
 
   useEffect(() => {
@@ -86,12 +121,20 @@ const RecordingOverlay: FC = () => {
       }),
       listen('hide-overlay', () => {
         isNoticeHoverTrackedRef.current = false;
-        setActivityLevels(BASELINE_ACTIVITY_LEVELS);
+        resetActivityLevels();
         setIsVisible(false);
       }),
       listen<number>('mic-level', (event) => {
-        setActivityLevels((current) =>
-          blendActivityLevels(current, createRecordingActivityLevels(event.payload)),
+        micStrengthRef.current = lerp(
+          micStrengthRef.current,
+          calculateMicStrength(event.payload),
+          MIC_LEVEL_SMOOTHING,
+        );
+        setActivityLevels(
+          createRecordingActivityLevels(
+            micStrengthRef.current,
+            performance.now() - rotationStartedAtRef.current,
+          ),
         );
       }),
     ];
@@ -105,7 +148,7 @@ const RecordingOverlay: FC = () => {
         return null;
       });
     };
-  }, [applyOverlayState]);
+  }, [applyOverlayState, resetActivityLevels]);
 
   useEffect(() => {
     isNoticeHoverTrackedRef.current = false;
