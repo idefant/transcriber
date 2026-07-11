@@ -196,6 +196,7 @@ const en = {
       channel: {
         canary: 'Canary',
       },
+      releaseNotesTitle: "What's new in {{version}}",
     },
     tests: {
       title: 'Configuration test',
@@ -448,6 +449,7 @@ const ru: typeof en = {
       channel: {
         canary: 'Canary',
       },
+      releaseNotesTitle: 'Что нового в {{version}}',
     },
     tests: {
       title: 'Тест конфигурации',

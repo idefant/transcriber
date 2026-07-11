@@ -22,7 +22,6 @@ export const createUpdateNotificationArgs = ({
       {t('settings.about.download')}
     </Button>
   ),
-  description: info.notes ?? undefined,
   duration: 10,
   key: updateNotificationKey,
   pauseOnHover: true,

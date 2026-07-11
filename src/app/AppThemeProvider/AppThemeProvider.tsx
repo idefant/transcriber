@@ -22,6 +22,7 @@ const appTokenVariableNames = [
   '--app-color-border',
   '--app-color-border-secondary',
   '--app-color-fill-tertiary',
+  '--app-color-link',
   '--app-color-primary-bg',
   '--app-color-primary-border',
   '--app-color-text',
@@ -139,6 +140,7 @@ const AppThemeTokenVariables: FC = () => {
     rootStyle.setProperty('--app-color-border', token.colorBorder);
     rootStyle.setProperty('--app-color-border-secondary', token.colorBorderSecondary);
     rootStyle.setProperty('--app-color-fill-tertiary', token.colorFillTertiary);
+    rootStyle.setProperty('--app-color-link', token.colorLink);
     rootStyle.setProperty('--app-color-primary-bg', token.colorPrimaryBg);
     rootStyle.setProperty('--app-color-primary-border', token.colorPrimaryBorder);
     rootStyle.setProperty('--app-color-text', token.colorText);

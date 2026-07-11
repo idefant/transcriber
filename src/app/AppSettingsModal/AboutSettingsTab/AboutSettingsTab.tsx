@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next';
 
 import SettingRow from '../SettingRow';
 
+import ReleaseNotes from './ReleaseNotes';
+
 import styles from './AboutSettingsTab.module.scss';
 
 import { useAppSettings, useUpdaterStore } from '#/stores';
@@ -64,6 +66,7 @@ const AboutSettingsTab: FC = () => {
   const downloadPercent = installProgress?.total
     ? Math.round((installProgress.downloaded / installProgress.total) * 100)
     : undefined;
+  const releaseNotes = availableUpdate?.notes?.trim() ?? '';
 
   return (
     <>
@@ -134,6 +137,10 @@ const AboutSettingsTab: FC = () => {
               <span>{t('settings.about.installing')}</span>
               {downloadPercent !== undefined && <Progress percent={downloadPercent} size="small" />}
             </div>
+          )}
+
+          {availableUpdate !== null && releaseNotes.length > 0 && (
+            <ReleaseNotes notes={releaseNotes} version={availableUpdate.version} />
           )}
         </div>
       </div>

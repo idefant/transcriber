@@ -1,0 +1,64 @@
+.releaseNotes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--app-color-text);
+}
+
+.body {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--app-color-text-secondary);
+
+  h2,
+  h3,
+  h4 {
+    margin: 12px 0 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--app-color-text);
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  p {
+    margin: 4px 0;
+  }
+
+  ul,
+  ol {
+    padding-inline-start: 20px;
+    margin: 4px 0;
+  }
+
+  li {
+    margin: 2px 0;
+  }
+
+  a {
+    color: var(--app-color-link);
+    text-decoration: underline;
+  }
+
+  code {
+    padding: 1px 4px;
+    font-family: var(--app-font-mono);
+    font-size: 12px;
+    background: var(--app-color-fill-tertiary);
+    border-radius: 4px;
+  }
+
+  strong {
+    font-weight: 600;
+    color: var(--app-color-text);
+  }
+}
