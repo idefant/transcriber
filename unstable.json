@@ -1,15 +1,15 @@
 {
-  "version": "0.1.1",
-  "notes": "### Added\r\n\r\n- On Windows, if speech-to-text or post-processing is not fully configured, starting dictation now shows a native system notification before recording begins. Clicking the notification opens the relevant settings tab.\r\n- Backend-generated error messages now follow the selected app language, including configuration errors shown before recording starts.\r\n\r\n### Changed\r\n\r\n- Custom prompt fields now show and use the built-in default prompt/template until the user saves an override, even when custom prompts are enabled.\r\n- Post-processing provider/model fields, prompt fields, and the post-processing test panel stay hidden until post-processing is enabled.\r\n\r\n### Fixed\r\n\r\n- Required provider and model fields in speech-to-text and post-processing settings are now highlighted immediately when the selection is incomplete.\r\n- Custom prompt fields can now be reset back to their default values without disabling the custom prompt toggle.\r\n- Closing the provider settings modal now clears stale validation errors, and existing processing settings are migrated automatically to the updated prompt storage format.",
-  "pub_date": "2026-07-04T08:57:06.886Z",
+  "version": "0.1.2-alpha.1",
+  "notes": "",
+  "pub_date": "2026-07-12T11:21:14.585Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MnRnVllTQnhIN3hGd0dockk2T0tBelo0QlNFOTFSU0paQ1ZEemM1SzRtZ2poc25FdGVUdTdyR0ZSR2JOWXRuWWQ0SDB0N1E2dmVQNzF2eHJ5QWoyZ3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTU1NDI0CWZpbGU6VHJhbnNjcmliZXJfMC4xLjFfeDY0LXNldHVwLmV4ZQpZWFBwSlh1ckdZVEowTjVmclFwOEJTQ1NDdFlIamUvd2xWSTJwTCt3WmIzSWdVdDZCejNmcUhJVERHQ2tnY2lYdUorL2p2b0tDNDE0Mk53bThmanlCdz09Cg==",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.1.1/Transcriber_0.1.1_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MnVCSnhiY3o1M1g4UTF4dHpyNHJMUkNacWNtc0RWSDJMenY4VTErcnREWGRpbGg0RnpYc0N6R2h6b2RNbTRrK0RaSHd2R0krV0Z2T3BBTEVjWks4andvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzODU1MjcxCWZpbGU6VHJhbnNjcmliZXJfMC4xLjItYWxwaGEuMV94NjQtc2V0dXAuZXhlCndPQXZrVG45TDBjMlBzR001WDRudUJ2cHlKOTUzWnhWejU2Wm9vY1Z6Z0NNRXUvMUh1Y3FnTWRWSzgzYzI2WjVzNGYrdm1aeWs2bWJjY1RqN3ZPWEJBPT0K",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.1.2-alpha.1/Transcriber_0.1.2-alpha.1_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MnRnVllTQnhIN3hGd0dockk2T0tBelo0QlNFOTFSU0paQ1ZEemM1SzRtZ2poc25FdGVUdTdyR0ZSR2JOWXRuWWQ0SDB0N1E2dmVQNzF2eHJ5QWoyZ3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMTU1NDI0CWZpbGU6VHJhbnNjcmliZXJfMC4xLjFfeDY0LXNldHVwLmV4ZQpZWFBwSlh1ckdZVEowTjVmclFwOEJTQ1NDdFlIamUvd2xWSTJwTCt3WmIzSWdVdDZCejNmcUhJVERHQ2tnY2lYdUorL2p2b0tDNDE0Mk53bThmanlCdz09Cg==",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.1.1/Transcriber_0.1.1_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MnVCSnhiY3o1M1g4UTF4dHpyNHJMUkNacWNtc0RWSDJMenY4VTErcnREWGRpbGg0RnpYc0N6R2h6b2RNbTRrK0RaSHd2R0krV0Z2T3BBTEVjWks4andvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzODU1MjcxCWZpbGU6VHJhbnNjcmliZXJfMC4xLjItYWxwaGEuMV94NjQtc2V0dXAuZXhlCndPQXZrVG45TDBjMlBzR001WDRudUJ2cHlKOTUzWnhWejU2Wm9vY1Z6Z0NNRXUvMUh1Y3FnTWRWSzgzYzI2WjVzNGYrdm1aeWs2bWJjY1RqN3ZPWEJBPT0K",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.1.2-alpha.1/Transcriber_0.1.2-alpha.1_x64-setup.exe"
     }
   }
 }
