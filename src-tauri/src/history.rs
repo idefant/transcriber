@@ -1,11 +1,12 @@
 use std::{fs, path::PathBuf, process::Command};
 
-use chrono::{DateTime, Datelike, Local, SecondsFormat, Timelike, Utc};
+use chrono::{DateTime, Datelike, Local, SecondsFormat, TimeZone, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager};
 use uuid::Uuid;
 
 use crate::{
+    db,
     debug_log::{self, ModelRunLogContext, ModelRunSource},
     error::{AppError, AppResult},
     i18n,
@@ -14,7 +15,6 @@ use crate::{
     runner::{
         self, PostProcessRunOutput, PostProcessSettingsSnapshot, SttRunOutput, SttSettingsSnapshot,
     },
-    storage,
 };
 
 const HISTORY_FILE_NAME: &str = "history.json";
@@ -114,8 +114,13 @@ pub enum RepeatHistoryHotkeyOutcome {
     },
 }
 
+/// Асинхронная команда намеренно: синхронные команды Tauri выполняются в
+/// главном потоке, а выборка и десериализация целого месяца истории заморозила
+/// бы его. Фронтенд перезагружает месяц по каждому событию history-updated
+/// (в т.ч. во время диктовки), поэтому эта работа должна идти вне главного
+/// потока, иначе синтетический Ctrl+V вставки не успеет обработаться вовремя.
 #[tauri::command]
-pub fn get_history_groups(
+pub async fn get_history_groups(
     app: tauri::AppHandle,
     month: Option<String>,
 ) -> Result<Vec<HistoryGroup>, String> {
@@ -210,7 +215,6 @@ pub fn save_new_history_record(
     app: &tauri::AppHandle,
     input: NewHistoryRecord,
 ) -> AppResult<HistoryRecord> {
-    let mut store = load_history_store(app)?;
     let id = input.id.unwrap_or_else(|| Uuid::new_v4().to_string());
     let created_at = input.audio.started_at;
     let audio_path = save_audio_file(app, created_at, &id, &input.audio.bytes)?;
@@ -240,9 +244,7 @@ pub fn save_new_history_record(
         transcription,
     };
 
-    store.records.push(record.clone());
-    sort_records(&mut store.records);
-    save_history_store(app, &store)?;
+    upsert_record(app, &record)?;
     emit_history_updated(app, Some(&record));
     debug_log::log_event(
         app,
@@ -271,22 +273,17 @@ pub fn save_new_history_record(
 }
 
 pub fn latest_history_text(app: &tauri::AppHandle) -> AppResult<String> {
-    let mut records = load_history_store(app)?.records;
-
-    sort_records(&mut records);
-
-    Ok(records
-        .first()
-        .map(|record| record.final_text.clone())
-        .unwrap_or_default())
+    match db::latest_data(app)? {
+        Some(data) => Ok(parse_record(&data)?.final_text),
+        None => Ok(String::new()),
+    }
 }
 
 pub fn latest_history_record_id(app: &tauri::AppHandle) -> AppResult<Option<String>> {
-    let mut records = load_history_store(app)?.records;
-
-    sort_records(&mut records);
-
-    Ok(records.first().map(|record| record.id.clone()))
+    match db::latest_data(app)? {
+        Some(data) => Ok(Some(parse_record(&data)?.id)),
+        None => Ok(None),
+    }
 }
 
 pub async fn repeat_history_record_for_hotkey(
@@ -344,18 +341,23 @@ fn get_history_groups_inner(
     app: &tauri::AppHandle,
     month: Option<&str>,
 ) -> AppResult<Vec<HistoryGroup>> {
-    let mut records = load_history_store(app)?.records;
-    sort_records(&mut records);
+    // Границы выбранного локального месяца переводятся в UTC до запроса.
+    // Так `created_at` остаётся единственным источником истины для времени,
+    // а база может использовать его индекс и для фильтрации, и для сортировки.
+    let created_at_range = month.map(local_month_bounds).transpose()?;
+    let records = db::list_data(
+        app,
+        created_at_range
+            .as_ref()
+            .map(|(from, to)| (from.as_str(), to.as_str())),
+    )?;
 
     let mut groups: Vec<HistoryGroup> = Vec::new();
 
-    for record in records {
+    for data in records {
+        let record = parse_record(&data)?;
         let local = parse_record_time(&record.created_at);
         let record_month = format!("{:04}-{:02}", local.year(), local.month());
-
-        if month.is_some_and(|month| month != record_month) {
-            continue;
-        }
 
         let date = format!(
             "{:04}-{:02}-{:02}",
@@ -385,16 +387,9 @@ fn get_history_groups_inner(
 }
 
 fn delete_history_record_inner(app: &tauri::AppHandle, record_id: &str) -> AppResult<()> {
-    let mut store = load_history_store(app)?;
-    let record = store
-        .records
-        .iter()
-        .find(|record| record.id == record_id)
-        .cloned()
-        .ok_or_else(|| i18n::text(app, "history-record-not-found"))?;
+    let record = find_history_record(app, record_id)?;
 
-    store.records.retain(|record| record.id != record_id);
-    save_history_store(app, &store)?;
+    db::delete(app, record_id)?;
 
     let path = PathBuf::from(record.audio.path);
 
@@ -454,20 +449,16 @@ async fn repeat_history_transcription_inner(
     app: &tauri::AppHandle,
     record_id: &str,
 ) -> AppResult<HistoryRecord> {
-    let mut store = load_history_store(app)?;
-    let index = find_record_index(app, &store.records, record_id)?;
-    let audio_path = store.records[index].audio.path.clone();
-    let audio_duration_ms = store.records[index].audio.duration_ms;
-    let created_at = store.records[index].created_at.clone();
+    let mut record = find_history_record(app, record_id)?;
+    let audio_path = record.audio.path.clone();
+    let audio_duration_ms = record.audio.duration_ms;
+    let created_at = record.created_at.clone();
 
-    store.records[index].transcription = processing_result();
-    store.records[index].final_text = final_text(
-        &store.records[index].transcription,
-        &store.records[index].postprocessing,
-    );
-    store.records[index].status = HistoryRecordStatus::Processing;
-    save_history_store(app, &store)?;
-    emit_history_updated(app, Some(&store.records[index]));
+    record.transcription = processing_result();
+    record.final_text = final_text(&record.transcription, &record.postprocessing);
+    record.status = HistoryRecordStatus::Processing;
+    upsert_record(app, &record)?;
+    emit_history_updated(app, Some(&record));
 
     let audio_bytes = fs::read(&audio_path)?;
     let log_context = ModelRunLogContext {
@@ -496,24 +487,17 @@ async fn repeat_history_transcription_inner(
     )
     .await;
 
-    let mut store = load_history_store(app)?;
-    let index = find_record_index(app, &store.records, record_id)?;
-
     match result {
         Ok(output) => {
-            store.records[index].transcription = result_from_stt_output(output);
-            store.records[index].final_text = final_text(
-                &store.records[index].transcription,
-                &store.records[index].postprocessing,
-            );
-            store.records[index].status = record_status(
-                &store.records[index].transcription,
-                &store.records[index].postprocessing,
-            );
-            save_history_store(app, &store)?;
-            emit_history_updated(app, Some(&store.records[index]));
+            // Перечитываем запись: за время STT её могли изменить.
+            let mut record = find_history_record(app, record_id)?;
+            record.transcription = result_from_stt_output(output);
+            record.final_text = final_text(&record.transcription, &record.postprocessing);
+            record.status = record_status(&record.transcription, &record.postprocessing);
+            upsert_record(app, &record)?;
+            emit_history_updated(app, Some(&record));
 
-            Ok(store.records[index].clone())
+            Ok(record)
         }
         Err(error) => save_repeated_stt_error(app, record_id, Some(stt_snapshot), error),
     }
@@ -538,13 +522,12 @@ async fn repeat_history_record_inner(
 }
 
 fn prepare_history_record_repeat(app: &tauri::AppHandle, record_id: &str) -> AppResult<()> {
-    let mut store = load_history_store(app)?;
-    let index = find_record_index(app, &store.records, record_id)?;
+    let mut record = find_history_record(app, record_id)?;
 
-    store.records[index].postprocessing = skipped_result(None);
-    store.records[index].final_text = String::new();
-    save_history_store(app, &store)?;
-    emit_history_updated(app, Some(&store.records[index]));
+    record.postprocessing = skipped_result(None);
+    record.final_text = String::new();
+    upsert_record(app, &record)?;
+    emit_history_updated(app, Some(&record));
 
     Ok(())
 }
@@ -553,13 +536,9 @@ async fn repeat_history_post_processing_inner(
     app: &tauri::AppHandle,
     record_id: &str,
 ) -> AppResult<HistoryRecord> {
-    let mut store = load_history_store(app)?;
-    let index = find_record_index(app, &store.records, record_id)?;
+    let mut record = find_history_record(app, record_id)?;
 
-    if !matches!(
-        store.records[index].transcription.status,
-        HistoryResultStatus::Success
-    ) {
+    if !matches!(record.transcription.status, HistoryResultStatus::Success) {
         return Err(
             i18n::text(app, "history-transcription-required-before-post-processing").into(),
         );
@@ -569,37 +548,30 @@ async fn repeat_history_post_processing_inner(
         return Err(i18n::text(app, "history-post-processing-disabled").into());
     }
 
-    let input_text = store.records[index].transcription.text.clone();
-    let created_at = store.records[index].created_at.clone();
-    let audio_duration_ms = store.records[index].audio.duration_ms;
-    let audio_path = store.records[index].audio.path.clone();
+    let input_text = record.transcription.text.clone();
+    let created_at = record.created_at.clone();
+    let audio_duration_ms = record.audio.duration_ms;
+    let audio_path = record.audio.path.clone();
     let snapshot = match runner::build_post_process_snapshot(app) {
         Ok(snapshot) => snapshot,
         Err(error) => {
-            store.records[index].postprocessing = result_from_post_process_error(None, error);
-            store.records[index].final_text = final_text(
-                &store.records[index].transcription,
-                &store.records[index].postprocessing,
-            );
-            store.records[index].status = record_status(
-                &store.records[index].transcription,
-                &store.records[index].postprocessing,
-            );
-            save_history_store(app, &store)?;
-            emit_history_updated(app, Some(&store.records[index]));
+            record.postprocessing = result_from_post_process_error(None, error);
+            record.final_text = final_text(&record.transcription, &record.postprocessing);
+            record.status = record_status(&record.transcription, &record.postprocessing);
+            upsert_record(app, &record)?;
+            emit_history_updated(app, Some(&record));
 
-            return Ok(store.records[index].clone());
+            return Ok(record);
         }
     };
 
-    store.records[index].postprocessing = processing_result();
-    store.records[index].postprocessing.settings_snapshot =
-        serde_json::to_value(snapshot.clone()).ok();
-    store.records[index].postprocessing.model = snapshot.model_label.clone();
-    store.records[index].postprocessing.provider = snapshot.provider.provider_name.clone();
-    store.records[index].status = HistoryRecordStatus::Processing;
-    save_history_store(app, &store)?;
-    emit_history_updated(app, Some(&store.records[index]));
+    record.postprocessing = processing_result();
+    record.postprocessing.settings_snapshot = serde_json::to_value(snapshot.clone()).ok();
+    record.postprocessing.model = snapshot.model_label.clone();
+    record.postprocessing.provider = snapshot.provider.provider_name.clone();
+    record.status = HistoryRecordStatus::Processing;
+    upsert_record(app, &record)?;
+    emit_history_updated(app, Some(&record));
 
     let log_context = ModelRunLogContext {
         source: ModelRunSource::HistoryRepeat,
@@ -615,40 +587,25 @@ async fn repeat_history_post_processing_inner(
     };
     let result =
         runner::run_post_process_with_snapshot(app, &snapshot, input_text, Some(log_context)).await;
-    let mut store = load_history_store(app)?;
-    let index = find_record_index(app, &store.records, record_id)?;
+
+    // Перечитываем запись: за время постобработки её могли изменить.
+    let mut record = find_history_record(app, record_id)?;
 
     match result {
         Ok(output) => {
-            store.records[index].postprocessing = result_from_post_process_output(output);
-            store.records[index].final_text = final_text(
-                &store.records[index].transcription,
-                &store.records[index].postprocessing,
-            );
-            store.records[index].status = record_status(
-                &store.records[index].transcription,
-                &store.records[index].postprocessing,
-            );
-            save_history_store(app, &store)?;
-            emit_history_updated(app, Some(&store.records[index]));
-            Ok(store.records[index].clone())
+            record.postprocessing = result_from_post_process_output(output);
         }
         Err(error) => {
-            store.records[index].postprocessing =
-                result_from_post_process_error(Some(snapshot), error);
-            store.records[index].final_text = final_text(
-                &store.records[index].transcription,
-                &store.records[index].postprocessing,
-            );
-            store.records[index].status = record_status(
-                &store.records[index].transcription,
-                &store.records[index].postprocessing,
-            );
-            save_history_store(app, &store)?;
-            emit_history_updated(app, Some(&store.records[index]));
-            Ok(store.records[index].clone())
+            record.postprocessing = result_from_post_process_error(Some(snapshot), error);
         }
     }
+
+    record.final_text = final_text(&record.transcription, &record.postprocessing);
+    record.status = record_status(&record.transcription, &record.postprocessing);
+    upsert_record(app, &record)?;
+    emit_history_updated(app, Some(&record));
+
+    Ok(record)
 }
 
 fn result_from_stt_output(output: SttRunOutput) -> ProcessingDetails {
@@ -797,25 +754,18 @@ fn save_repeated_stt_error(
     snapshot: Option<SttSettingsSnapshot>,
     error: AppError,
 ) -> AppResult<HistoryRecord> {
-    let mut store = load_history_store(app)?;
-    let index = find_record_index(app, &store.records, record_id)?;
+    let mut record = find_history_record(app, record_id)?;
 
-    store.records[index].transcription = match snapshot {
+    record.transcription = match snapshot {
         Some(snapshot) => result_from_stt_error(snapshot, error),
         None => result_from_generic_stt_error(error),
     };
-    store.records[index].final_text = final_text(
-        &store.records[index].transcription,
-        &store.records[index].postprocessing,
-    );
-    store.records[index].status = record_status(
-        &store.records[index].transcription,
-        &store.records[index].postprocessing,
-    );
-    save_history_store(app, &store)?;
-    emit_history_updated(app, Some(&store.records[index]));
+    record.final_text = final_text(&record.transcription, &record.postprocessing);
+    record.status = record_status(&record.transcription, &record.postprocessing);
+    upsert_record(app, &record)?;
+    emit_history_updated(app, Some(&record));
 
-    Ok(store.records[index].clone())
+    Ok(record)
 }
 
 fn final_text(transcription: &ProcessingDetails, postprocessing: &ProcessingDetails) -> String {
@@ -846,30 +796,123 @@ fn record_status(
 }
 
 fn find_history_record(app: &tauri::AppHandle, record_id: &str) -> AppResult<HistoryRecord> {
-    load_history_store(app)?
+    match db::get_data(app, record_id)? {
+        Some(data) => parse_record(&data),
+        None => Err(i18n::text(app, "history-record-not-found").into()),
+    }
+}
+
+/// Разбирает JSON-строку колонки `data` в запись истории.
+fn parse_record(data: &str) -> AppResult<HistoryRecord> {
+    Ok(serde_json::from_str(data)?)
+}
+
+/// Строит строку таблицы истории из записи. `created_at` и тексты вынесены в
+/// колонки для запросов, а вся запись дополнительно кладётся в `data` как
+/// JSON, чтобы не менять формат данных истории.
+fn record_row(record: &HistoryRecord) -> AppResult<db::RecordRow> {
+    Ok(db::RecordRow {
+        id: record.id.clone(),
+        created_at: record.created_at.clone(),
+        transcription_text: record.transcription.text.clone(),
+        postprocessing_text: record.postprocessing.text.clone(),
+        data: serde_json::to_string(record)?,
+    })
+}
+
+/// Возвращает UTC-границы локального календарного месяца в формате RFC3339.
+/// Верхняя граница не входит в интервал.
+fn local_month_bounds(month: &str) -> AppResult<(String, String)> {
+    let Some((year, month)) = month.split_once('-') else {
+        return Err(AppError::from("history month must use YYYY-MM format"));
+    };
+    let year = year
+        .parse::<i32>()
+        .map_err(|_| AppError::from("history month contains an invalid year"))?;
+    let month = month
+        .parse::<u32>()
+        .map_err(|_| AppError::from("history month contains an invalid month"))?;
+
+    let (next_year, next_month) = if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    };
+    let start = Local
+        .with_ymd_and_hms(year, month, 1, 0, 0, 0)
+        .single()
+        .ok_or_else(|| AppError::from("history month is outside the supported range"))?;
+    let end = Local
+        .with_ymd_and_hms(next_year, next_month, 1, 0, 0, 0)
+        .single()
+        .ok_or_else(|| AppError::from("history month is outside the supported range"))?;
+
+    Ok((
+        start
+            .with_timezone(&Utc)
+            .to_rfc3339_opts(SecondsFormat::Millis, false),
+        end.with_timezone(&Utc)
+            .to_rfc3339_opts(SecondsFormat::Millis, false),
+    ))
+}
+
+fn upsert_record(app: &tauri::AppHandle, record: &HistoryRecord) -> AppResult<()> {
+    db::upsert(app, &record_row(record)?)
+}
+
+/// Переносит историю из `history.json` в базу SQLite. Вызывается один раз
+/// миграцией схемы v3.
+///
+/// Исходный `history.json` не удаляется, а переименовывается в резервную
+/// копию: так пользователь ничего не теряет, даже если позже запустит более
+/// старую версию приложения. Повреждённый JSON тоже сохраняется в бэкап, а
+/// импорт при этом продолжается с пустой базой, чтобы не блокировать запуск.
+pub fn migrate_history_json_to_db(app: &tauri::AppHandle) -> AppResult<()> {
+    let dir = app.path().app_data_dir()?;
+    let json_path = dir.join(HISTORY_FILE_NAME);
+
+    if !json_path.exists() {
+        return Ok(());
+    }
+
+    let content = fs::read_to_string(&json_path)?;
+
+    if content.trim().is_empty() {
+        let _ = fs::remove_file(&json_path);
+        return Ok(());
+    }
+
+    let store: HistoryStore = match serde_json::from_str(&content) {
+        Ok(store) => store,
+        Err(_) => {
+            backup_history_json(&dir, &json_path, "corrupt");
+            return Ok(());
+        }
+    };
+
+    let rows = store
         .records
-        .into_iter()
-        .find(|record| record.id == record_id)
-        .ok_or_else(|| i18n::text(app, "history-record-not-found").into())
-}
-
-fn find_record_index(
-    app: &tauri::AppHandle,
-    records: &[HistoryRecord],
-    record_id: &str,
-) -> AppResult<usize> {
-    records
         .iter()
-        .position(|record| record.id == record_id)
-        .ok_or_else(|| i18n::text(app, "history-record-not-found").into())
+        .map(record_row)
+        .collect::<AppResult<Vec<_>>>()?;
+
+    db::import(app, &rows)?;
+    backup_history_json(&dir, &json_path, "pre-sqlite");
+
+    Ok(())
 }
 
-fn load_history_store(app: &tauri::AppHandle) -> AppResult<HistoryStore> {
-    storage::load_json_strict(app, HISTORY_FILE_NAME)
-}
+/// Переименовывает `history.json` в резервную копию рядом с ним. Если файл
+/// с таким именем уже есть, добавляет к нему временную метку.
+fn backup_history_json(dir: &std::path::Path, json_path: &std::path::Path, suffix: &str) {
+    let mut backup = dir.join(format!("history.{suffix}.bak"));
 
-fn save_history_store(app: &tauri::AppHandle, store: &HistoryStore) -> AppResult<()> {
-    storage::save_json(app, HISTORY_FILE_NAME, store)
+    if backup.exists() {
+        let timestamp = Local::now().format("%Y%m%d-%H%M%S");
+        backup = dir.join(format!("history.{suffix}-{timestamp}.bak"));
+    }
+
+    let _ = fs::rename(json_path, backup);
 }
 
 fn save_audio_file(
@@ -903,10 +946,6 @@ fn sanitize_file_name(value: &str) -> String {
             character => character,
         })
         .collect()
-}
-
-fn sort_records(records: &mut [HistoryRecord]) {
-    records.sort_by(|first, second| second.created_at.cmp(&first.created_at));
 }
 
 fn parse_record_time(value: &str) -> DateTime<Local> {

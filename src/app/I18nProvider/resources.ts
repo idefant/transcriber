@@ -252,6 +252,25 @@ const en = {
     title: 'Страница не найдена',
     backHome: 'На главную',
   },
+  maintenance: {
+    reset: {
+      aboutTitle: 'Reset app data',
+      aboutDescription:
+        'Move all app data (history, settings, providers, dictionary) to a backup folder and restart with a clean state',
+      button: 'Reset app data',
+      confirmTitle: 'Reset all app data?',
+      confirmContent:
+        'All app data — history, settings, providers, and dictionary — will be moved to a backup folder inside the app data directory, and the app will restart. Your data is not deleted; it stays in the backup folder.',
+      confirmOk: 'Reset and restart',
+      cancel: 'Cancel',
+      error: 'Could not reset app data',
+    },
+    dataTooNew: {
+      title: 'This data was created by a newer version of the app',
+      description:
+        'The data in this folder was written by a newer version of Transcriber than the one currently installed. To avoid corrupting it, this version will not open the data. Update Transcriber to the latest version, or reset the app data to start fresh.',
+    },
+  },
 };
 
 const ru: typeof en = {
@@ -504,6 +523,25 @@ const ru: typeof en = {
   notFound: {
     title: 'Page not found',
     backHome: 'Back home',
+  },
+  maintenance: {
+    reset: {
+      aboutTitle: 'Сбросить данные приложения',
+      aboutDescription:
+        'Перенести все данные приложения (историю, настройки, провайдеров, словарь) в резервную папку и перезапуститься с чистого состояния',
+      button: 'Сбросить данные',
+      confirmTitle: 'Сбросить все данные приложения?',
+      confirmContent:
+        'Все данные приложения — история, настройки, провайдеры и словарь — будут перенесены в резервную папку внутри каталога данных, после чего приложение перезапустится. Данные не удаляются: они остаются в резервной папке.',
+      confirmOk: 'Сбросить и перезапустить',
+      cancel: 'Отмена',
+      error: 'Не удалось сбросить данные приложения',
+    },
+    dataTooNew: {
+      title: 'Эти данные созданы более новой версией приложения',
+      description:
+        'Данные в этом каталоге записаны более новой версией Transcriber, чем установленная сейчас. Чтобы не повредить их, эта версия не открывает данные. Обновите Transcriber до последней версии или сбросьте данные приложения, чтобы начать заново.',
+    },
   },
 };
 

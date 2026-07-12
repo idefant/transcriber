@@ -7,8 +7,18 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A "Reset app data" action on the About settings tab moves all app data (history, settings, providers, dictionary) to a backup folder and restarts the app from a clean state, after a confirmation. The data is not deleted; it stays in the backup folder.
+- If the app data was created by a newer version of the app than the one installed (possible because stable and pre-release builds share the same data), the app now shows a blocking screen explaining this and offering to update or reset, instead of risking data corruption.
+
+### Changed
+
+- Dictation history is now stored in a local database instead of a single JSON file. The app stays responsive while saving and browsing history even when the history is large.
+
 ### Fixed
 
+- Dictating into a field inside the app itself now inserts the transcribed text instead of the previous clipboard contents. It was caused by the app briefly freezing while saving a large history, which no longer happens.
 - Dictation paste no longer wipes non-text clipboard contents. Images, file lists, HTML, and other memory-backed clipboard formats are now restored after the transcription is pasted, instead of only text.
 - Dictionary duplicate detection is now case-sensitive, so words differing only by case (e.g. "Alpha" and "ALPHA") are treated as distinct entries instead of being blocked or removed together.
 

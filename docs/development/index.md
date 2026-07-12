@@ -193,9 +193,9 @@ npm run check
 
 Управляемый тегами workflow CI/CD, каналы обновлений (stable/unstable), настройка ключей minisign и то, как обновления доставляет Tauri updater, описаны в [release-pipeline.md](release-pipeline.md).
 
-## Миграции хранилища
+## Хранилище и миграции
 
-Схема версионирования `_meta.json`, порядок вызовов `migrations::run`, определение первого запуска, `load_json_or_default` в сравнении с `load_json_strict`, атомарный `save_json` и то, как добавить шаг миграции, описаны в [storage-migrations.md](storage-migrations.md).
+Почему история хранится в SQLite, а конфиги — в JSON (и связь с заморозкой главного потока при вставке), схема таблицы истории, почему `get_history_groups` асинхронна, схема версионирования `_meta.json`, миграция импорта истории, защита от данных более новой версии, сброс данных, `load_json_or_default` в сравнении с `load_json_strict`, атомарная запись и то, как добавить шаг миграции, описаны в [storage-migrations.md](storage-migrations.md).
 
 ## Тестирование моделей
 

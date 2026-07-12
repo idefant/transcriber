@@ -13,6 +13,7 @@ import DictationHotkeyFallback from '#/app/DictationHotkeyFallback';
 import I18nProvider from '#/app/I18nProvider';
 import { i18n } from '#/app/I18nProvider/i18n';
 import { router } from '#/app/router';
+import StartupGate from '#/app/StartupGate';
 import { routes } from '#/shared/routes';
 
 import type { SettingsSectionKey } from '#/models/Settings';
@@ -174,14 +175,16 @@ const App: FC = () => {
   return (
     <I18nProvider>
       <AppThemeProvider>
-        <StoreLoader />
-        <HistorySubscription />
-        <OpenRecordSubscription />
-        <OpenSettingsSubscription />
-        <DictationHotkeyFallback />
-        <CloseWindowHotkey />
-        <UpdateChecker />
-        <RouterProvider router={router} />
+        <StartupGate>
+          <StoreLoader />
+          <HistorySubscription />
+          <OpenRecordSubscription />
+          <OpenSettingsSubscription />
+          <DictationHotkeyFallback />
+          <CloseWindowHotkey />
+          <UpdateChecker />
+          <RouterProvider router={router} />
+        </StartupGate>
       </AppThemeProvider>
     </I18nProvider>
   );

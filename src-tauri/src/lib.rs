@@ -2,6 +2,7 @@ mod audio_mute;
 mod autostart;
 mod background;
 mod catalog;
+mod db;
 mod debug_log;
 mod dictation;
 mod dictionary;
@@ -9,6 +10,7 @@ mod error;
 mod history;
 mod i18n;
 mod keyboard;
+mod maintenance;
 mod migrations;
 mod notification;
 mod overlay;
@@ -20,6 +22,8 @@ mod settings;
 mod shortcut_hook;
 mod storage;
 mod updater;
+
+use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()
@@ -39,7 +43,23 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
 
-            migrations::run(&app_handle)?;
+            // База истории открывается до миграций: миграция схемы v3
+            // импортирует в неё history.json.
+            db::init(&app_handle)?;
+
+            let startup = migrations::run(&app_handle)?;
+            let data_too_new = matches!(startup, migrations::StartupData::TooNew);
+            app_handle.manage(maintenance::StartupState { data_too_new });
+
+            if data_too_new {
+                // Данные принадлежат более новой версии приложения. Не
+                // запускаем диктовку/оверлей и не трогаем данные; показываем
+                // главное окно, чтобы фронтенд вывел экран с предложением
+                // обновиться или сбросить данные.
+                background::setup_background_mode(&app_handle)?;
+                return Ok(());
+            }
+
             overlay::create_recording_overlay(&app_handle)?;
             dictation::register_dictation_shortcut(&app_handle)?;
             dictation::prewarm_recorder(&app_handle);
@@ -87,6 +107,8 @@ pub fn run() {
             history::repeat_history_post_processing,
             updater::check_for_update,
             updater::download_and_install_update,
+            maintenance::get_startup_status,
+            maintenance::reset_app_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Transcriber");

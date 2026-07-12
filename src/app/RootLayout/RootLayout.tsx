@@ -5,7 +5,7 @@ import { BookOpenIcon, HistoryIcon, SettingsIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import AppSettingsModal from '#/app/AppSettingsModal';
-import WindowHeader from '#/app/RootLayout/WindowHeader';
+import WindowHeader from '#/app/WindowHeader';
 import { routes } from '#/shared/routes';
 
 import styles from './RootLayout.module.scss';

@@ -4,6 +4,8 @@ import { Button, message, Progress, Switch, Tag } from 'antd';
 import { DownloadIcon, RefreshCwIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import ResetAppDataButton from '#/app/ResetAppDataButton';
+
 import SettingRow from '../SettingRow';
 
 import ReleaseNotes from './ReleaseNotes';
@@ -143,6 +145,13 @@ const AboutSettingsTab: FC = () => {
             <ReleaseNotes notes={releaseNotes} version={availableUpdate.version} />
           )}
         </div>
+
+        <SettingRow
+          description={t('maintenance.reset.aboutDescription')}
+          title={t('maintenance.reset.aboutTitle')}
+        >
+          <ResetAppDataButton />
+        </SettingRow>
       </div>
     </>
   );

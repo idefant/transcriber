@@ -4,14 +4,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::Manager;
 
-use crate::{error::AppResult, storage};
+use crate::{error::AppResult, history, storage};
 
 const META_FILE_NAME: &str = "_meta.json";
 const PROCESSING_FILE_NAME: &str = "processing.json";
 
 // Увеличивай эту константу при обратно несовместимом изменении схемы
 // хранилища и добавляй соответствующую ветку в run_migration_step.
-const CURRENT_SCHEMA_VERSION: u32 = 2;
+const CURRENT_SCHEMA_VERSION: u32 = 3;
 
 #[derive(Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -20,10 +20,24 @@ struct MetaStore {
     schema_version: u32,
 }
 
-/// Должна вызываться один раз при настройке приложения, до чтения любых
-/// доменных хранилищ. Выполняет все ожидающие миграции и записывает текущую
-/// версию схемы в _meta.json.
-pub fn run(app: &tauri::AppHandle) -> AppResult<()> {
+/// Результат проверки версии хранилища при старте.
+pub enum StartupData {
+    /// Схема на текущей версии (миграции выполнены при необходимости).
+    Ready,
+    /// Данные записаны более новой версией приложения, чем эта. Миграции не
+    /// выполнялись, `_meta.json` НЕ понижался. Приложение должно предложить
+    /// пользователю обновиться или сбросить данные, а не читать их как свои.
+    TooNew,
+}
+
+/// Должна вызываться один раз при настройке приложения, после инициализации
+/// базы истории ([`crate::db::init`]) и до чтения любых доменных хранилищ.
+/// Выполняет все ожидающие миграции и записывает текущую версию схемы.
+///
+/// Если версия данных выше известной коду, возвращает [`StartupData::TooNew`]
+/// и НЕ трогает `_meta.json`: понижать версию нельзя, иначе старый код начнёт
+/// читать данные более новой схемы как свои и повредит их.
+pub fn run(app: &tauri::AppHandle) -> AppResult<StartupData> {
     let meta: MetaStore = storage::load_json_or_default(app, META_FILE_NAME)?;
 
     let from_version = if meta.schema_version == 0 {
@@ -50,6 +64,10 @@ pub fn run(app: &tauri::AppHandle) -> AppResult<()> {
         meta.schema_version
     };
 
+    if from_version > CURRENT_SCHEMA_VERSION {
+        return Ok(StartupData::TooNew);
+    }
+
     if from_version < CURRENT_SCHEMA_VERSION {
         for target_version in (from_version + 1)..=CURRENT_SCHEMA_VERSION {
             run_migration_step(app, target_version)?;
@@ -64,14 +82,22 @@ pub fn run(app: &tauri::AppHandle) -> AppResult<()> {
         },
     )?;
 
-    Ok(())
+    Ok(StartupData::Ready)
 }
 
 fn run_migration_step(app: &tauri::AppHandle, to_version: u32) -> AppResult<()> {
     match to_version {
         2 => migrate_to_v2(app),
+        3 => migrate_to_v3(app),
         _ => Ok(()),
     }
+}
+
+/// Переносит историю из `history.json` в базу SQLite. Реализация — в
+/// `history`, где живёт тип записи; исходный JSON сохраняется как резервная
+/// копия, а не удаляется.
+fn migrate_to_v3(app: &tauri::AppHandle) -> AppResult<()> {
+    history::migrate_history_json_to_db(app)
 }
 
 fn migrate_to_v2(app: &tauri::AppHandle) -> AppResult<()> {
