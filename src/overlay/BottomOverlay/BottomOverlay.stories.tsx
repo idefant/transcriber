@@ -22,6 +22,10 @@ export const Recording: Story = {
   args: { state: 'recording' },
 };
 
+export const Paused: Story = {
+  args: { state: 'paused' },
+};
+
 export const Transcribing: Story = {
   args: { state: 'transcribing' },
 };

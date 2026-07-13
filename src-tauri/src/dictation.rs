@@ -57,6 +57,9 @@ enum DictationSession {
     Recording {
         id: u64,
         handle: RecordingHandle,
+        /// Запись приостановлена хоткеем паузы: поток захвата стоит на паузе,
+        /// но уже накопленные сэмплы сохраняются до продолжения или остановки.
+        is_paused: bool,
     },
     Transcribing {
         id: u64,
@@ -77,6 +80,11 @@ struct DictationErrorPayload {
 struct DictationSessionPayload {
     active: bool,
     session_id: Option<u64>,
+    /// `true`, пока идёт запись с микрофона (в том числе на паузе). Хоткей отмены
+    /// действует всю сессию, а хоткей паузы — только во время записи, поэтому
+    /// обработчику DOM мало одного флага `active`: он бы перехватывал паузу и во
+    /// время распознавания.
+    is_recording: bool,
 }
 
 #[derive(Clone, Copy, Deserialize)]
@@ -118,6 +126,7 @@ enum DictationJob {
     DomPressed { activation_id: u64 },
     DomReleased { activation_id: u64 },
     Cancel { session_id: Option<u64> },
+    TogglePause { session_id: Option<u64> },
 }
 
 static DICTATION_JOB_SENDER: OnceLock<Sender<DictationJob>> = OnceLock::new();
@@ -158,6 +167,9 @@ fn ensure_dictation_dispatch_thread(app: &tauri::AppHandle) {
                     if let Err(error) = cancel_dictation_inner(app.clone(), session_id) {
                         emit_dictation_error(&app, error.into_message());
                     }
+                }
+                DictationJob::TogglePause { session_id } => {
+                    toggle_pause(&app, session_id);
                 }
             }
         }
@@ -206,6 +218,10 @@ pub fn handle_cancel_shortcut(app: &tauri::AppHandle) {
     }
 }
 
+pub fn handle_pause_shortcut(app: &tauri::AppHandle) {
+    toggle_pause(app, None);
+}
+
 pub fn handle_paste_latest_shortcut(app: &tauri::AppHandle) {
     let app = app.clone();
 
@@ -232,13 +248,18 @@ pub fn handle_repeat_latest_shortcut(app: &tauri::AppHandle) {
     });
 }
 
-// Эти три DOM-команды намеренно синхронные и лишь ставят задачу в очередь —
+// Эти четыре DOM-команды намеренно синхронные и лишь ставят задачу в очередь —
 // см. `ensure_dictation_dispatch_thread`, почему фактическая
 // работа не должна выполняться в главном потоке.
 
 #[tauri::command]
 pub fn cancel_dictation(app: tauri::AppHandle, session_id: Option<u64>) {
     enqueue_dictation_job(&app, DictationJob::Cancel { session_id });
+}
+
+#[tauri::command]
+pub fn toggle_pause_dictation(app: tauri::AppHandle, session_id: Option<u64>) {
+    enqueue_dictation_job(&app, DictationJob::TogglePause { session_id });
 }
 
 #[tauri::command]
@@ -282,6 +303,58 @@ fn toggle_dictation(app: tauri::AppHandle) {
         stop_dictation(app, None);
     } else {
         start_dictation(app, None);
+    }
+}
+
+fn toggle_pause(app: &tauri::AppHandle, expected_session_id: Option<u64>) {
+    if let Err(error) = toggle_pause_inner(app, expected_session_id) {
+        emit_dictation_error(app, error.into_message());
+    }
+}
+
+/// Переключает паузу текущей записи. Один и тот же хоткей ставит на паузу и
+/// продолжает запись; вне состояния `Recording` вызов ничего не делает, поэтому
+/// флаг паузы не может пережить отправку или отмену сессии.
+fn toggle_pause_inner(app: &tauri::AppHandle, expected_session_id: Option<u64>) -> AppResult<()> {
+    // В режиме удержания запись живёт ровно столько, сколько зажат хоткей, поэтому
+    // пауза там недоступна, а поле хоткея паузы в настройках заблокировано.
+    if matches!(
+        settings::load_app_settings(app)?.trigger_mode(),
+        TriggerMode::Hold
+    ) {
+        return Ok(());
+    }
+
+    let runtime = app.state::<DictationRuntime>();
+    let mut session = runtime
+        .session
+        .lock()
+        .map_err(|_| AppError::from(i18n::text(app, "dictation-state-lock-failed")))?;
+
+    let DictationSession::Recording { id, is_paused, .. } = &mut *session else {
+        return Ok(());
+    };
+
+    // Запоздавшее нажатие из прошлой сессии не должно ставить на паузу текущую.
+    if expected_session_id.is_some_and(|expected_id| expected_id != *id) {
+        return Ok(());
+    }
+
+    let should_pause = !*is_paused;
+
+    if should_pause {
+        pause_recording(app);
+    } else {
+        resume_recording(app)?;
+    }
+
+    *is_paused = should_pause;
+    drop(session);
+
+    if should_pause {
+        overlay::show_paused_overlay(app)
+    } else {
+        overlay::show_recording_overlay(app)
     }
 }
 
@@ -397,6 +470,7 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
             started_at,
             _mute_guard: mute_guard,
         },
+        is_paused: false,
     };
     drop(session);
 
@@ -408,10 +482,22 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
         if let Err(error) = shortcut_hook::arm_cancel_hotkey(app_settings.cancel_hotkey()) {
             emit_dictation_error(app, error.into_message());
         }
+
+        // Хоткей паузы активен только на время записи и только в режиме «по нажатию»:
+        // в режиме удержания пустая строка деактивирует его так же, как незаданный хоткей.
+        let pause_hotkey = match app_settings.trigger_mode() {
+            TriggerMode::Press => app_settings.pause_hotkey(),
+            TriggerMode::Hold => "",
+        };
+
+        if let Err(error) = shortcut_hook::arm_pause_hotkey(pause_hotkey) {
+            emit_dictation_error(app, error.into_message());
+        }
     }
 
-    // Уведомляем фронтенд, что сессия теперь активна (используется, чтобы разрешить хоткей отмены внутри приложения).
-    emit_dictation_session(app, true, Some(id));
+    // Уведомляем фронтенд, что сессия теперь активна (используется, чтобы разрешить хоткеи
+    // отмены и паузы внутри приложения).
+    emit_dictation_session(app, true, Some(id), true);
 
     Ok(())
 }
@@ -479,6 +565,36 @@ pub fn prewarm_recorder(app: &tauri::AppHandle) {
             eprintln!("Recorder prewarm failed: {}", error.into_message());
         }
     });
+}
+
+/// Приостанавливает захват на время паузы, сохраняя накопленные сэмплы.
+/// Порядок блокировок session -> prepared_recorder такой же, как в
+/// `start_dictation_inner` и `cancel_dictation_inner`.
+fn pause_recording(app: &tauri::AppHandle) {
+    if let Ok(prepared) = app.state::<DictationRuntime>().prepared_recorder.lock() {
+        if let Some(recorder) = prepared.as_ref() {
+            recorder.pause();
+        }
+    }
+}
+
+/// Продолжает приостановленный захват. Ошибка оставляет сессию на паузе, чтобы
+/// состояние UI не разошлось с реальным состоянием потока захвата.
+fn resume_recording(app: &tauri::AppHandle) -> AppResult<()> {
+    let runtime = app.state::<DictationRuntime>();
+    let prepared = runtime
+        .prepared_recorder
+        .lock()
+        .map_err(|_| AppError::from(i18n::text(app, "dictation-state-lock-failed")))?;
+
+    let Some(recorder) = prepared.as_ref() else {
+        return Err(AppError::from(i18n::text(
+            app,
+            "recording-no-audio-captured",
+        )));
+    };
+
+    recorder.resume(app)
 }
 
 /// Приостанавливает и очищает подготовленный recorder без формирования аудио (используется при отмене
@@ -604,7 +720,7 @@ fn begin_repeat_latest_history_record(app: &tauri::AppHandle) -> AppResult<Optio
     }
 
     clear_active_hold_activation_id(app);
-    emit_dictation_session(app, true, Some(id));
+    emit_dictation_session(app, true, Some(id), false);
 
     Ok(Some((id, record_id)))
 }
@@ -618,6 +734,12 @@ fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
             return;
         }
     };
+
+    // Запись закончилась: пауза больше не применима, поэтому её хоткей снимается с
+    // взвода и снова доходит до других приложений (в отличие от хоткея отмены,
+    // который действует до конца постобработки).
+    shortcut_hook::disarm_pause_hotkey();
+    emit_dictation_session(&app, true, Some(id), false);
 
     // Останавливаем аудиопоток синхронно, чтобы индикатор микрофона ОС погас,
     // а системный звук включился обратно до начала STT/постобработки.
@@ -662,7 +784,7 @@ fn take_recording(
         return Ok(None);
     }
 
-    let DictationSession::Recording { id, handle } =
+    let DictationSession::Recording { id, handle, .. } =
         std::mem::replace(&mut *session, DictationSession::Idle)
     else {
         unreachable!()
@@ -1001,7 +1123,8 @@ fn reset_session(app: &tauri::AppHandle, id: u64, hide_overlay: bool) -> bool {
             clear_active_task(app, id);
             clear_active_hold_activation_id(app);
             shortcut_hook::disarm_cancel_hotkey();
-            emit_dictation_session(app, false, None);
+            shortcut_hook::disarm_pause_hotkey();
+            emit_dictation_session(app, false, None, false);
             if hide_overlay {
                 let _ = overlay::hide_recording_overlay(app);
             }
@@ -1048,7 +1171,8 @@ fn cancel_dictation_inner(
 
     clear_active_hold_activation_id(&app);
     shortcut_hook::disarm_cancel_hotkey();
-    emit_dictation_session(&app, false, None);
+    shortcut_hook::disarm_pause_hotkey();
+    emit_dictation_session(&app, false, None, false);
     let _ = overlay::hide_recording_overlay(&app);
 
     Ok(())
@@ -1058,10 +1182,19 @@ fn emit_dictation_error(app: &tauri::AppHandle, message: String) {
     let _ = app.emit("dictation-error", DictationErrorPayload { message });
 }
 
-fn emit_dictation_session(app: &tauri::AppHandle, active: bool, session_id: Option<u64>) {
+fn emit_dictation_session(
+    app: &tauri::AppHandle,
+    active: bool,
+    session_id: Option<u64>,
+    is_recording: bool,
+) {
     let _ = app.emit(
         "dictation-session",
-        DictationSessionPayload { active, session_id },
+        DictationSessionPayload {
+            active,
+            session_id,
+            is_recording,
+        },
     );
 }
 

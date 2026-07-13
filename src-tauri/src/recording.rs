@@ -21,6 +21,11 @@ use crate::{
 
 const LEVEL_EMIT_INTERVAL: Duration = Duration::from_millis(50);
 
+/// Тишина, которая вставляется в аудио на месте паузы. Сама пауза в аудио не
+/// попадает: сколько бы она ни длилась, куски записи разделяет ровно этот
+/// промежуток.
+const PAUSE_GAP_DURATION: Duration = Duration::from_millis(500);
+
 /// Поток захвата с микрофона, который создаётся заранее и остаётся на паузе,
 /// чтобы диктовка могла начаться дешёвым вызовом `stream.play()` вместо
 /// дорогостоящего вызова WASAPI `build_input_stream` (сотни мс) на горячем пути.
@@ -128,6 +133,46 @@ impl PreparedRecorder {
             *last_emit = Instant::now() - LEVEL_EMIT_INTERVAL;
         }
 
+        self.play(app)
+    }
+
+    /// Приостанавливает захват, сохраняя уже накопленные сэмплы. Индикатор
+    /// микрофона ОС гаснет, как при остановке, но запись не завершается:
+    /// `resume` продолжает ту же сессию, не теряя её начало.
+    pub fn pause(&self) {
+        self.pause_and_deactivate();
+    }
+
+    /// Продолжает приостановленный захват. В отличие от `start`, не очищает
+    /// накопленные сэмплы, поэтому речь до паузы сохраняется, а сама пауза
+    /// заменяется коротким промежутком тишины.
+    pub fn resume(&self, app: &tauri::AppHandle) -> AppResult<()> {
+        self.append_pause_gap();
+        self.play(app)
+    }
+
+    /// Дописывает `PAUSE_GAP_DURATION` тишины в конец буфера. Без этого куски
+    /// записи, разделённые паузой, склеиваются встык: последнее слово до паузы
+    /// и первое после неё звучат как одно, что мешает и прослушиванию, и
+    /// распознаванию. Пустой буфер остаётся пустым: тишина нужна между кусками,
+    /// а не в начале записи (пауза сразу после старта, до первого коллбэка).
+    fn append_pause_gap(&self) {
+        let Ok(mut samples) = self.shared.samples.lock() else {
+            return;
+        };
+
+        if samples.is_empty() {
+            return;
+        }
+
+        let gap_frames = (self.sample_rate as f64 * PAUSE_GAP_DURATION.as_secs_f64()) as usize;
+        let gap_samples = gap_frames * self.channels as usize;
+        let gap_end = samples.len() + gap_samples;
+
+        samples.resize(gap_end, 0.0);
+    }
+
+    fn play(&self, app: &tauri::AppHandle) -> AppResult<()> {
         // Активируем до play, чтобы записались самые первые коллбэки.
         self.shared.active.store(true, Ordering::SeqCst);
 

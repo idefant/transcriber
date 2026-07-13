@@ -230,6 +230,7 @@ const AppSettingsModal: FC = () => {
             copyLatestHotkey={settings.copyLatestHotkey}
             hotkey={settings.hotkey}
             pasteLatestHotkey={settings.pasteLatestHotkey}
+            pauseHotkey={settings.pauseHotkey}
             repeatLatestHotkey={settings.repeatLatestHotkey}
             triggerMode={settings.triggerMode}
             onCancelHotkeyChange={(cancelHotkey) => {
@@ -243,6 +244,9 @@ const AppSettingsModal: FC = () => {
             }}
             onPasteLatestHotkeyChange={(pasteLatestHotkey) => {
               void handleSettingsChange({ pasteLatestHotkey });
+            }}
+            onPauseHotkeyChange={(pauseHotkey) => {
+              void handleSettingsChange({ pauseHotkey });
             }}
             onRepeatLatestHotkeyChange={(repeatLatestHotkey) => {
               void handleSettingsChange({ repeatLatestHotkey });

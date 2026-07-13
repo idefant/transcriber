@@ -13,6 +13,8 @@ interface HotkeyInputProps {
   allowEmpty: boolean;
   defaultValue: string;
   emptyPlaceholder: string;
+  /** Блокирует поле: комбинацию нельзя записать или сбросить, текущее значение остается видимым. */
+  isDisabled?: boolean;
   onChange: (value: string) => void;
   resetLabel: string;
   value: string;
@@ -22,6 +24,7 @@ const HotkeyInput: FC<HotkeyInputProps> = ({
   allowEmpty,
   defaultValue,
   emptyPlaceholder,
+  isDisabled = false,
   onChange,
   resetLabel,
   value,
@@ -106,11 +109,17 @@ const HotkeyInput: FC<HotkeyInputProps> = ({
 
   return (
     <Space.Compact className={styles.root}>
-      <Input placeholder={allowEmpty ? emptyPlaceholder : undefined} readOnly value={value} />
+      <Input
+        disabled={isDisabled}
+        placeholder={allowEmpty ? emptyPlaceholder : undefined}
+        readOnly
+        value={value}
+      />
       {shouldShowReset && (
         <Tooltip title={resetLabel}>
           <Button
             aria-label={resetLabel}
+            disabled={isDisabled}
             icon={<XIcon size={16} strokeWidth={2} />}
             onClick={handleReset}
           />
@@ -119,6 +128,7 @@ const HotkeyInput: FC<HotkeyInputProps> = ({
       <Tooltip title={isRecording ? t('settings.hotkeys.recording') : t('settings.hotkeys.record')}>
         <Button
           aria-label={isRecording ? t('settings.hotkeys.recording') : t('settings.hotkeys.record')}
+          disabled={isDisabled}
           icon={
             isRecording ? (
               <LoaderIcon size={16} strokeWidth={2} />

@@ -3,6 +3,7 @@ import {
   CircleAlertIcon,
   LoaderCircleIcon,
   MicIcon,
+  PauseIcon,
   SparklesIcon,
   SquareArrowOutUpRightIcon,
   TriangleAlertIcon,
@@ -40,9 +41,11 @@ const BottomOverlay: FC<BottomOverlayProps> = ({
   state,
 }) => {
   const isNotice = isNoticeState(state);
+  const isPaused = state === 'paused';
   const showsMicLevels = state === 'recording';
   const statusIcon = useMemo(() => {
     if (state === 'recording') return <MicIcon aria-hidden size={15} strokeWidth={2.2} />;
+    if (state === 'paused') return <PauseIcon aria-hidden size={15} strokeWidth={2.2} />;
     if (state === 'transcribing') {
       return (
         <LoaderCircleIcon aria-hidden className={styles.spinIcon} size={15} strokeWidth={2.2} />
@@ -57,6 +60,7 @@ const BottomOverlay: FC<BottomOverlayProps> = ({
   const className = [
     isVisible ? styles.overlayVisible : styles.overlay,
     state === 'error' ? styles.error : undefined,
+    isPaused ? styles.paused : undefined,
     state === 'warning' ? styles.warning : undefined,
   ]
     .filter(Boolean)
@@ -73,7 +77,7 @@ const BottomOverlay: FC<BottomOverlayProps> = ({
         <span className={styles.statusText}>{stateLabels[state]}</span>
       </div>
 
-      {isNotice ? (
+      {isNotice && (
         <div className={styles.actions}>
           {recordId ? (
             <button
@@ -96,7 +100,9 @@ const BottomOverlay: FC<BottomOverlayProps> = ({
             <XIcon aria-hidden size={14} strokeWidth={2.4} />
           </button>
         </div>
-      ) : (
+      )}
+
+      {!isNotice && (
         <>
           {showsMicLevels ? (
             <div aria-hidden className={styles.levels}>

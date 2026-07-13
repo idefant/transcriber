@@ -109,6 +109,24 @@ pub fn disarm_cancel_hotkey() {
 pub fn disarm_cancel_hotkey() {}
 
 #[cfg(target_os = "windows")]
+pub fn arm_pause_hotkey(hotkey: &str) -> AppResult<()> {
+    windows_hook::arm_pause_hotkey(hotkey)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn arm_pause_hotkey(_hotkey: &str) -> AppResult<()> {
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn disarm_pause_hotkey() {
+    windows_hook::disarm_pause_hotkey();
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn disarm_pause_hotkey() {}
+
+#[cfg(target_os = "windows")]
 pub fn set_main_window_focused(focused: bool) {
     windows_hook::set_main_window_focused(focused);
 }
@@ -450,6 +468,7 @@ mod windows_hook {
     enum HookEvent {
         Dictation(ShortcutState),
         Cancel,
+        Pause,
         CopyLatest,
         PasteLatest,
         RepeatLatest,
@@ -457,6 +476,7 @@ mod windows_hook {
 
     static HOTKEY: OnceLock<Mutex<HookHotkey>> = OnceLock::new();
     static CANCEL_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>> = OnceLock::new();
+    static PAUSE_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>> = OnceLock::new();
     static COPY_LATEST_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>> = OnceLock::new();
     static PASTE_LATEST_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>> = OnceLock::new();
     static REPEAT_LATEST_HOTKEY: OnceLock<Mutex<Option<HookHotkey>>> = OnceLock::new();
@@ -500,6 +520,10 @@ mod windows_hook {
 
     fn get_cancel_hotkey() -> &'static Mutex<Option<HookHotkey>> {
         CANCEL_HOTKEY.get_or_init(|| Mutex::new(None))
+    }
+
+    fn get_pause_hotkey() -> &'static Mutex<Option<HookHotkey>> {
+        PAUSE_HOTKEY.get_or_init(|| Mutex::new(None))
     }
 
     fn get_paste_latest_hotkey() -> &'static Mutex<Option<HookHotkey>> {
@@ -579,6 +603,20 @@ mod windows_hook {
         }
     }
 
+    pub fn arm_pause_hotkey(value: &str) -> AppResult<()> {
+        set_optional_hotkey(
+            get_pause_hotkey(),
+            value,
+            "Could not lock pause hotkey state",
+        )
+    }
+
+    pub fn disarm_pause_hotkey() {
+        if let Ok(mut pause) = get_pause_hotkey().lock() {
+            *pause = None;
+        }
+    }
+
     pub fn set_main_window_focused(focused: bool) {
         let _ = if focused {
             disable_hook()
@@ -628,6 +666,7 @@ mod windows_hook {
     fn should_consume_event(vk_code: u32, is_key_down: bool, is_key_up: bool) -> bool {
         try_consume_dictation_event(vk_code, is_key_down, is_key_up)
             || try_consume_cancel_event(vk_code, is_key_down, is_key_up)
+            || try_consume_pause_event(vk_code, is_key_down, is_key_up)
             || try_consume_copy_latest_event(vk_code, is_key_down, is_key_up)
             || try_consume_paste_latest_event(vk_code, is_key_down, is_key_up)
             || try_consume_repeat_latest_event(vk_code, is_key_down, is_key_up)
@@ -686,6 +725,16 @@ mod windows_hook {
             is_key_down,
             is_key_up,
             HookEvent::Cancel,
+        )
+    }
+
+    fn try_consume_pause_event(vk_code: u32, is_key_down: bool, is_key_up: bool) -> bool {
+        try_consume_optional_event(
+            get_pause_hotkey(),
+            vk_code,
+            is_key_down,
+            is_key_up,
+            HookEvent::Pause,
         )
     }
 
@@ -824,6 +873,7 @@ mod windows_hook {
                 match event {
                     HookEvent::Dictation(state) => dictation::handle_shortcut_event(&app, state),
                     HookEvent::Cancel => dictation::handle_cancel_shortcut(&app),
+                    HookEvent::Pause => dictation::handle_pause_shortcut(&app),
                     HookEvent::CopyLatest => dictation::handle_copy_latest_shortcut(&app),
                     HookEvent::PasteLatest => dictation::handle_paste_latest_shortcut(&app),
                     HookEvent::RepeatLatest => dictation::handle_repeat_latest_shortcut(&app),
@@ -906,6 +956,7 @@ mod windows_hook {
 
         for mutex in [
             get_cancel_hotkey(),
+            get_pause_hotkey(),
             get_copy_latest_hotkey(),
             get_paste_latest_hotkey(),
             get_repeat_latest_hotkey(),

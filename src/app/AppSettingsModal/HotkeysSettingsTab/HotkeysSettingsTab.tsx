@@ -18,9 +18,11 @@ interface HotkeysSettingsTabProps {
   onCopyLatestHotkeyChange: (value: string) => void;
   onHotkeyChange: (value: string) => void;
   onPasteLatestHotkeyChange: (value: string) => void;
+  onPauseHotkeyChange: (value: string) => void;
   onRepeatLatestHotkeyChange: (value: string) => void;
   onTriggerModeChange: (value: TriggerMode) => void;
   pasteLatestHotkey: string;
+  pauseHotkey: string;
   repeatLatestHotkey: string;
   triggerMode: TriggerMode;
 }
@@ -36,9 +38,11 @@ const HotkeysSettingsTab: FC<HotkeysSettingsTabProps> = ({
   onCopyLatestHotkeyChange,
   onHotkeyChange,
   onPasteLatestHotkeyChange,
+  onPauseHotkeyChange,
   onRepeatLatestHotkeyChange,
   onTriggerModeChange,
   pasteLatestHotkey,
+  pauseHotkey,
   repeatLatestHotkey,
   triggerMode,
 }) => {
@@ -80,6 +84,24 @@ const HotkeysSettingsTab: FC<HotkeysSettingsTabProps> = ({
           ]}
           value={triggerMode}
           onChange={onTriggerModeChange}
+        />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.hotkeys.pauseRecording.description')}
+        title={t('settings.hotkeys.pauseRecording.title')}
+      >
+        {/* Смена режима запуска может заблокировать поле прямо во время записи комбинации,
+            поэтому key перемонтирует его и прекращает захват клавиш. */}
+        <HotkeyInput
+          allowEmpty
+          defaultValue=""
+          emptyPlaceholder={emptyPlaceholder}
+          isDisabled={triggerMode === 'hold'}
+          key={triggerMode}
+          resetLabel={resetLabel}
+          value={pauseHotkey}
+          onChange={onPauseHotkeyChange}
         />
       </SettingRow>
 

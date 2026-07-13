@@ -10,24 +10,25 @@ import { useSettingsStore } from '#/stores';
 const DictationHotkeyFallback: FC = () => {
   const settings = useSettingsStore((s) => s.settings);
   const isSessionActiveRef = useRef(false);
+  const isRecordingRef = useRef(false);
   const currentSessionIdRef = useRef<number | null>(null);
   const nextActivationIdRef = useRef(1);
   const activeActivationIdRef = useRef<number | null>(null);
   const pressedModifierCodesRef = useRef(new Set<string>());
 
-  // Отслеживаем состояние сессии диктовки, чтобы управлять перехватом хоткея отмены.
-  // Отмена перехватывается только пока сессия активна; вне сессии
-  // Ctrl+Z (или любой другой хоткей отмены) проходит во webview без изменений.
+  // Отслеживаем состояние сессии диктовки, чтобы управлять перехватом хоткеев отмены и паузы.
+  // Отмена перехватывается только пока сессия активна, пауза — только пока идет запись;
+  // вне сессии хоткей отмены (как и хоткей паузы) проходит во webview без изменений.
   useEffect(() => {
-    const unlistenPromise = listen<{ active: boolean; sessionId?: number | null }>(
-      'dictation-session',
-      (event) => {
-        isSessionActiveRef.current = event.payload.active;
-        currentSessionIdRef.current = event.payload.active
-          ? (event.payload.sessionId ?? null)
-          : null;
-      },
-    );
+    const unlistenPromise = listen<{
+      active: boolean;
+      isRecording: boolean;
+      sessionId?: number | null;
+    }>('dictation-session', (event) => {
+      isSessionActiveRef.current = event.payload.active;
+      isRecordingRef.current = event.payload.isRecording;
+      currentSessionIdRef.current = event.payload.active ? (event.payload.sessionId ?? null) : null;
+    });
 
     return () => {
       void unlistenPromise.then((unlisten) => {
@@ -41,6 +42,12 @@ const DictationHotkeyFallback: FC = () => {
     const dictationHotkey = parseHotkey(settings.hotkey);
     const cancelHotkey =
       settings.cancelHotkey.trim().length > 0 ? parseHotkey(settings.cancelHotkey) : undefined;
+    // Пауза доступна только в режиме записи по нажатию: в режиме удержания запись
+    // и так заканчивается отпусканием хоткея, поэтому пауза не имеет смысла.
+    const pauseHotkey =
+      settings.triggerMode === 'press' && settings.pauseHotkey.trim().length > 0
+        ? parseHotkey(settings.pauseHotkey)
+        : undefined;
     const copyLatestHotkey =
       settings.copyLatestHotkey.trim().length > 0
         ? parseHotkey(settings.copyLatestHotkey)
@@ -95,6 +102,19 @@ const DictationHotkeyFallback: FC = () => {
         event.preventDefault();
         event.stopPropagation();
         void dictationApi.cancelDictation(currentSessionIdRef.current);
+        return;
+      }
+
+      // Хоткей паузы перехватывается только во время записи: после ее остановки
+      // пауза уже недоступна, и клавиша должна работать как обычно.
+      if (
+        pauseHotkey !== undefined &&
+        isRecordingRef.current &&
+        matchesHotkey(event, pressedModifierCodes, pauseHotkey)
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        void dictationApi.togglePauseDictation(currentSessionIdRef.current);
         return;
       }
 
@@ -175,7 +195,9 @@ const DictationHotkeyFallback: FC = () => {
     settings.copyLatestHotkey,
     settings.hotkey,
     settings.pasteLatestHotkey,
+    settings.pauseHotkey,
     settings.repeatLatestHotkey,
+    settings.triggerMode,
   ]);
 
   return null;

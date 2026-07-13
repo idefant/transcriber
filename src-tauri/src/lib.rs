@@ -88,6 +88,7 @@ pub fn run() {
             runner::run_stt_test,
             runner::run_post_process_test,
             dictation::cancel_dictation,
+            dictation::toggle_pause_dictation,
             dictation::dictation_shortcut_pressed,
             dictation::dictation_shortcut_released,
             dictation::copy_latest_history_text,

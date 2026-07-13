@@ -2,7 +2,13 @@ import type { OverlayVariant } from '#/models/Settings';
 
 export type { OverlayVariant } from '#/models/Settings';
 
-export type OverlayState = 'error' | 'processing' | 'recording' | 'transcribing' | 'warning';
+export type OverlayState =
+  | 'error'
+  | 'paused'
+  | 'processing'
+  | 'recording'
+  | 'transcribing'
+  | 'warning';
 
 export interface OverlayShowPayload {
   state: OverlayState;
@@ -12,6 +18,7 @@ export interface OverlayShowPayload {
 
 export const stateLabels: Record<OverlayState, string> = {
   error: 'Error',
+  paused: 'Paused',
   processing: 'Processing',
   recording: 'Recording',
   transcribing: 'Transcribing',

@@ -24,6 +24,7 @@
 - `PreparedRecorder::start` очищает оставшиеся сэмплы, устанавливает флаг `active` и вызывает `stream.play()`. Это весь горячий путь запуска диктовки, и он стабильно занимает ~3 мс до первого реального аудио-колбэка.
 - `PreparedRecorder::stop_to_audio` ставит на паузу, забирает захваченные сэмплы и кодирует WAV, оставляя recorder на паузе и пустым для повторного использования.
 - `PreparedRecorder::abort` ставит на паузу и отбрасывает сэмплы (используется при отмене), также оставляя его пригодным для повторного использования.
+- `PreparedRecorder::pause` и `PreparedRecorder::resume` обслуживают хоткей паузы: в отличие от `start`, `resume` не очищает накопленные сэмплы, поэтому запись продолжается, а не начинается заново (см. [pause-hotkey.md](pause-hotkey.md)).
 
 Аудио-колбэк добавляет сэмплы только пока установлен флаг `active`, поэтому поток, находящийся на паузе, но живой, ничего не накапливает. `active` устанавливается перед `play()`, чтобы записывались самые первые колбэки, и сбрасывается перед `pause()`, чтобы ни один запоздавший колбэк не добавил случайные сэмплы.
 
@@ -53,7 +54,7 @@
 
 ## Порядок блокировок
 
-Задействованы два мьютекса: `DictationRuntime::session` и `DictationRuntime::prepared_recorder`. Единственный случай вложенного захвата — `session` → `prepared_recorder` (в `start_dictation_inner`/`begin_recording` и в `cancel_dictation_inner`/`release_recording`). Ни один путь не захватывает `session`, удерживая `prepared_recorder` (`finish_recording`, `prewarm_recorder` и путь повторного использования в `begin_recording` затрагивают только `prepared_recorder`), поэтому обратного порядка и взаимной блокировки не возникает. Сохраняйте этот порядок при добавлении кода, затрагивающего оба мьютекса.
+Задействованы два мьютекса: `DictationRuntime::session` и `DictationRuntime::prepared_recorder`. Единственный случай вложенного захвата — `session` → `prepared_recorder` (в `start_dictation_inner`/`begin_recording`, в `cancel_dictation_inner`/`release_recording` и в `toggle_pause_inner`/`pause_recording`/`resume_recording`). Ни один путь не захватывает `session`, удерживая `prepared_recorder` (`finish_recording`, `prewarm_recorder` и путь повторного использования в `begin_recording` затрагивают только `prepared_recorder`), поэтому обратного порядка и взаимной блокировки не возникает. Сохраняйте этот порядок при добавлении кода, затрагивающего оба мьютекса.
 
 ## Ограничения, которые нужно сохранять
 

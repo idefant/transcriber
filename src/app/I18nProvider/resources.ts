@@ -84,6 +84,11 @@ const en = {
         title: 'Start recording',
         description: 'Keyboard shortcut that starts recording',
       },
+      pauseRecording: {
+        title: 'Pause recording',
+        description:
+          'Keyboard shortcut that pauses and resumes the current recording. Available only in the "On press" trigger mode',
+      },
       cancelRecording: {
         title: 'Cancel recording',
         description: 'Keyboard shortcut that cancels the current dictation',
@@ -352,6 +357,11 @@ const ru: typeof en = {
       startRecording: {
         title: 'Старт записи',
         description: 'Комбинация клавиш, которая запускает запись',
+      },
+      pauseRecording: {
+        title: 'Пауза записи',
+        description:
+          'Комбинация клавиш, которая ставит запись на паузу и продолжает ее. Доступна только в режиме запуска «По нажатию»',
       },
       cancelRecording: {
         title: 'Отмена записи',

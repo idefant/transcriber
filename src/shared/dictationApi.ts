@@ -16,6 +16,11 @@ export const cancelDictation = async (sessionId?: number | null): Promise<void> 
   await invoke('cancel_dictation', { sessionId });
 };
 
+/** Ставит текущую запись на паузу или продолжает её. Вне записи ничего не делает. */
+export const togglePauseDictation = async (sessionId?: number | null): Promise<void> => {
+  await invoke('toggle_pause_dictation', { sessionId });
+};
+
 export const copyLatestHistoryText = async (): Promise<void> => {
   await invoke('copy_latest_history_text');
 };

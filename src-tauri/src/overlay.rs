@@ -261,6 +261,12 @@ pub fn show_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
     show_overlay_state(app, "recording", None)
 }
 
+/// Показывает оверлей приостановленной записи: без свечей уровня микрофона,
+/// с жёлтым акцентом.
+pub fn show_paused_overlay(app: &tauri::AppHandle) -> AppResult<()> {
+    show_overlay_state(app, "paused", None)
+}
+
 pub fn show_transcribing_overlay(app: &tauri::AppHandle) -> AppResult<()> {
     show_overlay_state(app, "transcribing", None)
 }

@@ -26,6 +26,7 @@ export interface AppSettings {
   isOfferUnstableVersionsEnabled: boolean;
   overlayScreenMode: OverlayScreenMode;
   overlayVariant: OverlayVariant;
+  pauseHotkey: string;
   pasteLatestHotkey: string;
   repeatLatestHotkey: string;
   themePreference: ThemePreference;

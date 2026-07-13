@@ -16,6 +16,7 @@ const defaultAppSettings: AppSettings = {
   isOfferUnstableVersionsEnabled: false,
   overlayScreenMode: 'all',
   overlayVariant: 'center',
+  pauseHotkey: '',
   pasteLatestHotkey: '',
   repeatLatestHotkey: '',
   themePreference: 'light',

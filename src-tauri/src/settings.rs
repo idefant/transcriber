@@ -80,6 +80,8 @@ pub struct AppSettings {
     #[serde(default = "default_cancel_hotkey")]
     cancel_hotkey: String,
     #[serde(default)]
+    pause_hotkey: String,
+    #[serde(default)]
     copy_latest_hotkey: String,
     #[serde(default)]
     paste_latest_hotkey: String,
@@ -107,6 +109,7 @@ impl Default for AppSettings {
             is_update_notifications_enabled: default_update_notifications_enabled(),
             hotkey: default_hotkey(),
             cancel_hotkey: default_cancel_hotkey(),
+            pause_hotkey: String::new(),
             copy_latest_hotkey: String::new(),
             paste_latest_hotkey: String::new(),
             repeat_latest_hotkey: String::new(),
@@ -129,6 +132,10 @@ impl AppSettings {
 
     pub fn cancel_hotkey(&self) -> &str {
         &self.cancel_hotkey
+    }
+
+    pub fn pause_hotkey(&self) -> &str {
+        &self.pause_hotkey
     }
 
     pub fn paste_latest_hotkey(&self) -> &str {
@@ -167,6 +174,7 @@ pub struct AppSettingsInput {
     is_update_notifications_enabled: Option<bool>,
     hotkey: Option<String>,
     cancel_hotkey: Option<String>,
+    pause_hotkey: Option<String>,
     copy_latest_hotkey: Option<String>,
     paste_latest_hotkey: Option<String>,
     repeat_latest_hotkey: Option<String>,
@@ -254,6 +262,14 @@ fn update_app_settings_inner(
         };
     }
 
+    if let Some(pause_hotkey) = input.pause_hotkey {
+        settings.pause_hotkey = if pause_hotkey.trim().is_empty() {
+            String::new()
+        } else {
+            shortcut_hook::normalize_hotkey_for_language(current_language, &pause_hotkey)?
+        };
+    }
+
     if let Some(paste_latest_hotkey) = input.paste_latest_hotkey {
         settings.paste_latest_hotkey = if paste_latest_hotkey.trim().is_empty() {
             String::new()
@@ -327,6 +343,11 @@ pub fn load_app_settings(app: &tauri::AppHandle) -> AppResult<AppSettings> {
             current_language,
             &settings.cancel_hotkey,
         )?;
+    }
+
+    if !settings.pause_hotkey.trim().is_empty() {
+        settings.pause_hotkey =
+            shortcut_hook::normalize_hotkey_for_language(current_language, &settings.pause_hotkey)?;
     }
 
     if !settings.paste_latest_hotkey.trim().is_empty() {
