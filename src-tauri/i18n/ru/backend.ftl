@@ -9,6 +9,7 @@ config-section-post-processing = постобработки
 
 config-error-custom-provider-url-required = Для Custom-провайдера не задан URL
 config-error-model-not-available-for-provider = Модель недоступна для этого провайдера
+config-error-provider-is-not-openrouter = Провайдер не является подключением OpenRouter
 config-error-model-not-found-in-catalog = Модель не найдена в каталоге
 config-error-model-not-selected = Модель не выбрана
 config-error-provider-api-key-not-found = API-ключ провайдера не найден

@@ -4,7 +4,7 @@ use crate::{
     catalog::{model_by_key, ModelTask},
     error::{AppError, AppResult},
     i18n,
-    providers::find_provider_kind,
+    providers::{find_provider_kind, ProviderKind},
     settings::{get_effective_ui_language, EffectiveUiLanguage},
     storage,
 };
@@ -73,6 +73,9 @@ pub struct PostProcessConfig {
     /// Переопределение шаблона пользовательского промпта. `None` использует шаблон по умолчанию.
     #[serde(default)]
     pub user_prompt_template: Option<String>,
+    /// Предпочтительный апстрим-провайдер OpenRouter (slug). `None` означает «Авто».
+    #[serde(default)]
+    pub openrouter_provider: Option<String>,
 }
 
 impl PostProcessConfig {
@@ -189,6 +192,8 @@ pub struct PostProcessConfigInput {
     system_prompt: NullableInput<String>,
     #[serde(default)]
     user_prompt_template: NullableInput<String>,
+    #[serde(default)]
+    openrouter_provider: NullableInput<String>,
 }
 
 // ── Команды Tauri ──────────────────────────────────────────────────────────────
@@ -284,6 +289,11 @@ fn update_post_process_config_inner(
         input.user_prompt_template,
     );
 
+    apply_nullable_input_patch(
+        &mut config.post_process.openrouter_provider,
+        input.openrouter_provider,
+    );
+
     normalize_processing_config(app, &mut config)?;
     save_processing_config(app, &config)?;
 
@@ -350,8 +360,38 @@ fn normalize_processing_config(
         &mut config.post_process.model_key,
         ModelTask::PostProcess,
     )?;
+    changed |= normalize_post_process_openrouter_provider(app, &mut config.post_process)?;
 
     Ok(changed)
+}
+
+/// Сбрасывает выбранный апстрим-провайдер OpenRouter, если провайдер
+/// постобработки больше не OpenRouter или модель не выбрана: набор
+/// доступных апстрим-провайдеров привязан к конкретной модели, поэтому
+/// значение, выбранное для другой модели, может быть недействительным.
+fn normalize_post_process_openrouter_provider(
+    app: &tauri::AppHandle,
+    post_process: &mut PostProcessConfig,
+) -> AppResult<bool> {
+    if post_process.openrouter_provider.is_none() {
+        return Ok(false);
+    }
+
+    let is_openrouter = post_process
+        .provider_id
+        .as_deref()
+        .map(|provider_id| find_provider_kind(app, provider_id))
+        .transpose()?
+        .flatten()
+        .is_some_and(|kind| matches!(kind, ProviderKind::Openrouter));
+
+    if post_process.model_key.is_some() && is_openrouter {
+        return Ok(false);
+    }
+
+    post_process.openrouter_provider = None;
+
+    Ok(true)
 }
 
 fn normalize_model_selection(

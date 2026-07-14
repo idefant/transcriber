@@ -92,6 +92,12 @@ const ModelResult: FC<ModelResultProps> = ({
                 <dd>{details.model}</dd>
               </div>
             ) : undefined}
+            {details.resolvedProvider != null && details.resolvedProvider.length > 0 ? (
+              <div>
+                <dt>{t('history.details.resolvedProvider')}</dt>
+                <dd>{details.resolvedProvider}</dd>
+              </div>
+            ) : undefined}
             {details.durationMs === null || details.durationMs === undefined ? undefined : (
               <div>
                 <dt>{t('history.details.time')}</dt>

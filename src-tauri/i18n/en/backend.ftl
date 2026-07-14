@@ -9,6 +9,7 @@ config-section-post-processing = post-processing
 
 config-error-custom-provider-url-required = URL is required for custom provider
 config-error-model-not-available-for-provider = Model is not available for this provider
+config-error-provider-is-not-openrouter = Provider is not an OpenRouter connection
 config-error-model-not-found-in-catalog = Model not found in catalog
 config-error-model-not-selected = Model is not selected
 config-error-provider-api-key-not-found = Provider API key was not found

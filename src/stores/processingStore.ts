@@ -14,6 +14,7 @@ const DEFAULT_CONFIG: ProcessingConfig = {
   postProcess: {
     enabled: false,
     modelKey: null,
+    openrouterProvider: null,
     providerId: null,
     systemPrompt: null,
     useCustomPrompts: false,

@@ -63,6 +63,7 @@ pub struct PostProcessSettingsSnapshot {
     pub reasoning: Option<ReasoningSnapshot>,
     pub system_prompt: String,
     pub user_prompt_template: String,
+    pub openrouter_provider: Option<String>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -99,6 +100,7 @@ pub struct PostProcessRunOutput {
     pub duration_ms: u64,
     pub usage: Option<RunUsage>,
     pub cost: Option<f64>,
+    pub resolved_provider: Option<String>,
     pub settings_snapshot: PostProcessSettingsSnapshot,
 }
 
@@ -123,6 +125,10 @@ struct ChatMessage {
 struct ChatResponse {
     #[serde(default)]
     id: Option<String>,
+    /// Имя апстрим-провайдера, обработавшего запрос. Заполняется только
+    /// OpenRouter; у OpenAI и Groq в ответе такого поля нет.
+    #[serde(default)]
+    provider: Option<String>,
     choices: Vec<ChatChoice>,
     #[serde(default)]
     usage: Option<serde_json::Value>,
@@ -426,6 +432,20 @@ pub async fn run_post_process_with_snapshot(
         body["include_reasoning"] = serde_json::json!(include_reasoning);
     }
 
+    if matches!(snapshot.provider.provider_kind, ProviderKind::Openrouter) {
+        if let Some(upstream_provider) = snapshot
+            .openrouter_provider
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            body["provider"] = serde_json::json!({
+                "order": [upstream_provider],
+                "allow_fallbacks": true,
+            });
+        }
+    }
+
     let url = format!(
         "{}/chat/completions",
         snapshot.provider.base_url.trim_end_matches('/')
@@ -524,6 +544,7 @@ pub async fn run_post_process_with_snapshot(
         }
     };
     let duration_ms = elapsed_ms(started_at);
+    let resolved_provider = chat_response.provider.clone();
     let content = chat_response
         .choices
         .into_iter()
@@ -562,6 +583,7 @@ pub async fn run_post_process_with_snapshot(
         duration_ms,
         usage: chat_response.usage.map(|raw| RunUsage { raw }),
         cost,
+        resolved_provider,
         settings_snapshot: snapshot.clone(),
     })
 }
@@ -653,6 +675,7 @@ pub fn build_post_process_snapshot(
             }),
         system_prompt: post_process.effective_system_prompt(&ui_language)?,
         user_prompt_template: post_process.effective_user_template()?,
+        openrouter_provider: post_process.openrouter_provider.clone(),
     })
 }
 

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 import type {
   ModelInfo,
+  OpenRouterProviderOption,
   ProviderConfig,
   ProviderConnectionInput,
   ProviderInput,
@@ -25,3 +26,9 @@ export const validateProviderConfig = (input: ProviderConnectionInput) =>
 
 export const listProviderModels = (input: ProviderConnectionInput) =>
   invoke<ModelInfo[]>('list_provider_models', { input });
+
+export const listOpenRouterModelProviders = (providerId: string, apiModelId: string) =>
+  invoke<OpenRouterProviderOption[]>('list_openrouter_model_providers', {
+    providerId,
+    apiModelId,
+  });

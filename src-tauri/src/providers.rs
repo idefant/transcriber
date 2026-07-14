@@ -197,6 +197,24 @@ pub async fn list_provider_models(
         .map_err(AppError::into_message)
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenRouterProviderOption {
+    label: String,
+    value: String,
+}
+
+#[tauri::command]
+pub async fn list_openrouter_model_providers(
+    app: tauri::AppHandle,
+    provider_id: String,
+    api_model_id: String,
+) -> Result<Vec<OpenRouterProviderOption>, String> {
+    request_openrouter_model_providers(&app, &provider_id, &api_model_id)
+        .await
+        .map_err(AppError::into_message)
+}
+
 fn get_providers_inner(app: &tauri::AppHandle) -> AppResult<Vec<ProviderConfig>> {
     Ok(load_providers(app)?
         .into_iter()
@@ -353,6 +371,119 @@ async fn request_provider_models(
         .collect::<Vec<_>>();
 
     Ok(models)
+}
+
+async fn request_openrouter_model_providers(
+    app: &tauri::AppHandle,
+    provider_id: &str,
+    api_model_id: &str,
+) -> AppResult<Vec<OpenRouterProviderOption>> {
+    let language = crate::settings::get_effective_ui_language(app).unwrap_or_default();
+    let credentials = resolve_provider_credentials(app, provider_id)?;
+
+    if !matches!(credentials.kind, ProviderKind::Openrouter) {
+        return Err(i18n::text_for_language(
+            language,
+            "config-error-provider-is-not-openrouter",
+            &[],
+        )
+        .into());
+    }
+
+    let api_key = resolve_provider_api_key(app, provider_id)?;
+    let url = format!(
+        "{}/models/{}/endpoints",
+        credentials.base_url.trim_end_matches('/'),
+        api_model_id
+    );
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()?;
+    let mut request = client.get(url).bearer_auth(api_key);
+
+    if !credentials.headers.is_empty() {
+        request = request.headers(credentials.headers.clone());
+    }
+
+    let response = request.send().await?;
+    let status = response.status();
+
+    if !status.is_success() {
+        return Err(format_request_error(language, status, response)
+            .await
+            .into());
+    }
+
+    let value = response.json::<serde_json::Value>().await?;
+    let endpoints = value
+        .get("data")
+        .and_then(|data| data.get("endpoints"))
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            i18n::text_for_language(language, "provider-response-unsupported-models", &[])
+        })?;
+
+    let mut seen = std::collections::HashSet::new();
+    let mut options = Vec::new();
+
+    for endpoint in endpoints {
+        let Some(provider_name) = endpoint
+            .get("provider_name")
+            .and_then(serde_json::Value::as_str)
+        else {
+            continue;
+        };
+        let Some(tag) = endpoint.get("tag").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+
+        if is_service_tier_endpoint_tag(tag) || !seen.insert(tag.to_string()) {
+            continue;
+        }
+
+        options.push(OpenRouterProviderOption {
+            label: endpoint_label(provider_name, tag),
+            value: tag.to_string(),
+        });
+    }
+
+    Ok(options)
+}
+
+/// Суффиксы тегов, обозначающие сервисный тариф, а не отдельного провайдера.
+const SERVICE_TIER_TAG_SUFFIXES: [&str; 2] = ["priority", "flex"];
+
+/// Проверяет, что тег эндпоинта описывает сервисный тариф (`priority`, `flex`).
+///
+/// Такие эндпоинты — это тарифные варианты уже существующего эндпоинта, а не
+/// отдельный провайдер: OpenRouter не подбирает их по базовому slug и требует
+/// явного opt-in. Собственный UI OpenRouter их в списке провайдеров тоже не
+/// показывает, поэтому в выборе провайдера они только создавали бы дубликаты
+/// с одинаковыми названиями.
+fn is_service_tier_endpoint_tag(tag: &str) -> bool {
+    tag.rsplit('/')
+        .next()
+        .is_some_and(|suffix| SERVICE_TIER_TAG_SUFFIXES.contains(&suffix))
+}
+
+/// Формирует подпись эндпоинта для выбора провайдера.
+///
+/// У одного провайдера бывает несколько маршрутизируемых эндпоинтов, различающихся
+/// регионом или квантизацией (`google-vertex/eu`, `deepinfra/fp8`). Само по себе
+/// `provider_name` у них одинаковое, поэтому уточняющая часть тега добавляется к
+/// названию — иначе варианты неотличимы в списке.
+///
+/// # Examples
+///
+/// ```ignore
+/// assert_eq!(endpoint_label("Google", "google-vertex/eu"), "Google (eu)");
+/// assert_eq!(endpoint_label("Google AI Studio", "google-ai-studio"), "Google AI Studio");
+/// ```
+fn endpoint_label(provider_name: &str, tag: &str) -> String {
+    match tag.split_once('/') {
+        Some((_, qualifier)) => format!("{provider_name} ({qualifier})"),
+        None => provider_name.to_string(),
+    }
 }
 
 async fn format_request_error(
@@ -634,6 +765,27 @@ mod tests {
         assert_eq!(
             error.into_message(),
             "Header must use `Name: value` format: Broken"
+        );
+    }
+
+    #[test]
+    fn detects_service_tier_endpoint_tags() {
+        assert!(is_service_tier_endpoint_tag(
+            "google-vertex/global/priority"
+        ));
+        assert!(is_service_tier_endpoint_tag("google-ai-studio/flex"));
+        assert!(!is_service_tier_endpoint_tag("google-vertex/global"));
+        assert!(!is_service_tier_endpoint_tag("google-ai-studio"));
+        assert!(!is_service_tier_endpoint_tag("deepinfra/fp8"));
+    }
+
+    #[test]
+    fn labels_endpoints_with_their_qualifier() {
+        assert_eq!(endpoint_label("Google", "google-vertex/eu"), "Google (eu)");
+        assert_eq!(endpoint_label("Google", "google-vertex"), "Google");
+        assert_eq!(
+            endpoint_label("DeepInfra", "deepinfra/turbo"),
+            "DeepInfra (turbo)"
         );
     }
 

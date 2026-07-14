@@ -16,6 +16,7 @@ export interface ProcessingDetails {
   isProcessing: boolean;
   model: string;
   provider: string;
+  resolvedProvider?: string | null;
   status: HistoryResultStatus;
   text: string;
   usage?: unknown;

@@ -5,6 +5,11 @@ export interface ModelInfo {
   name: string;
 }
 
+export interface OpenRouterProviderOption {
+  label: string;
+  value: string;
+}
+
 export interface ProviderConfig {
   baseUrl?: string;
   createdAt: string;

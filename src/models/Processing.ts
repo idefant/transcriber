@@ -9,6 +9,7 @@ export interface SttConfig {
 export interface PostProcessConfig {
   enabled: boolean;
   modelKey: string | null;
+  openrouterProvider: string | null;
   providerId: string | null;
   systemPrompt: string | null;
   useCustomPrompts: boolean;

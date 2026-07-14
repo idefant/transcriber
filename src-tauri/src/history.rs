@@ -41,6 +41,10 @@ pub struct ProcessingDetails {
     is_processing: bool,
     model: String,
     provider: String,
+    /// Фактический апстрим-провайдер, обработавший запрос (только для
+    /// постобработки через OpenRouter).
+    #[serde(default)]
+    resolved_provider: Option<String>,
     status: HistoryResultStatus,
     text: String,
     usage: Option<serde_json::Value>,
@@ -618,6 +622,7 @@ fn result_from_stt_output(output: SttRunOutput) -> ProcessingDetails {
         is_processing: false,
         model: output.model,
         provider: output.provider,
+        resolved_provider: None,
         status: HistoryResultStatus::Success,
         text: output.text,
         usage: output.usage.map(|usage| usage.raw),
@@ -637,6 +642,7 @@ fn result_from_stt_error(snapshot: SttSettingsSnapshot, error: AppError) -> Proc
         is_processing: false,
         model: snapshot.model_label.clone(),
         provider: snapshot.provider.provider_name.clone(),
+        resolved_provider: None,
         status: HistoryResultStatus::Error,
         text: String::new(),
         usage: None,
@@ -656,6 +662,7 @@ fn result_from_generic_stt_error(error: AppError) -> ProcessingDetails {
         is_processing: false,
         model: String::new(),
         provider: String::new(),
+        resolved_provider: None,
         status: HistoryResultStatus::Error,
         text: String::new(),
         usage: None,
@@ -673,6 +680,7 @@ fn result_from_post_process_output(output: PostProcessRunOutput) -> ProcessingDe
         is_processing: false,
         model: output.model,
         provider: output.provider,
+        resolved_provider: output.resolved_provider,
         status: HistoryResultStatus::Success,
         text: output.text,
         usage: output.usage.map(|usage| usage.raw),
@@ -701,6 +709,7 @@ fn result_from_post_process_error(
             .as_ref()
             .map(|snapshot| snapshot.provider.provider_name.clone())
             .unwrap_or_default(),
+        resolved_provider: None,
         status: HistoryResultStatus::Error,
         text: String::new(),
         usage: None,
@@ -718,6 +727,7 @@ fn processing_result() -> ProcessingDetails {
         is_processing: true,
         model: String::new(),
         provider: String::new(),
+        resolved_provider: None,
         status: HistoryResultStatus::Processing,
         text: String::new(),
         usage: None,
@@ -741,6 +751,7 @@ fn skipped_result(snapshot: Option<PostProcessSettingsSnapshot>) -> ProcessingDe
             .as_ref()
             .map(|snapshot| snapshot.provider.provider_name.clone())
             .unwrap_or_default(),
+        resolved_provider: None,
         status: HistoryResultStatus::Skipped,
         text: String::new(),
         usage: None,

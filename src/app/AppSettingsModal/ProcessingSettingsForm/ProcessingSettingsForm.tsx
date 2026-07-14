@@ -1,13 +1,19 @@
-import { type FC, useEffect, useMemo } from 'react';
+import { type FC, useEffect, useMemo, useState } from 'react';
 import { Empty, Form, Select, Switch } from 'antd';
+import { sortBy } from 'lodash-es';
 import { useTranslation } from 'react-i18next';
+
+import * as providersApi from '#/shared/providersApi';
 
 import PromptField from './PromptField';
 
 import styles from './ProcessingSettingsForm.module.scss';
 
 import type { ModelTask } from '#/models/Catalog';
+import type { OpenRouterProviderOption } from '#/models/Provider';
 import { useAppSettings, useCatalog, useProcessing, useProviders } from '#/stores';
+
+const AUTO_OPENROUTER_PROVIDER = '';
 
 interface ProcessingSettingsFormProps {
   disabled?: boolean;
@@ -152,16 +158,80 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
     updateSttConfig,
   ]);
 
-  const handleProviderChange = (providerId: string) => {
-    const update = isStt ? updateSttConfig : updatePostProcessConfig;
+  const isOpenRouterSelected = !isStt && selectedProvider?.provider === 'openrouter';
+  const openrouterApiModelId = useMemo(() => {
+    if (!isOpenRouterSelected || !selectedModelKey) return;
 
-    void update({ modelKey: null, providerId });
+    return catalog
+      .find((model) => model.key === selectedModelKey)
+      ?.providerEntries.find((entry) => entry.provider === 'openrouter')?.apiId;
+  }, [catalog, isOpenRouterSelected, selectedModelKey]);
+
+  const [openrouterProviderOptions, setOpenrouterProviderOptions] = useState<
+    OpenRouterProviderOption[]
+  >([]);
+  const [isLoadingOpenrouterProviders, setIsLoadingOpenrouterProviders] = useState(false);
+
+  const sortedOpenrouterProviderOptions = useMemo(
+    () => sortBy(openrouterProviderOptions, 'label'),
+    [openrouterProviderOptions],
+  );
+
+  // Список апстрим-провайдеров зависит от конкретной модели OpenRouter, поэтому запрашивается заново при её смене.
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      if (!selectedProviderId || !openrouterApiModelId) {
+        if (!cancelled) setOpenrouterProviderOptions([]);
+        return;
+      }
+
+      if (!cancelled) setIsLoadingOpenrouterProviders(true);
+
+      try {
+        const options = await providersApi.listOpenRouterModelProviders(
+          selectedProviderId,
+          openrouterApiModelId,
+        );
+
+        if (!cancelled) setOpenrouterProviderOptions(options);
+      } catch {
+        if (!cancelled) setOpenrouterProviderOptions([]);
+      } finally {
+        if (!cancelled) setIsLoadingOpenrouterProviders(false);
+      }
+    };
+
+    queueMicrotask(() => {
+      void load();
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [openrouterApiModelId, selectedProviderId]);
+
+  const handleProviderChange = (providerId: string) => {
+    if (isStt) {
+      void updateSttConfig({ modelKey: null, providerId });
+    } else {
+      void updatePostProcessConfig({ modelKey: null, openrouterProvider: null, providerId });
+    }
   };
 
   const handleModelChange = (modelKey: string) => {
-    const update = isStt ? updateSttConfig : updatePostProcessConfig;
+    if (isStt) {
+      void updateSttConfig({ modelKey });
+    } else {
+      void updatePostProcessConfig({ modelKey, openrouterProvider: null });
+    }
+  };
 
-    void update({ modelKey });
+  const handleOpenrouterProviderChange = (value: string) => {
+    void updatePostProcessConfig({
+      openrouterProvider: value === AUTO_OPENROUTER_PROVIDER ? null : value,
+    });
   };
 
   const handleLanguageChange = (language: string) => {
@@ -248,6 +318,27 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
           onChange={handleModelChange}
         />
       </Form.Item>
+
+      {isOpenRouterSelected && selectedModelKey !== undefined && (
+        <Form.Item label={t('settings.processing.openrouterProvider')}>
+          <Select
+            loading={isLoadingOpenrouterProviders}
+            options={[
+              {
+                label: t('settings.processing.openrouterProviderAuto'),
+                value: AUTO_OPENROUTER_PROVIDER,
+              },
+              ...sortedOpenrouterProviderOptions,
+            ]}
+            showSearch={{
+              filterOption: (input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase()),
+            }}
+            value={config.postProcess.openrouterProvider ?? AUTO_OPENROUTER_PROVIDER}
+            onChange={handleOpenrouterProviderChange}
+          />
+        </Form.Item>
+      )}
 
       {isStt && (
         <Form.Item label={t('settings.processing.language')}>

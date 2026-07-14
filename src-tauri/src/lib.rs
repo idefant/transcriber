@@ -80,6 +80,7 @@ pub fn run() {
             providers::delete_provider,
             providers::validate_provider_config,
             providers::list_provider_models,
+            providers::list_openrouter_model_providers,
             catalog::get_model_catalog,
             processing::get_processing_config,
             processing::get_default_prompts,
