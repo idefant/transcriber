@@ -1,5 +1,6 @@
 import { type FC, useEffect, useMemo, useState } from 'react';
 import { Button, Card, DatePicker, Empty, message, Space, Spin, Tooltip } from 'antd';
+import clsx from 'clsx';
 import dayjs from 'dayjs';
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -226,7 +227,7 @@ const HistoryPage: FC = () => {
   return (
     <>
       {messageContextHolder}
-      <div className={isDetailsOpen ? `${styles.page} ${styles.withDetails}` : styles.page}>
+      <div className={clsx(styles.page, isDetailsOpen && styles.withDetails)}>
         <Card className={styles.historyCard}>
           <div className={styles.toolbar}>
             <Space.Compact>

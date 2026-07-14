@@ -1,6 +1,7 @@
 import { type FC, useEffect, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Typography } from 'antd';
+import clsx from 'clsx';
 import { CopyIcon, MinusIcon, SquareIcon, XIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -157,7 +158,7 @@ const WindowHeader: FC<WindowHeaderProps> = ({ title }) => {
         </button>
         <button
           aria-label={t('common.windowControls.close')}
-          className={`${styles.controlButton} ${styles.closeButton}`}
+          className={clsx(styles.controlButton, styles.closeButton)}
           disabled={!windowState.isClosable}
           tabIndex={-1}
           title={t('common.windowControls.close')}

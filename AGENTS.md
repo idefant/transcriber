@@ -54,6 +54,7 @@ flush: () => void;
 Ты ОБЯЗАН прочитать соответствующий файл правил, прежде чем трогать связанный код. Не полагайся на память или предположения.
 
 - Перед созданием или редактированием **любого компонента**: прочитай [docs/agent/component-structure.md](docs/agent/component-structure.md).
+- Перед написанием или редактированием **`className` в компоненте**: прочитай [docs/agent/classname-rules.md](docs/agent/classname-rules.md).
 - Перед созданием или перемещением **любого файла или папки**: прочитай [docs/agent/file-structure.md](docs/agent/file-structure.md).
 - Перед написанием или редактированием **любого файла `.scss`**: прочитай [docs/agent/scss-style-rules.md](docs/agent/scss-style-rules.md).
 - Перед написанием или редактированием **любого файла `.md`**: прочитай [docs/agent/markdown-style-rules.md](docs/agent/markdown-style-rules.md).
