@@ -293,31 +293,35 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
 
   return (
     <Form disabled={disabled} layout="vertical">
-      <Form.Item
-        label={t('settings.processing.provider')}
-        validateStatus={isProviderMissing ? 'error' : undefined}
-      >
-        <Select
-          options={providerOptions}
-          placeholder={t('settings.processing.providerPlaceholder')}
-          value={selectedProviderId}
-          onChange={handleProviderChange}
-        />
-      </Form.Item>
+      <div className={styles.modelProviderRow}>
+        <Form.Item
+          className={styles.field}
+          label={t('settings.processing.provider')}
+          validateStatus={isProviderMissing ? 'error' : undefined}
+        >
+          <Select
+            options={providerOptions}
+            placeholder={t('settings.processing.providerPlaceholder')}
+            value={selectedProviderId}
+            onChange={handleProviderChange}
+          />
+        </Form.Item>
 
-      <Form.Item
-        label={t('settings.processing.model')}
-        validateStatus={isModelMissing ? 'error' : undefined}
-      >
-        <Select
-          disabled={selectedProviderId === undefined}
-          notFoundContent={t('settings.processing.noModels')}
-          options={modelOptions}
-          placeholder={t('settings.processing.modelPlaceholder')}
-          value={selectedModelKey}
-          onChange={handleModelChange}
-        />
-      </Form.Item>
+        <Form.Item
+          className={styles.field}
+          label={t('settings.processing.model')}
+          validateStatus={isModelMissing ? 'error' : undefined}
+        >
+          <Select
+            disabled={selectedProviderId === undefined}
+            notFoundContent={t('settings.processing.noModels')}
+            options={modelOptions}
+            placeholder={t('settings.processing.modelPlaceholder')}
+            value={selectedModelKey}
+            onChange={handleModelChange}
+          />
+        </Form.Item>
+      </div>
 
       {isOpenRouterSelected && selectedModelKey !== undefined && (
         <Form.Item label={t('settings.processing.openrouterProvider')}>

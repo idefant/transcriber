@@ -1,3 +1,14 @@
+.modelProviderRow {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+
+  // Провайдер и модель занимают по 6 из 12 колонок, деля строку поровну.
+  .field {
+    grid-column: span 6;
+  }
+}
+
 .switchRow {
   display: flex;
   gap: 8px;
