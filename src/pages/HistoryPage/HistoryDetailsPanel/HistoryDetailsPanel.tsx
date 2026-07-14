@@ -13,6 +13,8 @@ import { useProcessing } from '#/stores';
 const { Text, Title } = Typography;
 
 interface HistoryDetailsPanelProps {
+  /** Подстрока, подсвечиваемая в текстах распознавания и постобработки. */
+  highlightQuery?: string;
   onCopyAudioPath: (record: HistoryRecord) => void;
   onCopyPostProcessing: (record: HistoryRecord) => void;
   onCopyTranscription: (record: HistoryRecord) => void;
@@ -24,6 +26,7 @@ interface HistoryDetailsPanelProps {
 }
 
 const HistoryDetailsPanel: FC<HistoryDetailsPanelProps> = ({
+  highlightQuery,
   onClose,
   onCopyAudioPath,
   onCopyPostProcessing,
@@ -92,6 +95,7 @@ const HistoryDetailsPanel: FC<HistoryDetailsPanelProps> = ({
         canRepeat={canRepeatTranscription}
         copyLabel={t('history.details.copyTranscription')}
         details={record.transcription}
+        highlightQuery={highlightQuery}
         onCopy={() => {
           onCopyTranscription(record);
         }}
@@ -107,6 +111,7 @@ const HistoryDetailsPanel: FC<HistoryDetailsPanelProps> = ({
           canRepeat={canRepeatPostProcessing}
           copyLabel={t('history.details.copyPostProcessing')}
           details={record.postprocessing}
+          highlightQuery={highlightQuery}
           showBody={shouldShowPostProcessingBody}
           onCopy={() => {
             onCopyPostProcessing(record);

@@ -230,6 +230,11 @@ const en = {
     today: 'Today',
     copySuccess: 'Copied',
     emptyMonth: 'No records for the selected month',
+    search: 'Search',
+    searchPlaceholder: 'Search transcripts',
+    closeSearch: 'Close search',
+    startSearch: 'Start searching',
+    emptySearch: 'Nothing found',
     details: {
       title: 'Record details',
       close: 'Close panel',
@@ -510,6 +515,11 @@ const ru: typeof en = {
     today: 'Сегодня',
     copySuccess: 'Скопировано',
     emptyMonth: 'За выбранный месяц записей нет',
+    search: 'Поиск',
+    searchPlaceholder: 'Поиск по расшифровкам',
+    closeSearch: 'Закрыть поиск',
+    startSearch: 'Начните поиск',
+    emptySearch: 'Ничего не найдено',
     details: {
       title: 'Детали записи',
       close: 'Закрыть панель',

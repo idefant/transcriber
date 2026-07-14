@@ -25,10 +25,19 @@ const appTokenVariableNames = [
   '--app-color-link',
   '--app-color-primary-bg',
   '--app-color-primary-border',
+  '--app-color-search-highlight-bg',
   '--app-color-text',
   '--app-color-text-secondary',
   '--app-color-text-tertiary',
 ] as const;
+
+// Ant Design не даёт токена подсветки поиска, поэтому цвет задаётся явно. В тёмной
+// теме жёлтый берётся полупрозрачным: цвет текста подсветка не меняет, и на плотном
+// жёлтом фоне светлый текст был бы нечитаем.
+const searchHighlightBackground = {
+  dark: 'rgb(250 219 20 / 35%)',
+  light: '#ffe58f',
+} as const;
 
 const getSystemThemeMode = (): ThemeMode => {
   if (!('matchMedia' in globalThis)) {
@@ -121,14 +130,18 @@ const AppThemeProvider: FC<AppThemeProviderProps> = ({ children }) => {
           // },
         }}
       >
-        <AppThemeTokenVariables />
+        <AppThemeTokenVariables isDarkMode={isDarkMode} />
         {children}
       </ConfigProvider>
     </AppThemeContext.Provider>
   );
 };
 
-const AppThemeTokenVariables: FC = () => {
+interface AppThemeTokenVariablesProps {
+  isDarkMode: boolean;
+}
+
+const AppThemeTokenVariables: FC<AppThemeTokenVariablesProps> = ({ isDarkMode }) => {
   const { token } = antdTheme.useToken();
 
   useEffect(() => {
@@ -143,6 +156,10 @@ const AppThemeTokenVariables: FC = () => {
     rootStyle.setProperty('--app-color-link', token.colorLink);
     rootStyle.setProperty('--app-color-primary-bg', token.colorPrimaryBg);
     rootStyle.setProperty('--app-color-primary-border', token.colorPrimaryBorder);
+    rootStyle.setProperty(
+      '--app-color-search-highlight-bg',
+      isDarkMode ? searchHighlightBackground.dark : searchHighlightBackground.light,
+    );
     rootStyle.setProperty('--app-color-text', token.colorText);
     rootStyle.setProperty('--app-color-text-secondary', token.colorTextSecondary);
     rootStyle.setProperty('--app-color-text-tertiary', token.colorTextTertiary);
@@ -152,7 +169,7 @@ const AppThemeTokenVariables: FC = () => {
         rootStyle.removeProperty(variableName);
       }
     };
-  }, [token]);
+  }, [isDarkMode, token]);
 
   return null;
 };

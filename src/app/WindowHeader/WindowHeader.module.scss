@@ -17,11 +17,19 @@
 }
 
 .title {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
   margin: 0 !important;
   font-size: 1.2rem !important;
   font-weight: 650 !important;
   line-height: 1.2 !important;
   pointer-events: none;
+}
+
+.titleSeparator {
+  flex: 0 0 auto;
+  color: var(--app-color-text-tertiary);
 }
 
 .controls {

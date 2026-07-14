@@ -40,3 +40,12 @@ export interface HistoryGroup {
   month: string;
   records: HistoryRecord[];
 }
+
+export interface HistorySearchResult {
+  groups: HistoryGroup[];
+  page: number;
+  /** Размер страницы приходит с бэкенда, чтобы фронтенд не дублировал его у себя. */
+  pageSize: number;
+  /** Общее число найденных записей во всей истории, а не на текущей странице. */
+  total: number;
+}

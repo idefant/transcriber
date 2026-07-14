@@ -1,8 +1,8 @@
-import { type FC, useEffect, useState } from 'react';
+import { type FC, Fragment, useEffect, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Typography } from 'antd';
 import clsx from 'clsx';
-import { CopyIcon, MinusIcon, SquareIcon, XIcon } from 'lucide-react';
+import { ChevronRightIcon, CopyIcon, MinusIcon, SquareIcon, XIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import styles from './WindowHeader.module.scss';
@@ -18,7 +18,11 @@ const minimizeWindow = async () => {
 };
 
 interface WindowHeaderProps {
-  title: string;
+  /**
+   * Уровни заголовка от корневого к текущему. Несколько уровней выводятся
+   * через разделитель, например «История › Поиск».
+   */
+  titlePath: string[];
 }
 
 interface WindowState {
@@ -37,7 +41,7 @@ const initialWindowState: WindowState = {
   isResizable: false,
 };
 
-const WindowHeader: FC<WindowHeaderProps> = ({ title }) => {
+const WindowHeader: FC<WindowHeaderProps> = ({ titlePath }) => {
   const { t } = useTranslation();
   const [windowState, setWindowState] = useState(initialWindowState);
 
@@ -113,7 +117,19 @@ const WindowHeader: FC<WindowHeaderProps> = ({ title }) => {
         }}
       >
         <Typography.Title className={styles.title} level={4}>
-          {title}
+          {titlePath.map((level, index) => (
+            <Fragment key={level}>
+              {index > 0 ? (
+                <ChevronRightIcon
+                  className={styles.titleSeparator}
+                  size={18}
+                  strokeWidth={2}
+                  aria-hidden
+                />
+              ) : undefined}
+              {level}
+            </Fragment>
+          ))}
         </Typography.Title>
       </div>
 

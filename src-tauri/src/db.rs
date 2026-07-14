@@ -228,6 +228,52 @@ pub fn list_data(
     })
 }
 
+/// JSON записей, чьи тексты содержат искомую фразу, от новых к старым, вместе с
+/// общим числом совпадений во всей истории (нужно для пагинации).
+///
+/// `match_query` — уже готовое выражение FTS5, а не сырой пользовательский ввод:
+/// экранированием занимается вызывающая сторона. Порядок задаётся временем
+/// создания, а не релевантностью, поэтому используется индекс `created_at`.
+pub fn search_data(
+    app: &tauri::AppHandle,
+    match_query: &str,
+    limit: u32,
+    offset: u32,
+) -> AppResult<(Vec<String>, u32)> {
+    with_connection(app, |connection| {
+        let total = connection
+            .query_row(
+                "SELECT COUNT(*) FROM history_records_fts WHERE history_records_fts MATCH ?1",
+                params![match_query],
+                |row| row.get::<_, u32>(0),
+            )
+            .map_err(to_app_error)?;
+
+        let mut statement = connection
+            .prepare(
+                "SELECT record.data FROM history_records AS record
+                 JOIN history_records_fts AS fts ON fts.rowid = record.rowid
+                 WHERE history_records_fts MATCH ?1
+                 ORDER BY record.created_at DESC
+                 LIMIT ?2 OFFSET ?3",
+            )
+            .map_err(to_app_error)?;
+        let rows = statement
+            .query_map(params![match_query, limit, offset], |row| {
+                row.get::<_, String>(0)
+            })
+            .map_err(to_app_error)?;
+
+        let mut records = Vec::new();
+
+        for row in rows {
+            records.push(row.map_err(to_app_error)?);
+        }
+
+        Ok((records, total))
+    })
+}
+
 /// Вставляет пачку записей одной транзакцией. Используется миграцией
 /// импорта `history.json`.
 pub fn import(app: &tauri::AppHandle, rows: &[RecordRow]) -> AppResult<usize> {

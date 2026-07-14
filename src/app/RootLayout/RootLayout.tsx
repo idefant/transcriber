@@ -10,7 +10,7 @@ import { routes } from '#/shared/routes';
 
 import styles from './RootLayout.module.scss';
 
-import { useUiStore } from '#/stores';
+import { useHistoryStore, useUiStore } from '#/stores';
 
 const { Content, Header, Sider } = Layout;
 
@@ -20,12 +20,18 @@ const RootLayout: FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const openSettings = useUiStore((s) => s.openSettings);
+  const historyViewMode = useHistoryStore((s) => s.viewMode);
 
   const currentPageKey = location.pathname.startsWith(routes.dictionary)
     ? routes.dictionary
     : routes.history;
-  const currentPageTitle =
-    currentPageKey === routes.dictionary ? t('navigation.dictionary') : t('navigation.history');
+
+  const titlePath =
+    currentPageKey === routes.dictionary
+      ? [t('navigation.dictionary')]
+      : historyViewMode === 'search'
+        ? [t('navigation.history'), t('history.search')]
+        : [t('navigation.history')];
 
   const menuItems = useMemo<MenuProps['items']>(
     () => [
@@ -81,7 +87,7 @@ const RootLayout: FC = () => {
             borderBottomColor: token.colorBorderSecondary,
           }}
         >
-          <WindowHeader title={currentPageTitle} />
+          <WindowHeader titlePath={titlePath} />
         </Header>
 
         <Content className={styles.content}>

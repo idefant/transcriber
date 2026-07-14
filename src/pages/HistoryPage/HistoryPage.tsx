@@ -1,11 +1,23 @@
 import { type FC, useEffect, useMemo, useState } from 'react';
-import { Button, Card, DatePicker, Empty, message, Space, Spin, Tooltip } from 'antd';
+import {
+  Button,
+  Card,
+  DatePicker,
+  Empty,
+  Input,
+  message,
+  Pagination,
+  Space,
+  Spin,
+  Tooltip,
+} from 'antd';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import * as historyApi from '#/shared/historyApi';
+import { useDebouncedCallback } from '#/shared/hooks';
 
 import HistoryDetailsPanel from './HistoryDetailsPanel';
 import HistoryRecordsList from './HistoryRecordsList';
@@ -40,16 +52,35 @@ const getCurrentMonth = () => {
   return `${now.getFullYear().toString()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
+const searchDebounceMs = 300;
+
 const HistoryPage: FC = () => {
   const { t } = useTranslation();
   const [messageApi, messageContextHolder] = message.useMessage();
 
-  const groups = useHistoryStore((s) => s.groups);
+  const monthGroups = useHistoryStore((s) => s.groups);
   const selectedMonth = useHistoryStore((s) => s.selectedMonth);
-  const isLoading = useHistoryStore((s) => s.isLoading);
+  const isMonthLoading = useHistoryStore((s) => s.isLoading);
   const storeLoad = useHistoryStore((s) => s.load);
   const storeSetSelectedMonth = useHistoryStore((s) => s.setSelectedMonth);
   const storeRemoveRecord = useHistoryStore((s) => s.removeRecord);
+
+  const viewMode = useHistoryStore((s) => s.viewMode);
+  const searchInput = useHistoryStore((s) => s.searchInput);
+  const searchQuery = useHistoryStore((s) => s.searchQuery);
+  const searchGroups = useHistoryStore((s) => s.searchGroups);
+  const searchPage = useHistoryStore((s) => s.searchPage);
+  const searchPageSize = useHistoryStore((s) => s.searchPageSize);
+  const searchTotal = useHistoryStore((s) => s.searchTotal);
+  const isSearchLoading = useHistoryStore((s) => s.isSearchLoading);
+  const storeOpenSearch = useHistoryStore((s) => s.openSearch);
+  const storeCloseSearch = useHistoryStore((s) => s.closeSearch);
+  const storeSetSearchInput = useHistoryStore((s) => s.setSearchInput);
+  const storeRunSearch = useHistoryStore((s) => s.runSearch);
+
+  const isSearchMode = viewMode === 'search';
+  const groups = isSearchMode ? searchGroups : monthGroups;
+  const isLoading = isSearchMode ? isSearchLoading : isMonthLoading;
 
   const [processingRecordId, setProcessingRecordId] = useState<string>();
   // preferredDate — выбранная пользователем дата.
@@ -65,13 +96,13 @@ const HistoryPage: FC = () => {
 
   const activeDate = useMemo(() => {
     if (preferredDate === null) return;
-    if (preferredDate !== undefined && groups.some((g) => g.date === preferredDate)) {
+    if (preferredDate !== undefined && monthGroups.some((g) => g.date === preferredDate)) {
       return preferredDate;
     }
     // Автоматический режим: открыть сегодняшнюю дату, если для неё есть записи, иначе — ничего.
     const today = dayjs().format('YYYY-MM-DD');
-    return groups.some((g) => g.date === today) ? today : undefined;
-  }, [groups, preferredDate]);
+    return monthGroups.some((g) => g.date === today) ? today : undefined;
+  }, [monthGroups, preferredDate]);
 
   const selectedRecord = useMemo(
     () =>
@@ -82,7 +113,13 @@ const HistoryPage: FC = () => {
   );
 
   // Первоначальная загрузка только при монтировании. Изменения месяца обрабатываются явно в setMonth().
+  // В режиме поиска месяц не грузим: возврат со страницы словаря не должен затирать
+  // сохранённую в сторе выдачу поиска.
   useEffect(() => {
+    if (useHistoryStore.getState().viewMode === 'search') {
+      return;
+    }
+
     queueMicrotask(() => {
       void storeLoad(selectedMonth).catch((error: unknown) => {
         void messageApi.error(getErrorMessage(error));
@@ -149,6 +186,40 @@ const HistoryPage: FC = () => {
 
   const goToCurrentMonth = () => {
     setMonth(getCurrentMonth());
+  };
+
+  const runSearch = (query: string, page: number) => {
+    void storeRunSearch(query, page).catch((error: unknown) => {
+      void messageApi.error(getErrorMessage(error));
+    });
+  };
+
+  const debouncedSearch = useDebouncedCallback((query: string) => {
+    // Смена текста всегда возвращает на первую страницу.
+    runSearch(query, 1);
+  }, searchDebounceMs);
+
+  const handleSearchInputChange = (value: string) => {
+    storeSetSearchInput(value);
+    debouncedSearch.run(value);
+  };
+
+  const handleSearchPageChange = (page: number) => {
+    runSearch(searchQuery, page);
+  };
+
+  const openSearch = () => {
+    storeOpenSearch();
+    setSelectedRecordId(undefined);
+  };
+
+  const closeSearch = () => {
+    debouncedSearch.cancel();
+    storeCloseSearch();
+    setSelectedRecordId(undefined);
+    void storeLoad(selectedMonth).catch((error: unknown) => {
+      void messageApi.error(getErrorMessage(error));
+    });
   };
 
   const copyText = async (text: string | null) => {
@@ -230,62 +301,107 @@ const HistoryPage: FC = () => {
       <div className={clsx(styles.page, isDetailsOpen && styles.withDetails)}>
         <Card className={styles.historyCard}>
           <div className={styles.toolbar}>
-            <Space.Compact>
-              <Tooltip title={t('history.previousMonth')}>
-                <Button
-                  aria-label={t('history.previousMonth')}
-                  icon={<ChevronLeftIcon size={16} strokeWidth={2} />}
-                  onClick={goToPreviousMonth}
+            {isSearchMode ? (
+              <>
+                <Input
+                  allowClear
+                  aria-label={t('history.searchPlaceholder')}
+                  className={styles.searchInput}
+                  placeholder={t('history.searchPlaceholder')}
+                  prefix={<SearchIcon className={styles.searchIcon} size={16} strokeWidth={2} />}
+                  value={searchInput}
+                  onChange={(event) => {
+                    handleSearchInputChange(event.target.value);
+                  }}
                 />
-              </Tooltip>
-              <DatePicker
-                allowClear={false}
-                className={styles.monthPicker}
-                format={monthFormat}
-                picker="month"
-                placeholder={t('history.month')}
-                value={monthPickerValue}
-                renderExtraFooter={() => (
-                  <Button block size="small" type="text" onClick={goToCurrentMonth}>
-                    {t('history.today')}
-                  </Button>
-                )}
-                onChange={handleMonthChange}
-              />
-              <Tooltip title={t('history.nextMonth')}>
-                <Button
-                  aria-label={t('history.nextMonth')}
-                  icon={<ChevronRightIcon size={16} strokeWidth={2} />}
-                  onClick={goToNextMonth}
-                />
-              </Tooltip>
-            </Space.Compact>
+                <Button onClick={closeSearch}>{t('history.closeSearch')}</Button>
+              </>
+            ) : (
+              <>
+                <Space.Compact>
+                  <Tooltip title={t('history.previousMonth')}>
+                    <Button
+                      aria-label={t('history.previousMonth')}
+                      icon={<ChevronLeftIcon size={16} strokeWidth={2} />}
+                      onClick={goToPreviousMonth}
+                    />
+                  </Tooltip>
+                  <DatePicker
+                    allowClear={false}
+                    className={styles.monthPicker}
+                    format={monthFormat}
+                    picker="month"
+                    placeholder={t('history.month')}
+                    value={monthPickerValue}
+                    renderExtraFooter={() => (
+                      <Button block size="small" type="text" onClick={goToCurrentMonth}>
+                        {t('history.today')}
+                      </Button>
+                    )}
+                    onChange={handleMonthChange}
+                  />
+                  <Tooltip title={t('history.nextMonth')}>
+                    <Button
+                      aria-label={t('history.nextMonth')}
+                      icon={<ChevronRightIcon size={16} strokeWidth={2} />}
+                      onClick={goToNextMonth}
+                    />
+                  </Tooltip>
+                </Space.Compact>
+                <Button icon={<SearchIcon size={16} strokeWidth={2} />} onClick={openSearch}>
+                  {t('history.search')}
+                </Button>
+              </>
+            )}
           </div>
 
           <Spin spinning={isLoading}>
             {groups.length > 0 ? (
-              <HistoryRecordsList
-                activeDate={activeDate}
-                groups={groups}
-                processingRecordId={processingRecordId}
-                selectedRecordId={selectedRecord?.id}
-                onActiveDateChange={(date) => {
-                  setPreferredDate(date);
-                }}
-                onCopyRecordText={(record) => {
-                  void copyText(getRecordTextForCopy(record));
-                }}
-                onDeleteRecord={(record) => {
-                  void handleDeleteRecord(record);
-                }}
-                onRecordSelect={(record) => {
-                  setSelectedRecordId(record.id);
-                }}
-                onRepeatTranscription={(record) => {
-                  void handleRepeatRecord(record);
-                }}
+              <>
+                <HistoryRecordsList
+                  activeDate={activeDate}
+                  groups={groups}
+                  highlightQuery={isSearchMode ? searchQuery : undefined}
+                  isSearchMode={isSearchMode}
+                  processingRecordId={processingRecordId}
+                  selectedRecordId={selectedRecord?.id}
+                  onActiveDateChange={(date) => {
+                    setPreferredDate(date);
+                  }}
+                  onCopyRecordText={(record) => {
+                    void copyText(getRecordTextForCopy(record));
+                  }}
+                  onDeleteRecord={(record) => {
+                    void handleDeleteRecord(record);
+                  }}
+                  onRecordSelect={(record) => {
+                    setSelectedRecordId(record.id);
+                  }}
+                  onRepeatTranscription={(record) => {
+                    void handleRepeatRecord(record);
+                  }}
+                />
+                {isSearchMode ? (
+                  <Pagination
+                    align="end"
+                    className={styles.pagination}
+                    current={searchPage}
+                    hideOnSinglePage
+                    pageSize={searchPageSize}
+                    showSizeChanger={false}
+                    total={searchTotal}
+                    onChange={handleSearchPageChange}
+                  />
+                ) : undefined}
+              </>
+            ) : isLoading ? null : isSearchMode ? (
+              // Пока запрос короче трёх символов, поиск не выполняется, и searchQuery пуст.
+              <Empty
+                description={
+                  searchQuery.length > 0 ? t('history.emptySearch') : t('history.startSearch')
+                }
               />
-            ) : isLoading ? null : (
+            ) : (
               <Empty description={t('history.emptyMonth')} />
             )}
           </Spin>
@@ -294,6 +410,7 @@ const HistoryPage: FC = () => {
         <aside className={styles.detailsSlot}>
           {selectedRecord === undefined ? undefined : (
             <HistoryDetailsPanel
+              highlightQuery={isSearchMode ? searchQuery : undefined}
               record={selectedRecord}
               onCopyAudioPath={(record) => {
                 void copyText(record.audio.path);

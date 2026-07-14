@@ -23,7 +23,7 @@ const DataTooNewScreen: FC = () => {
   return (
     <div className={styles.screen}>
       <div className={styles.header}>
-        <WindowHeader title={t('common.productName')} />
+        <WindowHeader titlePath={[t('common.productName')]} />
       </div>
 
       <div className={styles.body}>

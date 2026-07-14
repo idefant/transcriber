@@ -3,6 +3,8 @@ import { Button, Space, Tooltip, Typography } from 'antd';
 import { CopyIcon, LoaderCircleIcon, RotateCcwIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import HighlightedText from '#/ui/HighlightedText';
+
 import ErrorDetails from './ErrorDetails';
 
 import styles from './ModelResult.module.scss';
@@ -16,6 +18,8 @@ interface ModelResultProps {
   canRepeat: boolean;
   copyLabel: string;
   details: ProcessingDetails;
+  /** Подстрока, подсвечиваемая в тексте результата. Сообщения об ошибке не подсвечиваются. */
+  highlightQuery?: string;
   onCopy: () => void;
   onRepeat: () => void;
   repeatLabel: string;
@@ -28,6 +32,7 @@ const ModelResult: FC<ModelResultProps> = ({
   canRepeat,
   copyLabel,
   details,
+  highlightQuery,
   onCopy,
   onRepeat,
   repeatLabel,
@@ -35,7 +40,8 @@ const ModelResult: FC<ModelResultProps> = ({
   title,
 }) => {
   const { t } = useTranslation();
-  const displayText = details.errorMessage ?? details.text;
+  const errorMessage = details.errorMessage;
+  const displayText = errorMessage ?? details.text;
   const displayCost =
     typeof details.cost === 'string' &&
     details.cost.length > 0 &&
@@ -113,7 +119,11 @@ const ModelResult: FC<ModelResultProps> = ({
           </dl>
           <div>
             <Paragraph className={details.status === 'error' ? styles.errorText : styles.text}>
-              {displayText}
+              {errorMessage == null ? (
+                <HighlightedText query={highlightQuery} text={displayText} />
+              ) : (
+                displayText
+              )}
             </Paragraph>
             {details.status === 'error' && details.errorDetails != null ? (
               <ErrorDetails details={details.errorDetails} />

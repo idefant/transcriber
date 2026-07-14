@@ -26,11 +26,25 @@
 
 .toolbar {
   display: flex;
+  gap: 8px;
+  justify-content: space-between;
   margin-bottom: 16px;
 }
 
 .monthPicker {
   width: 120px;
+}
+
+.searchInput {
+  max-width: 360px;
+}
+
+.searchIcon {
+  color: var(--app-color-text-secondary);
+}
+
+.pagination {
+  margin-top: 16px;
 }
 
 .detailsSlot {

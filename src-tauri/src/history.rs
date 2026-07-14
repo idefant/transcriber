@@ -20,6 +20,11 @@ use crate::{
 const HISTORY_FILE_NAME: &str = "history.json";
 const RECORDINGS_DIR_NAME: &str = "recordings";
 const HISTORY_UPDATED_EVENT: &str = "history-updated";
+/// Сколько записей возвращает одна страница поиска.
+const SEARCH_PAGE_SIZE: u32 = 100;
+/// Trigram-токенайзер FTS5 не индексирует последовательности короче трёх
+/// символов, поэтому запросы короче не ищутся вовсе.
+const SEARCH_MIN_QUERY_CHARS: usize = 3;
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -90,6 +95,17 @@ pub struct HistoryGroup {
     records: Vec<HistoryRecord>,
 }
 
+/// Страница результатов поиска. `page_size` возвращается вместе с данными,
+/// чтобы фронтенду не приходилось дублировать размер страницы у себя.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistorySearchResult {
+    groups: Vec<HistoryGroup>,
+    page: u32,
+    page_size: u32,
+    total: u32,
+}
+
 #[derive(Default, Deserialize, Serialize)]
 struct HistoryStore {
     #[serde(default)]
@@ -129,6 +145,18 @@ pub async fn get_history_groups(
     month: Option<String>,
 ) -> Result<Vec<HistoryGroup>, String> {
     get_history_groups_inner(&app, month.as_deref()).map_err(AppError::into_message)
+}
+
+/// Асинхронная по той же причине, что и [`get_history_groups`]: страница поиска
+/// содержит до `SEARCH_PAGE_SIZE` записей, и их десериализация не должна
+/// выполняться в главном потоке.
+#[tauri::command]
+pub async fn search_history_records(
+    app: tauri::AppHandle,
+    query: String,
+    page: u32,
+) -> Result<HistorySearchResult, String> {
+    search_history_records_inner(&app, &query, page).map_err(AppError::into_message)
 }
 
 #[tauri::command]
@@ -356,6 +384,52 @@ fn get_history_groups_inner(
             .map(|(from, to)| (from.as_str(), to.as_str())),
     )?;
 
+    group_records(records)
+}
+
+fn search_history_records_inner(
+    app: &tauri::AppHandle,
+    query: &str,
+    page: u32,
+) -> AppResult<HistorySearchResult> {
+    let query = query.trim();
+    let page = page.max(1);
+
+    if query.chars().count() < SEARCH_MIN_QUERY_CHARS {
+        return Ok(HistorySearchResult {
+            groups: Vec::new(),
+            page,
+            page_size: SEARCH_PAGE_SIZE,
+            total: 0,
+        });
+    }
+
+    let offset = (page - 1) * SEARCH_PAGE_SIZE;
+    let (records, total) = db::search_data(
+        app,
+        &build_fts_phrase_query(query),
+        SEARCH_PAGE_SIZE,
+        offset,
+    )?;
+
+    Ok(HistorySearchResult {
+        groups: group_records(records)?,
+        page,
+        page_size: SEARCH_PAGE_SIZE,
+        total,
+    })
+}
+
+/// Оборачивает пользовательский ввод в фразу FTS5, чтобы он искался как
+/// подстрока-литерал: внутри кавычек спецсинтаксис FTS (`AND`, `OR`, `*`, `^`,
+/// `:`) теряет силу, а сами кавычки экранируются удвоением.
+fn build_fts_phrase_query(query: &str) -> String {
+    format!("\"{}\"", query.replace('"', "\"\""))
+}
+
+/// Группирует JSON-строки записей по локальной календарной дате, сохраняя
+/// порядок, в котором их вернула база (от новых к старым).
+fn group_records(records: Vec<String>) -> AppResult<Vec<HistoryGroup>> {
     let mut groups: Vec<HistoryGroup> = Vec::new();
 
     for data in records {

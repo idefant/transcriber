@@ -3,6 +3,8 @@ import { Button, Collapse, Space, Tooltip } from 'antd';
 import { CopyIcon, LoaderCircleIcon, RotateCcwIcon, Trash2Icon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import HighlightedText from '#/ui/HighlightedText';
+
 import styles from './HistoryRecordsList.module.scss';
 
 import type { HistoryGroup, HistoryRecord } from '#/models/History';
@@ -10,6 +12,10 @@ import type { HistoryGroup, HistoryRecord } from '#/models/History';
 interface HistoryRecordsListProps {
   activeDate?: string;
   groups: HistoryGroup[];
+  /** Подстрока, подсвечиваемая в тексте записей. */
+  highlightQuery?: string;
+  /** В режиме поиска все группы раскрыты и свернуть их нельзя. */
+  isSearchMode?: boolean;
   onActiveDateChange: (date: string | null) => void;
   onCopyRecordText: (record: HistoryRecord) => void;
   onDeleteRecord: (record: HistoryRecord) => void;
@@ -41,6 +47,8 @@ const getDisplayText = (record: HistoryRecord) => {
 const HistoryRecordsList: FC<HistoryRecordsListProps> = ({
   activeDate,
   groups,
+  highlightQuery,
+  isSearchMode = false,
   onActiveDateChange,
   onCopyRecordText,
   onDeleteRecord,
@@ -84,7 +92,7 @@ const HistoryRecordsList: FC<HistoryRecordsListProps> = ({
                     record.transcription.status === 'error' ? styles.recordError : styles.recordText
                   }
                 >
-                  {displayText}
+                  <HighlightedText query={highlightQuery} text={displayText} />
                 </span>
               </span>
               <Space className={styles.recordActions} size={4}>
@@ -141,14 +149,23 @@ const HistoryRecordsList: FC<HistoryRecordsListProps> = ({
     ),
     key: group.date,
     label: group.label,
+    showArrow: !isSearchMode,
   }));
 
+  // В режиме поиска раскрыты все группы. `collapsible="icon"` разрешает сворачивание
+  // только кликом по стрелке, а стрелка здесь скрыта — значит свернуть группу нельзя.
+  // Вариант `"disabled"` не подошёл бы: он красит заголовок в неактивный цвет.
   return (
     <Collapse
-      accordion
-      activeKey={activeDate}
+      accordion={!isSearchMode}
+      activeKey={isSearchMode ? groups.map((group) => group.date) : activeDate}
+      collapsible={isSearchMode ? 'icon' : undefined}
       items={collapseItems}
       onChange={(key) => {
+        if (isSearchMode) {
+          return;
+        }
+
         const date = Array.isArray(key) ? key.at(0) : key;
         onActiveDateChange(date === '' ? null : (date ?? null));
       }}
