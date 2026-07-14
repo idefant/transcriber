@@ -221,10 +221,12 @@ const HistoryPage: FC = () => {
     }
   };
 
+  const isDetailsOpen = selectedRecord !== undefined;
+
   return (
     <>
       {messageContextHolder}
-      <div className={styles.page}>
+      <div className={isDetailsOpen ? `${styles.page} ${styles.withDetails}` : styles.page}>
         <Card className={styles.historyCard}>
           <div className={styles.toolbar}>
             <Space.Compact>
