@@ -165,6 +165,7 @@
 - GPT-5.4 mini через OpenAI и OpenRouter;
 - GPT OSS 120B через Groq и OpenRouter;
 - Qwen 3.6 27B через Groq и OpenRouter;
+- Qwen 3.6 35B A3B через OpenRouter;
 - Gemini 2.5 Flash через OpenRouter;
 - Gemini 2.5 Flash Lite через OpenRouter;
 - Gemini 3.1 Flash Lite через OpenRouter;

@@ -15,6 +15,7 @@ Development setup, build commands, quality checks, and project tooling are docum
 | gpt-5.4-mini          | OpenAI, OpenRouter | ✅            |
 | gpt-5-mini            | OpenAI, OpenRouter | ✅            |
 | Qwen 3.6 27B          | Groq, OpenRouter   | ✅            |
+| Qwen 3.6 35B A3B      | OpenRouter         | ✅            |
 | GPT OSS 120B          | Groq, OpenRouter   | ✅            |
 | Llama 4 Scout         | Groq, OpenRouter   | ❌            |
 | Gemini 2.5 Flash      | OpenRouter         | ✅            |

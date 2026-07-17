@@ -370,6 +370,29 @@ pub fn curated_models() -> Vec<CuratedModel> {
             }),
         },
         CuratedModel {
+            key: "qwen-3-6-35b-a3b",
+            label: "Qwen 3.6 35B A3B",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openrouter,
+                api_id: "qwen/qwen3.6-35b-a3b",
+                is_recommended: true,
+                reasoning_effort: None,
+                reasoning_format: None,
+                include_reasoning: None,
+                reasoning: Some(ReasoningParams {
+                    effort: "none",
+                    exclude: false,
+                }),
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking_prompt: true,
+                disable_thinking_body: false,
+            }),
+        },
+        CuratedModel {
             key: "gemini-2-5-flash",
             label: "Gemini 2.5 Flash",
             task: ModelTask::PostProcess,
