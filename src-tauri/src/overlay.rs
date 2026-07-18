@@ -271,6 +271,11 @@ pub fn show_transcribing_overlay(app: &tauri::AppHandle) -> AppResult<()> {
     show_overlay_state(app, "transcribing", None)
 }
 
+/// Показывает оверлей локального определения речи перед отправкой аудио на STT.
+pub fn show_vad_overlay(app: &tauri::AppHandle) -> AppResult<()> {
+    show_overlay_state(app, "vad", None)
+}
+
 pub fn show_processing_overlay(app: &tauri::AppHandle) -> AppResult<()> {
     show_overlay_state(app, "processing", None)
 }

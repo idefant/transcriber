@@ -53,7 +53,9 @@ const SttPromptLimitAlert: FC<SttPromptLimitAlertProps> = ({
     };
   }, [draftSystemPrompt, inputKey]);
 
-  const analysis = analysisState?.inputKey === inputKey ? analysisState.analysis : null;
+  // Пока новый анализ выполняется, сохраняем предыдущий результат вместо краткого
+  // исчезновения уведомления. Устаревший запрос не сможет его перезаписать из-за cleanup эффекта.
+  const analysis = analysisState?.analysis ?? null;
 
   if (analysis === null) {
     return null;

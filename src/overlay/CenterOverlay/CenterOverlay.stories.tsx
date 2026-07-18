@@ -30,6 +30,10 @@ export const Transcribing: Story = {
   args: { state: 'transcribing' },
 };
 
+export const Vad: Story = {
+  args: { state: 'vad' },
+};
+
 export const Processing: Story = {
   args: { state: 'processing' },
 };

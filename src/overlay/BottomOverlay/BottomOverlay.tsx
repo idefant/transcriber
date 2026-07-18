@@ -4,7 +4,6 @@ import {
   LoaderCircleIcon,
   MicIcon,
   PauseIcon,
-  SparklesIcon,
   SquareArrowOutUpRightIcon,
   TriangleAlertIcon,
   XIcon,
@@ -46,15 +45,10 @@ const BottomOverlay: FC<BottomOverlayProps> = ({
   const statusIcon = useMemo(() => {
     if (state === 'recording') return <MicIcon aria-hidden size={15} strokeWidth={2.2} />;
     if (state === 'paused') return <PauseIcon aria-hidden size={15} strokeWidth={2.2} />;
-    if (state === 'transcribing') {
-      return (
-        <LoaderCircleIcon aria-hidden className={styles.spinIcon} size={15} strokeWidth={2.2} />
-      );
-    }
     if (state === 'error') return <CircleAlertIcon aria-hidden size={15} strokeWidth={2.2} />;
     if (state === 'warning') return <TriangleAlertIcon aria-hidden size={15} strokeWidth={2.2} />;
 
-    return <SparklesIcon aria-hidden size={15} strokeWidth={2.2} />;
+    return <LoaderCircleIcon aria-hidden className={styles.spinIcon} size={15} strokeWidth={2.2} />;
   }, [state]);
 
   const className = [

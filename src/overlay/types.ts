@@ -8,6 +8,7 @@ export type OverlayState =
   | 'processing'
   | 'recording'
   | 'transcribing'
+  | 'vad'
   | 'warning';
 
 export interface OverlayShowPayload {
@@ -22,6 +23,7 @@ export const stateLabels: Record<OverlayState, string> = {
   processing: 'Processing',
   recording: 'Recording',
   transcribing: 'Transcribing',
+  vad: 'Detecting speech',
   warning: 'Warning',
 };
 

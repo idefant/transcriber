@@ -811,10 +811,15 @@ fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
     shortcut_hook::disarm_pause_hotkey();
     emit_dictation_session(&app, true, Some(id), false);
 
-    // Локальная очистка записи может занять заметное время, поэтому сразу после
-    // остановки показываем существующее состояние обработки, а не оставляем
-    // оверлей в состоянии Recording до начала сетевого STT.
-    if let Err(error) = overlay::show_transcribing_overlay(&app) {
+    // Локальное определение речи и сетевое STT могут занять заметное время. Показываем
+    // соответствующий этап сразу после остановки записи, а не оставляем оверлей в Recording.
+    let is_silence_trimming_enabled = recording_handle.is_silence_trimming_enabled;
+    let show_overlay_result = if is_silence_trimming_enabled {
+        overlay::show_vad_overlay(&app)
+    } else {
+        overlay::show_transcribing_overlay(&app)
+    };
+    if let Err(error) = show_overlay_result {
         release_recording(&app);
         drop(recording_handle);
         let _ = reset_session(&app, id, true);
@@ -832,6 +837,15 @@ fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
             return;
         }
     };
+
+    // VAD завершился: следующий этап — сетевое распознавание речи.
+    if is_silence_trimming_enabled {
+        if let Err(error) = overlay::show_transcribing_overlay(&app) {
+            let _ = reset_session(&app, id, true);
+            emit_dictation_error(&app, error.into_message());
+            return;
+        }
+    }
 
     let handle = tauri::async_runtime::spawn(process_recording(app.clone(), id, audio));
     register_active_task(&app, id, handle);
