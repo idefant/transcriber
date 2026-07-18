@@ -29,6 +29,7 @@ const appTokenVariableNames = [
   '--app-color-text',
   '--app-color-text-secondary',
   '--app-color-text-tertiary',
+  '--app-color-warning',
 ] as const;
 
 // Ant Design не даёт токена подсветки поиска, поэтому цвет задаётся явно. В тёмной
@@ -163,6 +164,7 @@ const AppThemeTokenVariables: FC<AppThemeTokenVariablesProps> = ({ isDarkMode })
     rootStyle.setProperty('--app-color-text', token.colorText);
     rootStyle.setProperty('--app-color-text-secondary', token.colorTextSecondary);
     rootStyle.setProperty('--app-color-text-tertiary', token.colorTextTertiary);
+    rootStyle.setProperty('--app-color-warning', token.colorWarningText);
 
     return () => {
       for (const variableName of appTokenVariableNames) {

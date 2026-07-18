@@ -30,6 +30,13 @@
   color: var(--app-color-text-secondary);
 }
 
+.notice {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--app-color-warning);
+}
+
 .control {
   display: flex;
   justify-content: flex-end;

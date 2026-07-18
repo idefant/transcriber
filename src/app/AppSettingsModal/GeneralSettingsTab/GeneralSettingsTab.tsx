@@ -1,19 +1,12 @@
-import { type FC, type ReactNode } from 'react';
+import { type FC } from 'react';
 import { Button, Segmented, Select, Switch } from 'antd';
-import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import SettingRow from '../SettingRow';
 
 import styles from './GeneralSettingsTab.module.scss';
 
-import type {
-  OverlayScreenMode,
-  OverlayVariant,
-  RecordingAudioMode,
-  ThemePreference,
-  UiLanguage,
-} from '#/models/Settings';
+import type { RecordingAudioMode, TriggerMode } from '#/models/Settings';
 
 interface GeneralSettingsTabProps {
   isDebugLoggingEnabled: boolean;
@@ -22,17 +15,11 @@ interface GeneralSettingsTabProps {
   onDebugLogsFolderOpen: () => void;
   onDebugLoggingEnabledChange: (value: boolean) => void;
   onLaunchAtLoginEnabledChange: (value: boolean) => void;
-  onOverlayScreenModeChange: (value: OverlayScreenMode) => void;
-  onOverlayVariantChange: (value: OverlayVariant) => void;
   onRecordingAudioModeChange: (value: RecordingAudioMode) => void;
   onRestoreAudioWhilePausedEnabledChange: (value: boolean) => void;
-  onThemePreferenceChange: (value: ThemePreference) => void;
-  onUiLanguageChange: (value: UiLanguage) => void;
-  overlayScreenMode: OverlayScreenMode;
-  overlayVariant: OverlayVariant;
   recordingAudioMode: RecordingAudioMode;
-  themePreference: ThemePreference;
-  uiLanguage: UiLanguage;
+  triggerMode: TriggerMode;
+  onTriggerModeChange: (value: TriggerMode) => void;
 }
 
 const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
@@ -42,48 +29,34 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
   onDebugLogsFolderOpen,
   onDebugLoggingEnabledChange,
   onLaunchAtLoginEnabledChange,
-  onOverlayScreenModeChange,
-  onOverlayVariantChange,
   onRecordingAudioModeChange,
   onRestoreAudioWhilePausedEnabledChange,
-  onThemePreferenceChange,
-  onUiLanguageChange,
-  overlayScreenMode,
-  overlayVariant,
   recordingAudioMode,
-  themePreference,
-  uiLanguage,
+  triggerMode,
+  onTriggerModeChange,
 }) => {
   const { t } = useTranslation();
-  const themeOptions: { icon: ReactNode; label: string; value: ThemePreference }[] = [
-    {
-      icon: <SunIcon size={15} strokeWidth={2} />,
-      label: t('settings.general.theme.light'),
-      value: 'light',
-    },
-    {
-      icon: <MoonIcon size={15} strokeWidth={2} />,
-      label: t('settings.general.theme.dark'),
-      value: 'dark',
-    },
-    {
-      icon: <MonitorIcon size={15} strokeWidth={2} />,
-      label: t('settings.general.theme.auto'),
-      value: 'auto',
-    },
-  ];
 
   return (
     <div className={styles.settingsList}>
       <SettingRow
-        description={t('settings.general.theme.description')}
-        title={t('settings.general.theme.title')}
+        description={t('settings.general.triggerMode.description')}
+        title={t('settings.general.triggerMode.title')}
       >
-        <Segmented<ThemePreference>
-          className={styles.themePicker}
-          options={themeOptions}
-          value={themePreference}
-          onChange={onThemePreferenceChange}
+        <Segmented<TriggerMode>
+          className={styles.triggerModePicker}
+          options={[
+            {
+              label: t('settings.general.triggerMode.press'),
+              value: 'press',
+            },
+            {
+              label: t('settings.general.triggerMode.hold'),
+              value: 'hold',
+            },
+          ]}
+          value={triggerMode}
+          onChange={onTriggerModeChange}
         />
       </SettingRow>
 
@@ -116,10 +89,16 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
       {recordingAudioMode !== 'off' && (
         <SettingRow
           description={t('settings.general.restoreAudioWhilePaused.description')}
+          notice={
+            triggerMode === 'hold'
+              ? t('settings.general.restoreAudioWhilePaused.disabledNotice')
+              : undefined
+          }
           title={t('settings.general.restoreAudioWhilePaused.title')}
         >
           <Switch
             checked={isRestoreAudioWhilePausedEnabled}
+            disabled={triggerMode === 'hold'}
             onChange={onRestoreAudioWhilePausedEnabledChange}
           />
         </SettingRow>
@@ -130,76 +109,6 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
         title={t('settings.general.launchAtLogin.title')}
       >
         <Switch checked={isLaunchAtLoginEnabled} onChange={onLaunchAtLoginEnabledChange} />
-      </SettingRow>
-
-      <SettingRow
-        description={t('settings.general.language.description')}
-        title={t('settings.general.language.title')}
-      >
-        <Select
-          className={styles.languageSelect}
-          placeholder={t('settings.general.language.placeholder')}
-          value={uiLanguage}
-          options={[
-            {
-              label: t('settings.general.language.system'),
-              value: 'system',
-            },
-            {
-              label: t('settings.general.language.ru'),
-              value: 'ru',
-            },
-            {
-              label: t('settings.general.language.en'),
-              value: 'en',
-            },
-          ]}
-          onChange={onUiLanguageChange}
-        />
-      </SettingRow>
-
-      <SettingRow
-        description={t('settings.general.overlayVariant.description')}
-        title={t('settings.general.overlayVariant.title')}
-      >
-        <Select
-          className={styles.overlaySelect}
-          placeholder={t('settings.general.overlayVariant.placeholder')}
-          value={overlayVariant}
-          options={[
-            {
-              label: t('settings.general.overlayVariant.center'),
-              value: 'center',
-            },
-            {
-              label: t('settings.general.overlayVariant.bottom'),
-              value: 'bottom',
-            },
-          ]}
-          onChange={onOverlayVariantChange}
-        />
-      </SettingRow>
-
-      <SettingRow
-        description={t('settings.general.overlayScreenMode.description')}
-        title={t('settings.general.overlayScreenMode.title')}
-      >
-        <Select
-          className={styles.overlaySelect}
-          placeholder={t('settings.general.overlayScreenMode.placeholder')}
-          value={overlayScreenMode}
-          options={[
-            {
-              label: t('settings.general.overlayScreenMode.all'),
-              value: 'all',
-            },
-            {
-              label: t('settings.general.overlayScreenMode.cursor'),
-              value: 'cursor',
-            },
-          ]}
-          onChange={onOverlayScreenModeChange}
-        />
       </SettingRow>
 
       <div className={styles.debugLoggingGroup}>

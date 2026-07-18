@@ -1,5 +1,6 @@
 export type SettingsSectionKey =
   | 'general'
+  | 'design'
   | 'hotkeys'
   | 'providers'
   | 'speechToText'

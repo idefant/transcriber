@@ -1,5 +1,4 @@
 import { type FC } from 'react';
-import { Segmented } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import SettingRow from '../SettingRow';
@@ -7,8 +6,6 @@ import SettingRow from '../SettingRow';
 import HotkeyInput from './HotkeyInput';
 
 import styles from './HotkeysSettingsTab.module.scss';
-
-import type { TriggerMode } from '#/models/Settings';
 
 interface HotkeysSettingsTabProps {
   cancelHotkey: string;
@@ -20,11 +17,10 @@ interface HotkeysSettingsTabProps {
   onPasteLatestHotkeyChange: (value: string) => void;
   onPauseHotkeyChange: (value: string) => void;
   onRepeatLatestHotkeyChange: (value: string) => void;
-  onTriggerModeChange: (value: TriggerMode) => void;
   pasteLatestHotkey: string;
   pauseHotkey: string;
   repeatLatestHotkey: string;
-  triggerMode: TriggerMode;
+  isPauseHotkeyDisabled: boolean;
 }
 
 const RECORDING_HOTKEY_DEFAULT = 'Ctrl+Space';
@@ -40,11 +36,10 @@ const HotkeysSettingsTab: FC<HotkeysSettingsTabProps> = ({
   onPasteLatestHotkeyChange,
   onPauseHotkeyChange,
   onRepeatLatestHotkeyChange,
-  onTriggerModeChange,
   pasteLatestHotkey,
   pauseHotkey,
   repeatLatestHotkey,
-  triggerMode,
+  isPauseHotkeyDisabled,
 }) => {
   const { t } = useTranslation();
   const emptyPlaceholder = t('settings.hotkeys.unused');
@@ -67,28 +62,10 @@ const HotkeysSettingsTab: FC<HotkeysSettingsTabProps> = ({
       </SettingRow>
 
       <SettingRow
-        description={t('settings.hotkeys.triggerMode.description')}
-        title={t('settings.hotkeys.triggerMode.title')}
-      >
-        <Segmented<TriggerMode>
-          className={styles.triggerModePicker}
-          options={[
-            {
-              label: t('settings.hotkeys.triggerMode.press'),
-              value: 'press',
-            },
-            {
-              label: t('settings.hotkeys.triggerMode.hold'),
-              value: 'hold',
-            },
-          ]}
-          value={triggerMode}
-          onChange={onTriggerModeChange}
-        />
-      </SettingRow>
-
-      <SettingRow
         description={t('settings.hotkeys.pauseRecording.description')}
+        notice={
+          isPauseHotkeyDisabled ? t('settings.hotkeys.pauseRecording.disabledNotice') : undefined
+        }
         title={t('settings.hotkeys.pauseRecording.title')}
       >
         {/* Смена режима запуска может заблокировать поле прямо во время записи комбинации,
@@ -97,8 +74,8 @@ const HotkeysSettingsTab: FC<HotkeysSettingsTabProps> = ({
           allowEmpty
           defaultValue=""
           emptyPlaceholder={emptyPlaceholder}
-          isDisabled={triggerMode === 'hold'}
-          key={triggerMode}
+          isDisabled={isPauseHotkeyDisabled}
+          key={String(isPauseHotkeyDisabled)}
           resetLabel={resetLabel}
           value={pauseHotkey}
           onChange={onPauseHotkeyChange}

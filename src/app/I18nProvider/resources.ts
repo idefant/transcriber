@@ -29,6 +29,7 @@ const en = {
     title: 'Settings',
     sections: {
       general: 'General',
+      design: 'Design',
       hotkeys: 'Hotkeys',
       providers: 'Providers',
       speechToText: 'Speech-to-Text',
@@ -36,12 +37,11 @@ const en = {
       about: 'About',
     },
     general: {
-      theme: {
-        title: 'Theme',
-        description: 'Choose a light, dark, or system theme',
-        light: 'Light',
-        dark: 'Dark',
-        auto: 'Auto',
+      triggerMode: {
+        title: 'Trigger mode',
+        description: 'Start recording on press or only while the shortcut is held',
+        press: 'On press',
+        hold: 'While held',
       },
       recordingAudio: {
         title: 'Audio while recording',
@@ -54,10 +54,25 @@ const en = {
       restoreAudioWhilePaused: {
         title: 'Restore audio while paused',
         description: 'Bring audio back while a dictation is paused, instead of keeping it silent',
+        disabledNotice: 'Unavailable in the "While held" trigger mode',
       },
       launchAtLogin: {
         title: 'Launch at login',
         description: 'Start Transcriber in the background when you sign in to Windows',
+      },
+      debugLogging: {
+        title: 'Enable logging',
+        description: 'Logs are not sent to a server and are only used for debugging.',
+        openFolder: 'Open logs folder',
+      },
+    },
+    design: {
+      theme: {
+        title: 'Theme',
+        description: 'Choose a light, dark, or system theme',
+        light: 'Light',
+        dark: 'Dark',
+        auto: 'Auto',
       },
       language: {
         title: 'Interface language',
@@ -81,11 +96,6 @@ const en = {
         cursor: 'Screen with the cursor',
         all: 'Every screen',
       },
-      debugLogging: {
-        title: 'Enable logging',
-        description: 'Logs are not sent to a server and are only used for debugging.',
-        openFolder: 'Open logs folder',
-      },
     },
     hotkeys: {
       startRecording: {
@@ -94,8 +104,8 @@ const en = {
       },
       pauseRecording: {
         title: 'Pause recording',
-        description:
-          'Keyboard shortcut that pauses and resumes the current recording. Available only in the "On press" trigger mode',
+        description: 'Keyboard shortcut that pauses and resumes the current recording',
+        disabledNotice: 'Unavailable in the "While held" trigger mode',
       },
       cancelRecording: {
         title: 'Cancel recording',
@@ -113,12 +123,6 @@ const en = {
         title: 'Repeat last transcription',
         description:
           'Keyboard shortcut that repeats processing for the latest history record and pastes the result',
-      },
-      triggerMode: {
-        title: 'Trigger mode',
-        description: 'Start recording on press or only while the shortcut is held',
-        press: 'On press',
-        hold: 'While held',
       },
       record: 'Record shortcut',
       recording: 'Press keys…',
@@ -318,6 +322,7 @@ const ru: typeof en = {
     title: 'Настройки',
     sections: {
       general: 'Основное',
+      design: 'Дизайн',
       hotkeys: 'Хоткеи',
       providers: 'Провайдеры',
       speechToText: 'Speech-to-Text',
@@ -325,12 +330,11 @@ const ru: typeof en = {
       about: 'О программе',
     },
     general: {
-      theme: {
-        title: 'Тема',
-        description: 'Выберите светлую, темную или системную тему',
-        light: 'Светлая',
-        dark: 'Темная',
-        auto: 'Авто',
+      triggerMode: {
+        title: 'Режим запуска',
+        description: 'Запускать запись сразу по нажатию или только пока комбинация зажата',
+        press: 'По нажатию',
+        hold: 'По зажатию',
       },
       recordingAudio: {
         title: 'Звук при записи',
@@ -343,10 +347,25 @@ const ru: typeof en = {
       restoreAudioWhilePaused: {
         title: 'Возвращать звук во время паузы записи',
         description: 'Пока запись на паузе, звук снова звучит, а не остаётся приглушённым',
+        disabledNotice: 'Недоступно в режиме запуска «По зажатию»',
       },
       launchAtLogin: {
         title: 'Запускать при входе в Windows',
         description: 'Запускать Transcriber в фоновом режиме после входа в Windows',
+      },
+      debugLogging: {
+        title: 'Включить логирование',
+        description: 'Логи не отправляются на сервер и нужны только для отладки.',
+        openFolder: 'Открыть папку логов',
+      },
+    },
+    design: {
+      theme: {
+        title: 'Тема',
+        description: 'Выберите светлую, темную или системную тему',
+        light: 'Светлая',
+        dark: 'Темная',
+        auto: 'Авто',
       },
       language: {
         title: 'Язык интерфейса',
@@ -370,11 +389,6 @@ const ru: typeof en = {
         cursor: 'Экран с курсором',
         all: 'Каждый экран',
       },
-      debugLogging: {
-        title: 'Включить логирование',
-        description: 'Логи не отправляются на сервер и нужны только для отладки.',
-        openFolder: 'Открыть папку логов',
-      },
     },
     hotkeys: {
       startRecording: {
@@ -383,8 +397,8 @@ const ru: typeof en = {
       },
       pauseRecording: {
         title: 'Пауза записи',
-        description:
-          'Комбинация клавиш, которая ставит запись на паузу и продолжает ее. Доступна только в режиме запуска «По нажатию»',
+        description: 'Комбинация клавиш, которая ставит запись на паузу и продолжает ее',
+        disabledNotice: 'Недоступно в режиме запуска «По зажатию»',
       },
       cancelRecording: {
         title: 'Отмена записи',
@@ -403,12 +417,6 @@ const ru: typeof en = {
         title: 'Повторная обработка последней расшифровки',
         description:
           'Комбинация клавиш, повторяющая обработку последней записи истории и вставляющая результат',
-      },
-      triggerMode: {
-        title: 'Режим запуска',
-        description: 'Запускать запись сразу по нажатию или только пока комбинация зажата',
-        press: 'По нажатию',
-        hold: 'По зажатию',
       },
       record: 'Записать комбинацию',
       recording: 'Нажмите клавиши…',

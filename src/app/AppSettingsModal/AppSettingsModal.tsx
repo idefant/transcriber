@@ -4,6 +4,7 @@ import {
   BookOpenIcon,
   InfoIcon,
   KeyboardIcon,
+  PaletteIcon,
   SettingsIcon,
   SlidersHorizontalIcon,
   WandSparklesIcon,
@@ -13,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import * as settingsApi from '#/shared/settingsApi';
 
 import AboutSettingsTab from './AboutSettingsTab';
+import DesignSettingsTab from './DesignSettingsTab';
 import GeneralSettingsTab from './GeneralSettingsTab';
 import HotkeysSettingsTab from './HotkeysSettingsTab';
 import PostProcessingSettingsTab from './PostProcessingSettingsTab';
@@ -65,6 +67,11 @@ const AppSettingsModal: FC = () => {
       icon: <SettingsIcon size={18} strokeWidth={2} />,
       key: 'general',
       label: t('settings.sections.general'),
+    },
+    {
+      icon: <PaletteIcon size={18} strokeWidth={2} />,
+      key: 'design',
+      label: t('settings.sections.design'),
     },
     {
       icon: <KeyboardIcon size={18} strokeWidth={2} />,
@@ -191,11 +198,8 @@ const AppSettingsModal: FC = () => {
             isDebugLoggingEnabled={settings.isDebugLoggingEnabled}
             isLaunchAtLoginEnabled={settings.isLaunchAtLoginEnabled}
             isRestoreAudioWhilePausedEnabled={settings.isRestoreAudioWhilePausedEnabled}
-            overlayScreenMode={settings.overlayScreenMode}
-            overlayVariant={settings.overlayVariant}
             recordingAudioMode={settings.recordingAudioMode}
-            themePreference={settings.themePreference}
-            uiLanguage={settings.uiLanguage}
+            triggerMode={settings.triggerMode}
             onDebugLogsFolderOpen={() => {
               void handleOpenDebugLogsFolder();
             }}
@@ -205,17 +209,31 @@ const AppSettingsModal: FC = () => {
             onLaunchAtLoginEnabledChange={(isLaunchAtLoginEnabled) => {
               void handleSettingsChange({ isLaunchAtLoginEnabled });
             }}
-            onOverlayScreenModeChange={(overlayScreenMode) => {
-              void handleSettingsChange({ overlayScreenMode });
-            }}
-            onOverlayVariantChange={(overlayVariant) => {
-              void handleSettingsChange({ overlayVariant });
-            }}
             onRecordingAudioModeChange={(recordingAudioMode) => {
               void handleSettingsChange({ recordingAudioMode });
             }}
             onRestoreAudioWhilePausedEnabledChange={(isRestoreAudioWhilePausedEnabled) => {
               void handleSettingsChange({ isRestoreAudioWhilePausedEnabled });
+            }}
+            onTriggerModeChange={(triggerMode) => {
+              void handleSettingsChange({ triggerMode });
+            }}
+          />
+        );
+      }
+
+      case 'design': {
+        return (
+          <DesignSettingsTab
+            overlayScreenMode={settings.overlayScreenMode}
+            overlayVariant={settings.overlayVariant}
+            themePreference={settings.themePreference}
+            uiLanguage={settings.uiLanguage}
+            onOverlayScreenModeChange={(overlayScreenMode) => {
+              void handleSettingsChange({ overlayScreenMode });
+            }}
+            onOverlayVariantChange={(overlayVariant) => {
+              void handleSettingsChange({ overlayVariant });
             }}
             onThemePreferenceChange={(themePreference) => {
               void handleSettingsChange({ themePreference });
@@ -236,7 +254,6 @@ const AppSettingsModal: FC = () => {
             pasteLatestHotkey={settings.pasteLatestHotkey}
             pauseHotkey={settings.pauseHotkey}
             repeatLatestHotkey={settings.repeatLatestHotkey}
-            triggerMode={settings.triggerMode}
             onCancelHotkeyChange={(cancelHotkey) => {
               void handleSettingsChange({ cancelHotkey });
             }}
@@ -255,9 +272,7 @@ const AppSettingsModal: FC = () => {
             onRepeatLatestHotkeyChange={(repeatLatestHotkey) => {
               void handleSettingsChange({ repeatLatestHotkey });
             }}
-            onTriggerModeChange={(triggerMode) => {
-              void handleSettingsChange({ triggerMode });
-            }}
+            isPauseHotkeyDisabled={settings.triggerMode === 'hold'}
           />
         );
       }
