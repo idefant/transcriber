@@ -8,10 +8,11 @@ use crate::{error::AppResult, history, storage};
 
 const META_FILE_NAME: &str = "_meta.json";
 const PROCESSING_FILE_NAME: &str = "processing.json";
+const SETTINGS_FILE_NAME: &str = "settings.json";
 
 // Увеличивай эту константу при обратно несовместимом изменении схемы
 // хранилища и добавляй соответствующую ветку в run_migration_step.
-const CURRENT_SCHEMA_VERSION: u32 = 3;
+const CURRENT_SCHEMA_VERSION: u32 = 4;
 
 #[derive(Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -89,8 +90,57 @@ fn run_migration_step(app: &tauri::AppHandle, to_version: u32) -> AppResult<()> 
     match to_version {
         2 => migrate_to_v2(app),
         3 => migrate_to_v3(app),
+        4 => migrate_to_v4(app),
         _ => Ok(()),
     }
+}
+
+/// Заменяет булеву настройку `isMuteWhileRecordingEnabled` режимом
+/// `recordingAudioMode`: включённое заглушение становится `mute`, выключенное —
+/// `off` (звук системы не трогаем).
+///
+/// Шаг обязателен: `AppSettings` игнорирует незнакомые ключи, поэтому без него
+/// старый ключ молча отбросился бы, а новое поле взяло бы дефолт `mute` — то есть
+/// у выключивших заглушение оно бы само включилось.
+fn migrate_to_v4(app: &tauri::AppHandle) -> AppResult<()> {
+    let path = app.path().app_data_dir()?.join(SETTINGS_FILE_NAME);
+
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let content = fs::read_to_string(&path)?;
+
+    if content.trim().is_empty() {
+        return Ok(());
+    }
+
+    let mut root: Value = match serde_json::from_str(&content) {
+        Ok(value) => value,
+        Err(_) => return Ok(()),
+    };
+
+    // Старого ключа нет (или он не булев) — настройки уже в новом формате.
+    let Some(was_mute_enabled) = root
+        .get("isMuteWhileRecordingEnabled")
+        .and_then(Value::as_bool)
+    else {
+        return Ok(());
+    };
+
+    let Some(object) = root.as_object_mut() else {
+        return Ok(());
+    };
+
+    // or_insert_with, а не insert: уже выставленный новый режим важнее старого флага.
+    object
+        .entry("recordingAudioMode")
+        .or_insert_with(|| Value::from(if was_mute_enabled { "mute" } else { "off" }));
+    object.remove("isMuteWhileRecordingEnabled");
+
+    storage::save_json(app, SETTINGS_FILE_NAME, &root)?;
+
+    Ok(())
 }
 
 /// Переносит историю из `history.json` в базу SQLite. Реализация — в

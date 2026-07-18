@@ -5,6 +5,17 @@ All notable changes to Transcriber are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Audio during recording can now be paused instead of muted: Transcriber stops playback before recording starts and resumes it afterwards. It only resumes what it paused itself, so manually resuming or changing a track during a dictation is never overridden. The mode covers apps that report playback to Windows, such as media players and browsers; games, calls, and system notifications keep playing, and the mute mode still covers those.
+- A "Restore audio while paused" setting, on by default, brings audio back while a dictation is paused and applies the chosen mode again when recording continues. Turn it off to keep audio silent for the whole session. The setting is hidden when audio is left alone during recording.
+
+### Changed
+
+- "Mute audio while recording" became "Audio while recording" and now offers three modes: mute the output device (the previous behavior, still the default), pause playback, or leave audio alone. The existing setting is migrated automatically.
+
 ## [0.1.2] - 2026-07-13
 
 ### Added

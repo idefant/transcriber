@@ -15,13 +15,14 @@ use crate::{
     debug_log::{ModelRunLogContext, ModelRunSource},
     error::{AppError, AppResult},
     history, i18n, keyboard,
+    media_control::{self, MediaPauseGuard},
     notification::{self, ConfigError, ConfigErrorSection},
     overlay,
     processing::load_processing_config,
     providers,
     recording::{self, PreparedRecorder, RecordedAudio},
     runner,
-    settings::{self, TriggerMode},
+    settings::{self, RecordingAudioMode, TriggerMode},
     shortcut_hook::{self, ShortcutState},
 };
 
@@ -43,11 +44,21 @@ struct ActiveDictationTask {
 
 /// Лёгкое состояние выполняющейся записи. Сам поток захвата
 /// живёт в `DictationRuntime::prepared_recorder`; здесь хранятся только данные конкретной сессии
-/// и guard заглушения вывода, чтобы звук включался обратно по завершении сессии.
+/// и guard приглушения системного звука, чтобы звук возвращался по завершении сессии.
 struct RecordingHandle {
     started_at: DateTime<Utc>,
-    // Хранится ради побочного эффекта Drop: включает звук на устройстве вывода по умолчанию обратно.
-    _mute_guard: Option<OutputMuteGuard>,
+    /// Возвращает системный звук при drop. Пауза диктовки снимает guard, а продолжение
+    /// записи берёт его заново, поэтому поле изменяемое, а не только ради Drop.
+    audio_guard: Option<RecordingAudioGuard>,
+}
+
+/// Как приглушён системный звук на время записи; drop возвращает всё как было.
+///
+/// Варианты взаимоисключающие: их выбирает настройка режима звука при записи. Guard'ы
+/// хранятся ради побочного эффекта Drop, читать их не нужно — отсюда префикс `_`.
+enum RecordingAudioGuard {
+    MediaPause { _guard: MediaPauseGuard },
+    Mute { _guard: OutputMuteGuard },
 }
 
 #[derive(Default)]
@@ -316,12 +327,13 @@ fn toggle_pause(app: &tauri::AppHandle, expected_session_id: Option<u64>) {
 /// продолжает запись; вне состояния `Recording` вызов ничего не делает, поэтому
 /// флаг паузы не может пережить отправку или отмену сессии.
 fn toggle_pause_inner(app: &tauri::AppHandle, expected_session_id: Option<u64>) -> AppResult<()> {
+    // Настройки читаем один раз: они нужны и для режима запуска, и для режима звука
+    // на пути продолжения записи.
+    let app_settings = settings::load_app_settings(app)?;
+
     // В режиме удержания запись живёт ровно столько, сколько зажат хоткей, поэтому
     // пауза там недоступна, а поле хоткея паузы в настройках заблокировано.
-    if matches!(
-        settings::load_app_settings(app)?.trigger_mode(),
-        TriggerMode::Hold
-    ) {
+    if matches!(app_settings.trigger_mode(), TriggerMode::Hold) {
         return Ok(());
     }
 
@@ -331,7 +343,12 @@ fn toggle_pause_inner(app: &tauri::AppHandle, expected_session_id: Option<u64>) 
         .lock()
         .map_err(|_| AppError::from(i18n::text(app, "dictation-state-lock-failed")))?;
 
-    let DictationSession::Recording { id, is_paused, .. } = &mut *session else {
+    let DictationSession::Recording {
+        id,
+        handle,
+        is_paused,
+    } = &mut *session
+    else {
         return Ok(());
     };
 
@@ -344,8 +361,27 @@ fn toggle_pause_inner(app: &tauri::AppHandle, expected_session_id: Option<u64>) 
 
     if should_pause {
         pause_recording(app);
-    } else {
+
+        // Звук возвращаем после освобождения микрофона, а не до, — тот же порядок,
+        // что и при остановке записи. Если возвращать не просили, guard держит звук
+        // приглушённым и на паузе.
+        if app_settings.is_restore_audio_while_paused_enabled() {
+            drop(handle.audio_guard.take());
+        }
+    } else if handle.audio_guard.is_some() {
+        // Звук на паузе не возвращали: режим уже применён, ждать нечего.
         resume_recording(app)?;
+    } else {
+        // Продолжение идёт тем же путём, что и старт: сначала останавливаем медиа
+        // (с ожиданием), потом возобновляем захват, и только потом заглушаем вывод.
+        let media_pause_guard = acquire_media_pause(app_settings.recording_audio_mode());
+        resume_recording(app)?;
+
+        handle.audio_guard = match media_pause_guard {
+            Some(guard) => Some(RecordingAudioGuard::MediaPause { _guard: guard }),
+            None => acquire_output_mute(app_settings.recording_audio_mode())
+                .map(|guard| RecordingAudioGuard::Mute { _guard: guard }),
+        };
     }
 
     *is_paused = should_pause;
@@ -442,6 +478,20 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
         return Ok(());
     }
 
+    // Читаем настройки приложения один раз здесь и переиспользуем их и для режима
+    // звука, и для хоткеев отмены и паузы, вместо многократной загрузки с диска.
+    let app_settings = settings::load_app_settings(app).ok();
+    let audio_mode = app_settings
+        .as_ref()
+        .map_or_else(RecordingAudioMode::default, |settings| {
+            settings.recording_audio_mode().clone()
+        });
+
+    // Медиа ставим на паузу ДО захвата и дожидаемся остановки: иначе музыка попадёт
+    // в первые сотни миллисекунд записи. Оверлей на это время не показываем — запись
+    // ещё не идёт, и он бы врал.
+    let media_pause_guard = acquire_media_pause(&audio_mode);
+
     overlay::show_recording_overlay(app)?;
 
     // Запускаем захват на заранее прогретом потоке. Сборка потока — дорогой
@@ -449,18 +499,15 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
     // вызов `play()`, и звук начинает поступать почти мгновенно.
     let started_at = begin_recording(app)?;
 
-    // Вариант C: читаем настройки приложения один раз здесь и переиспользуем их и для флага
-    // заглушения, и для хоткея отмены, вместо двойной загрузки с диска.
-    let app_settings = settings::load_app_settings(app).ok();
-
-    // Вариант B: заглушаем вывод по умолчанию ПОСЛЕ начала захвата, чтобы держать
-    // затраты на COM/заглушение вне пути перед захватом. Спецификация допускает продолжение
-    // записи, даже если заглушение не удалось, поэтому здесь достаточно guard'а по принципу best-effort.
-    let mute_guard = acquire_output_mute(
-        app_settings
-            .as_ref()
-            .is_some_and(|settings| settings.is_mute_while_recording_enabled()),
-    );
+    // Заглушаем вывод по умолчанию ПОСЛЕ начала захвата, чтобы держать затраты
+    // на COM/заглушение вне пути перед захватом. Спецификация допускает продолжение
+    // записи, даже если приглушить звук не удалось, поэтому здесь достаточно guard'а
+    // по принципу best-effort.
+    let audio_guard = match media_pause_guard {
+        Some(guard) => Some(RecordingAudioGuard::MediaPause { _guard: guard }),
+        None => acquire_output_mute(&audio_mode)
+            .map(|guard| RecordingAudioGuard::Mute { _guard: guard }),
+    };
 
     let id = runtime.next_session_id.fetch_add(1, Ordering::Relaxed) + 1;
 
@@ -468,7 +515,7 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
         id,
         handle: RecordingHandle {
             started_at,
-            _mute_guard: mute_guard,
+            audio_guard,
         },
         is_paused: false,
     };
@@ -531,9 +578,9 @@ fn begin_recording(app: &tauri::AppHandle) -> AppResult<DateTime<Utc>> {
 }
 
 /// Заглушение устройства вывода по умолчанию по принципу best-effort. Возвращает guard, который включает звук обратно
-/// при drop, либо `None`, если заглушение отключено или не удалось.
-fn acquire_output_mute(is_enabled: bool) -> Option<OutputMuteGuard> {
-    if !is_enabled {
+/// при drop, либо `None`, если режим звука другой или заглушить не удалось.
+fn acquire_output_mute(mode: &RecordingAudioMode) -> Option<OutputMuteGuard> {
+    if !matches!(mode, RecordingAudioMode::Mute) {
         return None;
     }
 
@@ -544,6 +591,19 @@ fn acquire_output_mute(is_enabled: bool) -> Option<OutputMuteGuard> {
             None
         }
     }
+}
+
+/// Ставит системное медиа на паузу и ждёт остановки, если этого требует режим звука.
+/// Возвращает guard, который возобновляет воспроизведение при drop.
+///
+/// Ожидание проходит без оверлея: пока оно идёт, запись ещё не началась, а на паузе
+/// диктовки оверлей остаётся в состоянии `Paused`.
+fn acquire_media_pause(mode: &RecordingAudioMode) -> Option<MediaPauseGuard> {
+    if !matches!(mode, RecordingAudioMode::Pause) {
+        return None;
+    }
+
+    media_control::pause_sessions(&media_control::playing_sessions())
 }
 
 /// Собирает переиспользуемый поток захвата ещё до первой диктовки, чтобы затраты на сборку
@@ -608,7 +668,8 @@ fn release_recording(app: &tauri::AppHandle) {
 }
 
 /// Останавливает подготовленный recorder и кодирует захваченное аудио. Drop `handle`
-/// включает звук на устройстве вывода обратно после того, как микрофон освобождён.
+/// возвращает системный звук после того, как микрофон освобождён; если запись
+/// останавливают с паузы, звук уже вернула сама пауза, и drop ничего не делает.
 fn finish_recording(app: &tauri::AppHandle, handle: RecordingHandle) -> AppResult<RecordedAudio> {
     let runtime = app.state::<DictationRuntime>();
     let audio = {
@@ -627,7 +688,7 @@ fn finish_recording(app: &tauri::AppHandle, handle: RecordingHandle) -> AppResul
         recorder.stop_to_audio(app, handle.started_at)?
     };
 
-    drop(handle); // включаем звук обратно теперь, когда микрофон освобождён
+    drop(handle); // возвращаем звук теперь, когда микрофон освобождён
     Ok(audio)
 }
 
@@ -1155,8 +1216,9 @@ fn cancel_dictation_inner(
     let cancelled_task_id = match std::mem::replace(&mut *session, DictationSession::Idle) {
         DictationSession::Idle => None,
         DictationSession::Recording { handle, .. } => {
-            // Останавливаем захват и отбрасываем аудио; drop `handle` включает звук обратно
-            // на устройстве вывода после того, как микрофон освобождён.
+            // Останавливаем захват и отбрасываем аудио; drop `handle` возвращает системный
+            // звук после того, как микрофон освобождён. При отмене с паузы звук уже вернулся,
+            // и drop ничего не делает.
             release_recording(&app);
             drop(handle);
             None

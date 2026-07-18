@@ -43,9 +43,17 @@ const en = {
         dark: 'Dark',
         auto: 'Auto',
       },
-      muteWhileRecording: {
-        title: 'Mute audio while recording',
-        description: 'Mute the default output device while recording and restore it afterwards',
+      recordingAudio: {
+        title: 'Audio while recording',
+        description: 'Choose what happens to system audio while recording, restored afterwards',
+        placeholder: 'Choose what happens to audio',
+        mute: 'Mute the output device',
+        pause: 'Pause playback',
+        off: 'Leave audio alone',
+      },
+      restoreAudioWhilePaused: {
+        title: 'Restore audio while paused',
+        description: 'Bring audio back while a dictation is paused, instead of keeping it silent',
       },
       launchAtLogin: {
         title: 'Launch at login',
@@ -324,10 +332,17 @@ const ru: typeof en = {
         dark: 'Темная',
         auto: 'Авто',
       },
-      muteWhileRecording: {
-        title: 'Заглушать звук при записи',
-        description:
-          'Отключать вывод звука устройства по умолчанию на время записи и восстанавливать после',
+      recordingAudio: {
+        title: 'Звук при записи',
+        description: 'Что делать со звуком системы на время записи; после записи звук возвращается',
+        placeholder: 'Выберите, что делать со звуком',
+        mute: 'Заглушать вывод',
+        pause: 'Ставить на паузу',
+        off: 'Не трогать звук',
+      },
+      restoreAudioWhilePaused: {
+        title: 'Возвращать звук во время паузы записи',
+        description: 'Пока запись на паузе, звук снова звучит, а не остаётся приглушённым',
       },
       launchAtLogin: {
         title: 'Запускать при входе в Windows',

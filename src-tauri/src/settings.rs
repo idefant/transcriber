@@ -58,6 +58,20 @@ pub enum OverlayScreenMode {
     Cursor,
 }
 
+/// Что приложение делает со звуком системы на время записи.
+///
+/// `Pause` затрагивает только приложения, публикующие себя в системном медиа-транспорте
+/// (плееры, браузеры); игры, звонки и системные уведомления продолжат звучать — для них
+/// подходит `Mute`.
+#[derive(Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum RecordingAudioMode {
+    #[default]
+    Mute,
+    Off,
+    Pause,
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
@@ -67,8 +81,10 @@ pub struct AppSettings {
     ui_language: UiLanguage,
     #[serde(default, skip_deserializing)]
     effective_ui_language: EffectiveUiLanguage,
-    #[serde(default = "default_mute_while_recording_enabled")]
-    is_mute_while_recording_enabled: bool,
+    #[serde(default)]
+    recording_audio_mode: RecordingAudioMode,
+    #[serde(default = "default_restore_audio_while_paused_enabled")]
+    is_restore_audio_while_paused_enabled: bool,
     #[serde(default)]
     is_debug_logging_enabled: bool,
     #[serde(default = "default_launch_at_login_enabled")]
@@ -103,7 +119,8 @@ impl Default for AppSettings {
             theme_preference: ThemePreference::default(),
             ui_language: UiLanguage::default(),
             effective_ui_language: resolve_effective_ui_language(&UiLanguage::default()),
-            is_mute_while_recording_enabled: default_mute_while_recording_enabled(),
+            recording_audio_mode: RecordingAudioMode::default(),
+            is_restore_audio_while_paused_enabled: default_restore_audio_while_paused_enabled(),
             is_debug_logging_enabled: false,
             is_launch_at_login_enabled: default_launch_at_login_enabled(),
             is_update_notifications_enabled: default_update_notifications_enabled(),
@@ -122,8 +139,12 @@ impl Default for AppSettings {
 }
 
 impl AppSettings {
-    pub fn is_mute_while_recording_enabled(&self) -> bool {
-        self.is_mute_while_recording_enabled
+    pub fn recording_audio_mode(&self) -> &RecordingAudioMode {
+        &self.recording_audio_mode
+    }
+
+    pub fn is_restore_audio_while_paused_enabled(&self) -> bool {
+        self.is_restore_audio_while_paused_enabled
     }
 
     pub fn hotkey(&self) -> &str {
@@ -168,7 +189,8 @@ impl AppSettings {
 pub struct AppSettingsInput {
     theme_preference: Option<ThemePreference>,
     ui_language: Option<UiLanguage>,
-    is_mute_while_recording_enabled: Option<bool>,
+    recording_audio_mode: Option<RecordingAudioMode>,
+    is_restore_audio_while_paused_enabled: Option<bool>,
     is_debug_logging_enabled: Option<bool>,
     is_launch_at_login_enabled: Option<bool>,
     is_update_notifications_enabled: Option<bool>,
@@ -184,7 +206,7 @@ pub struct AppSettingsInput {
     is_offer_unstable_versions_enabled: Option<bool>,
 }
 
-fn default_mute_while_recording_enabled() -> bool {
+fn default_restore_audio_while_paused_enabled() -> bool {
     true
 }
 
@@ -232,8 +254,13 @@ fn update_app_settings_inner(
         settings.ui_language = ui_language;
     }
 
-    if let Some(is_mute_while_recording_enabled) = input.is_mute_while_recording_enabled {
-        settings.is_mute_while_recording_enabled = is_mute_while_recording_enabled;
+    if let Some(recording_audio_mode) = input.recording_audio_mode {
+        settings.recording_audio_mode = recording_audio_mode;
+    }
+
+    if let Some(is_restore_audio_while_paused_enabled) = input.is_restore_audio_while_paused_enabled
+    {
+        settings.is_restore_audio_while_paused_enabled = is_restore_audio_while_paused_enabled;
     }
 
     if let Some(is_debug_logging_enabled) = input.is_debug_logging_enabled {

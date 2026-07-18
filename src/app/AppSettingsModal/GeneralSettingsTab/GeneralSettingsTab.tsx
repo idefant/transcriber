@@ -10,6 +10,7 @@ import styles from './GeneralSettingsTab.module.scss';
 import type {
   OverlayScreenMode,
   OverlayVariant,
+  RecordingAudioMode,
   ThemePreference,
   UiLanguage,
 } from '#/models/Settings';
@@ -17,17 +18,19 @@ import type {
 interface GeneralSettingsTabProps {
   isDebugLoggingEnabled: boolean;
   isLaunchAtLoginEnabled: boolean;
-  isMuteWhileRecordingEnabled: boolean;
+  isRestoreAudioWhilePausedEnabled: boolean;
   onDebugLogsFolderOpen: () => void;
   onDebugLoggingEnabledChange: (value: boolean) => void;
   onLaunchAtLoginEnabledChange: (value: boolean) => void;
-  onMuteWhileRecordingEnabledChange: (value: boolean) => void;
   onOverlayScreenModeChange: (value: OverlayScreenMode) => void;
   onOverlayVariantChange: (value: OverlayVariant) => void;
+  onRecordingAudioModeChange: (value: RecordingAudioMode) => void;
+  onRestoreAudioWhilePausedEnabledChange: (value: boolean) => void;
   onThemePreferenceChange: (value: ThemePreference) => void;
   onUiLanguageChange: (value: UiLanguage) => void;
   overlayScreenMode: OverlayScreenMode;
   overlayVariant: OverlayVariant;
+  recordingAudioMode: RecordingAudioMode;
   themePreference: ThemePreference;
   uiLanguage: UiLanguage;
 }
@@ -35,17 +38,19 @@ interface GeneralSettingsTabProps {
 const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
   isDebugLoggingEnabled,
   isLaunchAtLoginEnabled,
-  isMuteWhileRecordingEnabled,
+  isRestoreAudioWhilePausedEnabled,
   onDebugLogsFolderOpen,
   onDebugLoggingEnabledChange,
   onLaunchAtLoginEnabledChange,
-  onMuteWhileRecordingEnabledChange,
   onOverlayScreenModeChange,
   onOverlayVariantChange,
+  onRecordingAudioModeChange,
+  onRestoreAudioWhilePausedEnabledChange,
   onThemePreferenceChange,
   onUiLanguageChange,
   overlayScreenMode,
   overlayVariant,
+  recordingAudioMode,
   themePreference,
   uiLanguage,
 }) => {
@@ -83,14 +88,42 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
       </SettingRow>
 
       <SettingRow
-        description={t('settings.general.muteWhileRecording.description')}
-        title={t('settings.general.muteWhileRecording.title')}
+        description={t('settings.general.recordingAudio.description')}
+        title={t('settings.general.recordingAudio.title')}
       >
-        <Switch
-          checked={isMuteWhileRecordingEnabled}
-          onChange={onMuteWhileRecordingEnabledChange}
+        <Select
+          className={styles.recordingAudioSelect}
+          placeholder={t('settings.general.recordingAudio.placeholder')}
+          value={recordingAudioMode}
+          options={[
+            {
+              label: t('settings.general.recordingAudio.mute'),
+              value: 'mute',
+            },
+            {
+              label: t('settings.general.recordingAudio.pause'),
+              value: 'pause',
+            },
+            {
+              label: t('settings.general.recordingAudio.off'),
+              value: 'off',
+            },
+          ]}
+          onChange={onRecordingAudioModeChange}
         />
       </SettingRow>
+
+      {recordingAudioMode !== 'off' && (
+        <SettingRow
+          description={t('settings.general.restoreAudioWhilePaused.description')}
+          title={t('settings.general.restoreAudioWhilePaused.title')}
+        >
+          <Switch
+            checked={isRestoreAudioWhilePausedEnabled}
+            onChange={onRestoreAudioWhilePausedEnabledChange}
+          />
+        </SettingRow>
+      )}
 
       <SettingRow
         description={t('settings.general.launchAtLogin.description')}

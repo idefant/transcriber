@@ -11,6 +11,7 @@ mod history;
 mod i18n;
 mod keyboard;
 mod maintenance;
+mod media_control;
 mod migrations;
 mod notification;
 mod overlay;
@@ -63,6 +64,7 @@ pub fn run() {
             overlay::create_recording_overlay(&app_handle)?;
             dictation::register_dictation_shortcut(&app_handle)?;
             dictation::prewarm_recorder(&app_handle);
+            media_control::prewarm();
             background::setup_background_mode(&app_handle)?;
 
             Ok(())

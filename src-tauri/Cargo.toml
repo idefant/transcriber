@@ -33,6 +33,7 @@ tokio = { version = "1", features = ["time"] }
 url = "2"
 uuid = { version = "1", features = ["v4"] }
 windows = { version = "0.61", features = [
+    "Media_Control",
     "Win32_Media_Audio",
     "Win32_Media_Audio_Endpoints",
     "Win32_System_Com",

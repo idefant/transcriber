@@ -13,6 +13,7 @@ export type EffectiveUiLanguage = 'en' | 'ru';
 export type UiLanguage = 'en' | 'ru' | 'system';
 export type OverlayVariant = 'bottom' | 'center';
 export type OverlayScreenMode = 'all' | 'cursor';
+export type RecordingAudioMode = 'mute' | 'off' | 'pause';
 
 export interface AppSettings {
   cancelHotkey: string;
@@ -21,13 +22,14 @@ export interface AppSettings {
   hotkey: string;
   isDebugLoggingEnabled: boolean;
   isLaunchAtLoginEnabled: boolean;
-  isMuteWhileRecordingEnabled: boolean;
+  isRestoreAudioWhilePausedEnabled: boolean;
   isUpdateNotificationsEnabled: boolean;
   isOfferUnstableVersionsEnabled: boolean;
   overlayScreenMode: OverlayScreenMode;
   overlayVariant: OverlayVariant;
   pauseHotkey: string;
   pasteLatestHotkey: string;
+  recordingAudioMode: RecordingAudioMode;
   repeatLatestHotkey: string;
   themePreference: ThemePreference;
   triggerMode: TriggerMode;

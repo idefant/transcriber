@@ -190,9 +190,10 @@ const AppSettingsModal: FC = () => {
           <GeneralSettingsTab
             isDebugLoggingEnabled={settings.isDebugLoggingEnabled}
             isLaunchAtLoginEnabled={settings.isLaunchAtLoginEnabled}
-            isMuteWhileRecordingEnabled={settings.isMuteWhileRecordingEnabled}
+            isRestoreAudioWhilePausedEnabled={settings.isRestoreAudioWhilePausedEnabled}
             overlayScreenMode={settings.overlayScreenMode}
             overlayVariant={settings.overlayVariant}
+            recordingAudioMode={settings.recordingAudioMode}
             themePreference={settings.themePreference}
             uiLanguage={settings.uiLanguage}
             onDebugLogsFolderOpen={() => {
@@ -204,14 +205,17 @@ const AppSettingsModal: FC = () => {
             onLaunchAtLoginEnabledChange={(isLaunchAtLoginEnabled) => {
               void handleSettingsChange({ isLaunchAtLoginEnabled });
             }}
-            onMuteWhileRecordingEnabledChange={(isMuteWhileRecordingEnabled) => {
-              void handleSettingsChange({ isMuteWhileRecordingEnabled });
-            }}
             onOverlayScreenModeChange={(overlayScreenMode) => {
               void handleSettingsChange({ overlayScreenMode });
             }}
             onOverlayVariantChange={(overlayVariant) => {
               void handleSettingsChange({ overlayVariant });
+            }}
+            onRecordingAudioModeChange={(recordingAudioMode) => {
+              void handleSettingsChange({ recordingAudioMode });
+            }}
+            onRestoreAudioWhilePausedEnabledChange={(isRestoreAudioWhilePausedEnabled) => {
+              void handleSettingsChange({ isRestoreAudioWhilePausedEnabled });
             }}
             onThemePreferenceChange={(themePreference) => {
               void handleSettingsChange({ themePreference });
