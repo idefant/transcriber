@@ -12,11 +12,13 @@ interface GeneralSettingsTabProps {
   isDebugLoggingEnabled: boolean;
   isLaunchAtLoginEnabled: boolean;
   isRestoreAudioWhilePausedEnabled: boolean;
+  isSilenceTrimmingEnabled: boolean;
   onDebugLogsFolderOpen: () => void;
   onDebugLoggingEnabledChange: (value: boolean) => void;
   onLaunchAtLoginEnabledChange: (value: boolean) => void;
   onRecordingAudioModeChange: (value: RecordingAudioMode) => void;
   onRestoreAudioWhilePausedEnabledChange: (value: boolean) => void;
+  onSilenceTrimmingEnabledChange: (value: boolean) => void;
   recordingAudioMode: RecordingAudioMode;
   triggerMode: TriggerMode;
   onTriggerModeChange: (value: TriggerMode) => void;
@@ -26,11 +28,13 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
   isDebugLoggingEnabled,
   isLaunchAtLoginEnabled,
   isRestoreAudioWhilePausedEnabled,
+  isSilenceTrimmingEnabled,
   onDebugLogsFolderOpen,
   onDebugLoggingEnabledChange,
   onLaunchAtLoginEnabledChange,
   onRecordingAudioModeChange,
   onRestoreAudioWhilePausedEnabledChange,
+  onSilenceTrimmingEnabledChange,
   recordingAudioMode,
   triggerMode,
   onTriggerModeChange,
@@ -103,6 +107,13 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
           />
         </SettingRow>
       )}
+
+      <SettingRow
+        description={t('settings.general.silenceTrimming.description')}
+        title={t('settings.general.silenceTrimming.title')}
+      >
+        <Switch checked={isSilenceTrimmingEnabled} onChange={onSilenceTrimmingEnabledChange} />
+      </SettingRow>
 
       <SettingRow
         description={t('settings.general.launchAtLogin.description')}

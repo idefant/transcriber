@@ -47,6 +47,7 @@ struct ActiveDictationTask {
 /// и guard приглушения системного звука, чтобы звук возвращался по завершении сессии.
 struct RecordingHandle {
     started_at: DateTime<Utc>,
+    is_silence_trimming_enabled: bool,
     /// Возвращает системный звук при drop. Пауза диктовки снимает guard, а продолжение
     /// записи берёт его заново, поэтому поле изменяемое, а не только ради Drop.
     audio_guard: Option<RecordingAudioGuard>,
@@ -486,6 +487,9 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
         .map_or_else(RecordingAudioMode::default, |settings| {
             settings.recording_audio_mode().clone()
         });
+    let is_silence_trimming_enabled = app_settings
+        .as_ref()
+        .is_none_or(settings::AppSettings::is_silence_trimming_enabled);
 
     // Медиа ставим на паузу ДО захвата и дожидаемся остановки: иначе музыка попадёт
     // в первые сотни миллисекунд записи. Оверлей на это время не показываем — запись
@@ -515,6 +519,7 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
         id,
         handle: RecordingHandle {
             started_at,
+            is_silence_trimming_enabled,
             audio_guard,
         },
         is_paused: false,
@@ -685,7 +690,7 @@ fn finish_recording(app: &tauri::AppHandle, handle: RecordingHandle) -> AppResul
             )));
         };
 
-        recorder.stop_to_audio(app, handle.started_at)?
+        recorder.stop_to_audio(app, handle.started_at, handle.is_silence_trimming_enabled)?
     };
 
     drop(handle); // возвращаем звук теперь, когда микрофон освобождён
@@ -805,6 +810,17 @@ fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
     // который действует до конца постобработки).
     shortcut_hook::disarm_pause_hotkey();
     emit_dictation_session(&app, true, Some(id), false);
+
+    // Локальная очистка записи может занять заметное время, поэтому сразу после
+    // остановки показываем существующее состояние обработки, а не оставляем
+    // оверлей в состоянии Recording до начала сетевого STT.
+    if let Err(error) = overlay::show_transcribing_overlay(&app) {
+        release_recording(&app);
+        drop(recording_handle);
+        let _ = reset_session(&app, id, true);
+        emit_dictation_error(&app, error.into_message());
+        return;
+    }
 
     // Останавливаем аудиопоток синхронно, чтобы индикатор микрофона ОС погас,
     // а системный звук включился обратно до начала STT/постобработки.
@@ -932,8 +948,6 @@ async fn process_recording_inner(
     id: u64,
     audio: RecordedAudio,
 ) -> AppResult<DictationOutcome> {
-    overlay::show_transcribing_overlay(app)?;
-
     let config = load_processing_config(app)?;
 
     if config.stt.provider_id.is_none() || config.stt.model_key.is_none() {

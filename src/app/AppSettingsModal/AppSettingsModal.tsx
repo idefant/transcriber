@@ -198,6 +198,7 @@ const AppSettingsModal: FC = () => {
             isDebugLoggingEnabled={settings.isDebugLoggingEnabled}
             isLaunchAtLoginEnabled={settings.isLaunchAtLoginEnabled}
             isRestoreAudioWhilePausedEnabled={settings.isRestoreAudioWhilePausedEnabled}
+            isSilenceTrimmingEnabled={settings.isSilenceTrimmingEnabled}
             recordingAudioMode={settings.recordingAudioMode}
             triggerMode={settings.triggerMode}
             onDebugLogsFolderOpen={() => {
@@ -214,6 +215,9 @@ const AppSettingsModal: FC = () => {
             }}
             onRestoreAudioWhilePausedEnabledChange={(isRestoreAudioWhilePausedEnabled) => {
               void handleSettingsChange({ isRestoreAudioWhilePausedEnabled });
+            }}
+            onSilenceTrimmingEnabledChange={(isSilenceTrimmingEnabled) => {
+              void handleSettingsChange({ isSilenceTrimmingEnabled });
             }}
             onTriggerModeChange={(triggerMode) => {
               void handleSettingsChange({ triggerMode });

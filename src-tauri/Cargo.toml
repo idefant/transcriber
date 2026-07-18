@@ -16,11 +16,14 @@ hound = "3"
 i18n-embed = { version = "0.16", features = ["fluent-system"] }
 raw-window-handle = "0.6"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+rubato = "0.16.2"
 rusqlite = { version = "0.32", features = ["bundled"] }
 rustc-hash = "1.1"
 rust-embed = "8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+ort = "=2.0.0-rc.10"
+silero-vad-rust = "6.2.1"
 sys-locale = "0.3"
 tauri = { version = "2", default-features = false, features = [
     "common-controls-v6",

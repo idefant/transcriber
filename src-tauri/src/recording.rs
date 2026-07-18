@@ -1,5 +1,7 @@
 use std::{
+    env,
     io::Cursor,
+    path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -12,6 +14,11 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     SampleFormat, Stream, StreamConfig,
 };
+use rubato::{FftFixedInOut, Resampler};
+use silero_vad_rust::{
+    get_speech_timestamps, load_silero_vad, silero_vad::utils_vad::VadParameters,
+};
+use tauri::Manager;
 
 use crate::{
     error::{AppError, AppResult},
@@ -25,6 +32,11 @@ const LEVEL_EMIT_INTERVAL: Duration = Duration::from_millis(50);
 /// попадает: сколько бы она ни длилась, куски записи разделяет ровно этот
 /// промежуток.
 const PAUSE_GAP_DURATION: Duration = Duration::from_millis(500);
+
+const VAD_SAMPLE_RATE: u32 = 16_000;
+const VAD_MINIMUM_SPEECH_DURATION_MS: u32 = 300;
+const VAD_MINIMUM_SILENCE_DURATION_MS: u32 = 1_200;
+const VAD_SPEECH_PAD_MS: u32 = 350;
 
 /// Поток захвата с микрофона, который создаётся заранее и остаётся на паузе,
 /// чтобы диктовка могла начаться дешёвым вызовом `stream.play()` вместо
@@ -194,6 +206,7 @@ impl PreparedRecorder {
         &self,
         app: &tauri::AppHandle,
         started_at: DateTime<Utc>,
+        is_silence_trimming_enabled: bool,
     ) -> AppResult<RecordedAudio> {
         let ui_language = settings::get_effective_ui_language(app).unwrap_or_default();
 
@@ -219,6 +232,19 @@ impl PreparedRecorder {
                 "recording-no-audio-captured",
                 &[],
             )));
+        }
+
+        if is_silence_trimming_enabled {
+            samples =
+                trim_silence(samples, self.sample_rate, self.channels, app).map_err(|error| {
+                    let message_id = match error {
+                        SilenceTrimError::NoSpeech => "recording-no-speech-detected",
+                        SilenceTrimError::SpeechTooShort => "recording-speech-too-short",
+                        SilenceTrimError::VadFailed => "recording-vad-failed",
+                    };
+
+                    AppError::from(i18n::text_for_language(ui_language, message_id, &[]))
+                })?;
         }
 
         normalize_peak(&mut samples);
@@ -253,6 +279,135 @@ impl PreparedRecorder {
         self.shared.active.store(false, Ordering::SeqCst);
         let _ = self.stream.pause();
     }
+}
+
+enum SilenceTrimError {
+    NoSpeech,
+    SpeechTooShort,
+    VadFailed,
+}
+
+/// Удаляет тишину по сегментам Silero VAD до нормализации и кодирования WAV.
+fn trim_silence(
+    samples: Vec<f32>,
+    sample_rate: u32,
+    channels: u16,
+    app: &tauri::AppHandle,
+) -> Result<Vec<f32>, SilenceTrimError> {
+    let channels = channels as usize;
+    if sample_rate == 0 || channels == 0 {
+        return Err(SilenceTrimError::NoSpeech);
+    }
+    let mono: Vec<f32> = samples
+        .chunks_exact(channels)
+        .map(|frame| frame.iter().sum::<f32>() / channels as f32)
+        .collect();
+    let vad_audio = resample_for_vad(&mono, sample_rate)?;
+    configure_onnx_runtime(app)?;
+    let mut model = load_silero_vad().map_err(|_| SilenceTrimError::VadFailed)?;
+    let parameters = VadParameters {
+        sampling_rate: VAD_SAMPLE_RATE,
+        min_speech_duration_ms: VAD_MINIMUM_SPEECH_DURATION_MS,
+        min_silence_duration_ms: VAD_MINIMUM_SILENCE_DURATION_MS,
+        speech_pad_ms: VAD_SPEECH_PAD_MS,
+        return_seconds: false,
+        ..Default::default()
+    };
+    let segments = get_speech_timestamps(&vad_audio, &mut model, &parameters)
+        .map_err(|_| SilenceTrimError::VadFailed)?;
+    if segments.is_empty() {
+        return Err(classify_empty_speech(&vad_audio)?);
+    }
+
+    let mut trimmed = Vec::with_capacity(samples.len());
+    for segment in segments {
+        let start = segment.start as u64 * sample_rate as u64 / VAD_SAMPLE_RATE as u64;
+        let end = (segment.end as u64 * sample_rate as u64).div_ceil(VAD_SAMPLE_RATE as u64);
+        let start = start as usize * channels;
+        let end = end as usize * channels;
+        let start = start.min(samples.len());
+        let end = end.min(samples.len());
+        if start < end {
+            trimmed.extend_from_slice(&samples[start..end]);
+        }
+    }
+    if trimmed.is_empty() {
+        Err(SilenceTrimError::SpeechTooShort)
+    } else {
+        Ok(trimmed)
+    }
+}
+
+/// Явно выбирает ONNX Runtime, поставляемый вместе с приложением, чтобы VAD не
+/// подхватил одноимённую DLL из другой программы или системного пути.
+fn configure_onnx_runtime(app: &tauri::AppHandle) -> Result<(), SilenceTrimError> {
+    let resource_path = app
+        .path()
+        .resource_dir()
+        .map(|directory| directory.join("onnxruntime.dll"))
+        .unwrap_or_else(|_| PathBuf::new());
+    let runtime_path = if resource_path.is_file() {
+        resource_path
+    } else {
+        // В dev-режиме Tauri не копирует bundle resources рядом с бинарным файлом.
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join("onnxruntime.dll")
+    };
+
+    if !runtime_path.is_file() {
+        return Err(SilenceTrimError::VadFailed);
+    }
+
+    env::set_var("ORT_DYLIB_PATH", runtime_path);
+    Ok(())
+}
+
+fn classify_empty_speech(vad_audio: &[f32]) -> Result<SilenceTrimError, SilenceTrimError> {
+    let mut model = load_silero_vad().map_err(|_| SilenceTrimError::VadFailed)?;
+    let parameters = VadParameters {
+        sampling_rate: VAD_SAMPLE_RATE,
+        min_speech_duration_ms: 1,
+        min_silence_duration_ms: VAD_MINIMUM_SILENCE_DURATION_MS,
+        speech_pad_ms: VAD_SPEECH_PAD_MS,
+        ..Default::default()
+    };
+    let segments = get_speech_timestamps(vad_audio, &mut model, &parameters)
+        .map_err(|_| SilenceTrimError::VadFailed)?;
+    Ok(if segments.is_empty() {
+        SilenceTrimError::NoSpeech
+    } else {
+        SilenceTrimError::SpeechTooShort
+    })
+}
+
+fn resample_for_vad(samples: &[f32], source_rate: u32) -> Result<Vec<f32>, SilenceTrimError> {
+    if source_rate == VAD_SAMPLE_RATE || samples.is_empty() {
+        return Ok(samples.to_vec());
+    }
+    let mut resampler =
+        FftFixedInOut::<f32>::new(source_rate as usize, VAD_SAMPLE_RATE as usize, 1_024, 1)
+            .map_err(|_| SilenceTrimError::VadFailed)?;
+    let block_size = resampler.input_frames_next();
+    let mut output = Vec::new();
+    let mut blocks = samples.chunks_exact(block_size);
+
+    for block in &mut blocks {
+        let mut channels = resampler
+            .process(&[block], None)
+            .map_err(|_| SilenceTrimError::VadFailed)?;
+        output.append(&mut channels.remove(0));
+    }
+
+    let remainder = blocks.remainder();
+    if !remainder.is_empty() {
+        let mut channels = resampler
+            .process_partial(Some(&[remainder]), None)
+            .map_err(|_| SilenceTrimError::VadFailed)?;
+        output.append(&mut channels.remove(0));
+    }
+
+    Ok(output)
 }
 
 fn build_stream<T>(

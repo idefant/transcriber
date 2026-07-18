@@ -56,6 +56,10 @@ const en = {
         description: 'Bring audio back while a dictation is paused, instead of keeping it silent',
         disabledNotice: 'Unavailable in the "While held" trigger mode',
       },
+      silenceTrimming: {
+        title: 'Trim silence before transcription',
+        description: 'Remove long pauses and skip recordings without enough speech',
+      },
       launchAtLogin: {
         title: 'Launch at login',
         description: 'Start Transcriber in the background when you sign in to Windows',
@@ -355,6 +359,10 @@ const ru: typeof en = {
         title: 'Возвращать звук во время паузы записи',
         description: 'Пока запись на паузе, звук снова звучит, а не остаётся приглушённым',
         disabledNotice: 'Недоступно в режиме запуска «По зажатию»',
+      },
+      silenceTrimming: {
+        title: 'Удалять тишину перед распознаванием',
+        description: 'Удалять длинные паузы и не отправлять записи без достаточной речи',
       },
       launchAtLogin: {
         title: 'Запускать при входе в Windows',

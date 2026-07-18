@@ -83,6 +83,8 @@ pub struct AppSettings {
     effective_ui_language: EffectiveUiLanguage,
     #[serde(default)]
     recording_audio_mode: RecordingAudioMode,
+    #[serde(default = "default_silence_trimming_enabled")]
+    is_silence_trimming_enabled: bool,
     #[serde(default = "default_restore_audio_while_paused_enabled")]
     is_restore_audio_while_paused_enabled: bool,
     #[serde(default)]
@@ -120,6 +122,7 @@ impl Default for AppSettings {
             ui_language: UiLanguage::default(),
             effective_ui_language: resolve_effective_ui_language(&UiLanguage::default()),
             recording_audio_mode: RecordingAudioMode::default(),
+            is_silence_trimming_enabled: default_silence_trimming_enabled(),
             is_restore_audio_while_paused_enabled: default_restore_audio_while_paused_enabled(),
             is_debug_logging_enabled: false,
             is_launch_at_login_enabled: default_launch_at_login_enabled(),
@@ -141,6 +144,10 @@ impl Default for AppSettings {
 impl AppSettings {
     pub fn recording_audio_mode(&self) -> &RecordingAudioMode {
         &self.recording_audio_mode
+    }
+
+    pub fn is_silence_trimming_enabled(&self) -> bool {
+        self.is_silence_trimming_enabled
     }
 
     pub fn is_restore_audio_while_paused_enabled(&self) -> bool {
@@ -190,6 +197,7 @@ pub struct AppSettingsInput {
     theme_preference: Option<ThemePreference>,
     ui_language: Option<UiLanguage>,
     recording_audio_mode: Option<RecordingAudioMode>,
+    is_silence_trimming_enabled: Option<bool>,
     is_restore_audio_while_paused_enabled: Option<bool>,
     is_debug_logging_enabled: Option<bool>,
     is_launch_at_login_enabled: Option<bool>,
@@ -207,6 +215,10 @@ pub struct AppSettingsInput {
 }
 
 fn default_restore_audio_while_paused_enabled() -> bool {
+    true
+}
+
+fn default_silence_trimming_enabled() -> bool {
     true
 }
 
@@ -256,6 +268,10 @@ fn update_app_settings_inner(
 
     if let Some(recording_audio_mode) = input.recording_audio_mode {
         settings.recording_audio_mode = recording_audio_mode;
+    }
+
+    if let Some(is_silence_trimming_enabled) = input.is_silence_trimming_enabled {
+        settings.is_silence_trimming_enabled = is_silence_trimming_enabled;
     }
 
     if let Some(is_restore_audio_while_paused_enabled) = input.is_restore_audio_while_paused_enabled

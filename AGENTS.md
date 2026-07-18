@@ -57,6 +57,7 @@ flush: () => void;
 - Перед созданием или редактированием **любого компонента**: прочитай [docs/agent/component-structure.md](docs/agent/component-structure.md).
 - Перед написанием или редактированием **`className` в компоненте**: прочитай [docs/agent/classname-rules.md](docs/agent/classname-rules.md).
 - Перед созданием или перемещением **любого файла или папки**: прочитай [docs/agent/file-structure.md](docs/agent/file-structure.md).
+- Перед созданием или редактированием **`THIRD_PARTY_NOTICES.md`**: прочитай [docs/agent/third-party-notices.md](docs/agent/third-party-notices.md).
 - Перед написанием или редактированием **любого файла `.scss`**: прочитай [docs/agent/scss-style-rules.md](docs/agent/scss-style-rules.md).
 - Перед написанием или редактированием **любого файла `.md`**: прочитай [docs/agent/markdown-style-rules.md](docs/agent/markdown-style-rules.md).
 - Перед выполнением **любой команды оболочки**: прочитай [docs/agent/command-execution.md](docs/agent/command-execution.md).
