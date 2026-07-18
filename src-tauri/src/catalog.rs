@@ -10,6 +10,7 @@ pub enum ModelTask {
 }
 
 pub struct SttParams {
+    pub prompt_token_limit: Option<usize>,
     pub temperature: f32,
     pub response_format: &'static str,
 }
@@ -65,6 +66,7 @@ pub struct CuratedModelInfo {
     pub task: ModelTask,
     pub provider_kinds: Vec<ProviderKind>,
     pub provider_entries: Vec<ProviderModelInfo>,
+    pub stt_prompt_token_limit: Option<usize>,
 }
 
 #[derive(Serialize)]
@@ -92,6 +94,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 reasoning: None,
             }],
             params: ModelParams::Stt(SttParams {
+                prompt_token_limit: None,
                 temperature: 0.0,
                 response_format: "json",
             }),
@@ -110,6 +113,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 reasoning: None,
             }],
             params: ModelParams::Stt(SttParams {
+                prompt_token_limit: None,
                 temperature: 0.0,
                 response_format: "json",
             }),
@@ -128,6 +132,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 reasoning: None,
             }],
             params: ModelParams::Stt(SttParams {
+                prompt_token_limit: Some(224),
                 temperature: 0.0,
                 response_format: "json",
             }),
@@ -146,6 +151,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 reasoning: None,
             }],
             params: ModelParams::Stt(SttParams {
+                prompt_token_limit: Some(224),
                 temperature: 0.0,
                 response_format: "json",
             }),
@@ -517,6 +523,10 @@ pub fn get_model_catalog() -> Vec<CuratedModelInfo> {
                     is_recommended: entry.is_recommended,
                 })
                 .collect(),
+            stt_prompt_token_limit: match model.params {
+                ModelParams::Stt(ref params) => params.prompt_token_limit,
+                ModelParams::PostProcess(_) => None,
+            },
         })
         .collect()
 }

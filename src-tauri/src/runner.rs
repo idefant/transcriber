@@ -12,6 +12,7 @@ use crate::{
     processing::load_processing_config,
     providers::{resolve_provider_api_key, resolve_provider_credentials, ProviderKind},
     settings::{get_effective_ui_language, EffectiveUiLanguage},
+    stt_prompt,
 };
 
 const AGENT_NAME: &str = "Transcriber";
@@ -44,6 +45,18 @@ pub struct SttSettingsSnapshot {
     pub temperature: f32,
     pub response_format: String,
     pub prompt: String,
+    pub prompt_token_limit: Option<usize>,
+}
+
+/// Результат проверки итогового prompt для модели с документированным лимитом.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SttPromptAnalysis {
+    pub limit: usize,
+    pub token_count: usize,
+    pub usage_percent: f64,
+    pub fitting_token_count: usize,
+    pub excluded_token_count: usize,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -214,6 +227,7 @@ pub async fn run_stt_with_snapshot(
     audio_duration_ms: Option<u64>,
     log_context: Option<ModelRunLogContext>,
 ) -> AppResult<SttRunOutput> {
+    ensure_stt_prompt_within_limit(app, snapshot)?;
     let api_key = resolve_provider_api_key(app, &snapshot.provider.provider_id)?;
     let mime = mime_from_filename(&file_name);
     let audio_size_bytes = audio.len();
@@ -627,6 +641,78 @@ pub fn build_stt_snapshot(app: &tauri::AppHandle) -> AppResult<SttSettingsSnapsh
         temperature: params.temperature,
         response_format: params.response_format.to_string(),
         prompt,
+        prompt_token_limit: params.prompt_token_limit,
+    })
+}
+
+#[tauri::command]
+pub fn analyze_stt_prompt(
+    app: tauri::AppHandle,
+    system_prompt: Option<String>,
+) -> Result<Option<SttPromptAnalysis>, String> {
+    build_stt_prompt_analysis(&app, system_prompt).map_err(AppError::into_message)
+}
+
+/// Проверяет лимит до передачи аудио провайдеру. Prompt никогда не обрезается.
+pub fn ensure_stt_prompt_within_limit(
+    app: &tauri::AppHandle,
+    snapshot: &SttSettingsSnapshot,
+) -> AppResult<()> {
+    let Some(analysis) = stt_prompt_analysis(snapshot.prompt_token_limit, &snapshot.prompt) else {
+        return Ok(());
+    };
+
+    if analysis.excluded_token_count == 0 {
+        return Ok(());
+    }
+
+    Err(i18n::text_with(
+        app,
+        "stt-prompt-token-limit-exceeded",
+        &[
+            ("count", analysis.token_count.to_string()),
+            ("limit", analysis.limit.to_string()),
+        ],
+    )
+    .into())
+}
+
+fn build_stt_prompt_analysis(
+    app: &tauri::AppHandle,
+    system_prompt: Option<String>,
+) -> AppResult<Option<SttPromptAnalysis>> {
+    let config = load_processing_config(app)?;
+    let stt = &config.stt;
+    let Some(model_key) = stt.model_key.as_deref() else {
+        return Ok(None);
+    };
+    let model = model_by_key(model_key)
+        .ok_or_else(|| i18n::text(app, "config-error-model-not-found-in-catalog"))?;
+    let ModelParams::Stt(params) = &model.params else {
+        return Err(i18n::text(app, "config-error-selected-model-is-not-speech-to-text").into());
+    };
+    let dictionary = dictionary::load_dictionary_words(app)?.join(", ");
+    let prompt = apply_template(
+        &system_prompt.unwrap_or(stt.effective_system_prompt()?),
+        &[
+            ("STT_DICTIONARY", dictionary.as_str()),
+            ("CLEANUP_TOOL_AGENT_NAME", AGENT_NAME),
+        ],
+    );
+
+    Ok(stt_prompt_analysis(params.prompt_token_limit, &prompt))
+}
+
+fn stt_prompt_analysis(limit: Option<usize>, prompt: &str) -> Option<SttPromptAnalysis> {
+    let limit = limit?;
+    let token_count = stt_prompt::count_tokens(prompt);
+
+    Some(SttPromptAnalysis {
+        limit,
+        token_count,
+        usage_percent: token_count as f64 / limit as f64 * 100.0,
+        fitting_token_count: token_count.min(limit),
+        excluded_token_count: token_count.saturating_sub(limit),
     })
 }
 

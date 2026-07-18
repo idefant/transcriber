@@ -21,7 +21,7 @@ const I18nProvider: FC<I18nProviderProps> = ({ children }) => {
 
   useEffect(() => {
     changeLanguage(settings.effectiveUiLanguage);
-  }, [settings.effectiveUiLanguage]);
+  });
 
   return <I18nextProvider i18n={i18n}>{children}</I18nextProvider>;
 };

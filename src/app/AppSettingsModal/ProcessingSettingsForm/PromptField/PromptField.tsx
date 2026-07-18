@@ -17,6 +17,7 @@ interface PromptFieldProps {
   storedValue: string | null;
   onPersist: (value: string) => void;
   onReset?: () => void;
+  onValueChange?: (value: string) => void;
 }
 
 const getSeedValue = ({
@@ -42,12 +43,14 @@ const PromptField: FC<PromptFieldProps> = ({
   storedValue,
   onPersist,
   onReset,
+  onValueChange,
 }) => {
   const [value, setValue] = useState(() => getSeedValue({ defaultValue, enabled, storedValue }));
   const persistPrompt = useDebouncedCallback(onPersist, 500);
 
   const handleChange = (next: string) => {
     setValue(next);
+    onValueChange?.(next);
     persistPrompt.run(next);
   };
 
@@ -59,6 +62,7 @@ const PromptField: FC<PromptFieldProps> = ({
   const handleReset = () => {
     persistPrompt.cancel();
     setValue(defaultValue);
+    onValueChange?.(defaultValue);
     onReset?.();
   };
 

@@ -10,12 +10,14 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 chrono = { version = "0.4", features = ["clock", "serde"] }
+base64 = "0.22"
 cpal = "0.16"
 hound = "3"
 i18n-embed = { version = "0.16", features = ["fluent-system"] }
 raw-window-handle = "0.6"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
+rustc-hash = "1.1"
 rust-embed = "8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -29,6 +31,7 @@ tauri = { version = "2", default-features = false, features = [
     "x11",
 ] }
 thiserror = "2"
+tiktoken-rs = "0.9"
 tokio = { version = "1", features = ["time"] }
 url = "2"
 uuid = { version = "1", features = ["v4"] }

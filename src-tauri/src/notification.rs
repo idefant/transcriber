@@ -10,6 +10,7 @@ use std::borrow::Cow;
 /// с `SettingsSectionKey` на фронтенде.
 #[derive(Clone, Copy)]
 pub enum ConfigErrorSection {
+    Dictionary,
     SpeechToText,
     PostProcessing,
 }
@@ -17,6 +18,7 @@ pub enum ConfigErrorSection {
 impl ConfigErrorSection {
     fn section_key(self) -> &'static str {
         match self {
+            Self::Dictionary => "dictionary",
             Self::SpeechToText => "speechToText",
             Self::PostProcessing => "postProcessing",
         }
@@ -24,6 +26,7 @@ impl ConfigErrorSection {
 
     fn i18n_key(self) -> &'static str {
         match self {
+            Self::Dictionary => "config-section-dictionary",
             Self::SpeechToText => "config-section-speech-to-text",
             Self::PostProcessing => "config-section-post-processing",
         }
@@ -77,12 +80,16 @@ pub fn show_config_error(app: &tauri::AppHandle, error: &ConfigError) {
             // Windows закрывает автоматически при активации.
             let _ = handle.clone().run_on_main_thread(move || {
                 let _ = crate::background::show_main_window(&handle);
-                let _ = handle.emit(
-                    "open-settings",
-                    OpenSettingsPayload {
-                        section: section.section_key(),
-                    },
-                );
+                if matches!(section, ConfigErrorSection::Dictionary) {
+                    let _ = handle.emit("open-dictionary", ());
+                } else {
+                    let _ = handle.emit(
+                        "open-settings",
+                        OpenSettingsPayload {
+                            section: section.section_key(),
+                        },
+                    );
+                }
             });
             Ok(())
         })

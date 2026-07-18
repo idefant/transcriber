@@ -702,6 +702,10 @@ fn validate_processing_ready(app: &tauri::AppHandle) -> Result<(), ConfigError> 
         section: ConfigErrorSection::SpeechToText,
         message: error.into_message(),
     })?;
+    runner::ensure_stt_prompt_within_limit(app, &stt).map_err(|error| ConfigError {
+        section: ConfigErrorSection::Dictionary,
+        message: error.into_message(),
+    })?;
     providers::resolve_provider_api_key(app, &stt.provider.provider_id).map_err(|error| {
         ConfigError {
             section: ConfigErrorSection::SpeechToText,

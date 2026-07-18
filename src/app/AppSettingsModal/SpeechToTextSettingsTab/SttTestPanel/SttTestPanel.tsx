@@ -1,4 +1,4 @@
-import { type FC, useRef, useState } from 'react';
+import { type FC, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Space, Typography, Upload, type UploadFile } from 'antd';
 import { MicIcon, RotateCcwIcon, SquareIcon, UploadIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +7,7 @@ import * as processingApi from '#/shared/processingApi';
 
 import styles from './SttTestPanel.module.scss';
 
-import { useProcessing } from '#/stores';
+import { useDictionaryStore, useProcessing } from '#/stores';
 
 interface LastAudio {
   audio: Uint8Array;
@@ -16,6 +16,7 @@ interface LastAudio {
 
 const SttTestPanel: FC = () => {
   const { config } = useProcessing();
+  const dictionaryWords = useDictionaryStore((state) => state.words);
   const { t } = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -23,18 +24,40 @@ const SttTestPanel: FC = () => {
   const [error, setError] = useState<string>();
   const [elapsedMs, setElapsedMs] = useState(0);
   const [lastAudio, setLastAudio] = useState<LastAudio>();
+  const [promptAnalysis, setPromptAnalysis] = useState<processingApi.SttPromptAnalysis | null>(
+    null,
+  );
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
-  const canRun = Boolean(config.stt.providerId && config.stt.modelKey);
+  const isPromptLimitExceeded = (promptAnalysis?.excludedTokenCount ?? 0) > 0;
+  const canRun = Boolean(config.stt.providerId && config.stt.modelKey) && !isPromptLimitExceeded;
   const canRepeat = canRun && !isRunning && !isRecording && lastAudio !== undefined;
   const formatElapsed = (value: number) =>
     value < 1000
       ? t('common.milliseconds', { value })
       : t('common.seconds', { value: (value / 1000).toFixed(1) });
 
+  useEffect(() => {
+    let cancelled = false;
+
+    void processingApi
+      .analyzeSttPrompt()
+      .then((analysis) => {
+        if (!cancelled) setPromptAnalysis(analysis);
+        return;
+      })
+      .catch(() => {
+        if (!cancelled) setPromptAnalysis(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [config.stt.modelKey, config.stt.systemPrompt, dictionaryWords]);
+
   const runTest = async (audio: Uint8Array, fileName: string) => {
-    if (!config.stt.providerId || !config.stt.modelKey) return;
+    if (!config.stt.providerId || !config.stt.modelKey || isPromptLimitExceeded) return;
 
     setLastAudio({ audio, fileName });
     setIsRunning(true);
@@ -56,6 +79,7 @@ const SttTestPanel: FC = () => {
   };
 
   const handleStartRecording = async () => {
+    if (isPromptLimitExceeded) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
@@ -95,6 +119,7 @@ const SttTestPanel: FC = () => {
   };
 
   const handleUpload = (file: UploadFile) => {
+    if (isPromptLimitExceeded) return false;
     const rawFile = file.originFileObj ?? (file as unknown as File);
 
     rawFile
@@ -108,7 +133,7 @@ const SttTestPanel: FC = () => {
   };
 
   const handleRepeat = () => {
-    if (!lastAudio) return;
+    if (!lastAudio || isPromptLimitExceeded) return;
 
     void runTest(lastAudio.audio, lastAudio.fileName);
   };
@@ -165,7 +190,7 @@ const SttTestPanel: FC = () => {
         </Button>
       </Space>
 
-      {!canRun && (
+      {!canRun && !isPromptLimitExceeded && (
         <Alert showIcon title={t('settings.processing.selectProviderAndModel')} type="warning" />
       )}
 

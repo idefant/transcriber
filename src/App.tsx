@@ -113,6 +113,27 @@ const OpenSettingsSubscription: FC = () => {
   return null;
 };
 
+/** Открывает словарь по клику на системное уведомление о превышении STT-prompt. */
+const OpenDictionarySubscription: FC = () => {
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    void listen('open-dictionary', () => {
+      useUiStore.getState().closeSettings();
+      void router.navigate(routes.dictionary);
+    }).then((fn) => {
+      unlisten = fn;
+      return null;
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  return null;
+};
+
 // Выполняет одну тихую проверку обновлений после загрузки настроек.
 // Если обновление доступно, показывает временное уведомление внутри приложения.
 const UpdateChecker: FC = () => {
@@ -180,6 +201,7 @@ const App: FC = () => {
           <HistorySubscription />
           <OpenRecordSubscription />
           <OpenSettingsSubscription />
+          <OpenDictionarySubscription />
           <DictationHotkeyFallback />
           <CloseWindowHotkey />
           <UpdateChecker />

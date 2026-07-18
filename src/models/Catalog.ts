@@ -14,4 +14,5 @@ export interface CuratedModelInfo {
   providerEntries: CuratedModelProviderEntry[];
   task: ModelTask;
   providerKinds: ProviderKind[];
+  sttPromptTokenLimit: number | null;
 }

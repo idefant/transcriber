@@ -22,6 +22,7 @@ mod runner;
 mod settings;
 mod shortcut_hook;
 mod storage;
+mod stt_prompt;
 mod updater;
 
 use tauri::Manager;
@@ -88,6 +89,7 @@ pub fn run() {
             processing::get_default_prompts,
             processing::update_stt_config,
             processing::update_post_process_config,
+            runner::analyze_stt_prompt,
             runner::run_stt_test,
             runner::run_post_process_test,
             dictation::cancel_dictation,

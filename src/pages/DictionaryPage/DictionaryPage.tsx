@@ -14,9 +14,11 @@ import {
 import { PlusIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import SttPromptLimitAlert from '#/app/SttPromptLimitAlert';
+
 import styles from './DictionaryPage.module.scss';
 
-import { useDictionaryStore } from '#/stores';
+import { useDictionaryStore, useUiStore } from '#/stores';
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -33,6 +35,7 @@ const DictionaryPage: FC = () => {
   const load = useDictionaryStore((s) => s.load);
   const storeAddWord = useDictionaryStore((s) => s.addWord);
   const storeRemoveWord = useDictionaryStore((s) => s.removeWord);
+  const openSettings = useUiStore((s) => s.openSettings);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -148,6 +151,21 @@ const DictionaryPage: FC = () => {
             ) : isLoading ? null : (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
             )}
+
+            <SttPromptLimitAlert
+              action={
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={() => {
+                    openSettings('speechToText');
+                  }}
+                >
+                  {t('dictionary.openSettings')}
+                </Button>
+              }
+              exceededDescription={t('dictionary.sttPromptLimitExceededDescription')}
+            />
           </div>
         </Spin>
       </Card>

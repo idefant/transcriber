@@ -185,6 +185,11 @@ const en = {
       providerRequired: 'Choose a provider',
       modelRequired: 'Choose a model',
       selectProviderAndModel: 'Choose a provider and model above',
+      sttPromptLimitWithin: 'System prompt limit: {{count}} / {{limit}} tokens ({{percent}}%)',
+      sttPromptLimitExceeded: 'Limit exceeded: {{count}} / {{limit}} tokens ({{percent}}%)',
+      sttPromptLimitExceededDescription:
+        'Shorten the speech-to-text prompt or dictionary before testing.',
+      openDictionary: 'Open Dictionary',
     },
     postProcessing: {
       enabled: {
@@ -234,6 +239,8 @@ const en = {
   dictionary: {
     newWord: 'New word',
     addWord: 'Add word',
+    openSettings: 'Open settings',
+    sttPromptLimitExceededDescription: 'Shorten the system prompt or dictionary.',
   },
   history: {
     previousMonth: 'Previous month',
@@ -322,7 +329,7 @@ const ru: typeof en = {
     title: 'Настройки',
     sections: {
       general: 'Основное',
-      design: 'Дизайн',
+      design: 'Внешний вид',
       hotkeys: 'Хоткеи',
       providers: 'Провайдеры',
       speechToText: 'Speech-to-Text',
@@ -480,6 +487,12 @@ const ru: typeof en = {
       providerRequired: 'Выберите провайдера',
       modelRequired: 'Выберите модель',
       selectProviderAndModel: 'Выберите провайдера и модель выше',
+      sttPromptLimitWithin:
+        'Лимит системного промпта: {{count}} / {{limit}} токенов ({{percent}}%)',
+      sttPromptLimitExceeded: 'Превышен лимит: {{count}} / {{limit}} токенов ({{percent}}%)',
+      sttPromptLimitExceededDescription:
+        'Сократите промпт распознавания речи или словарь перед запуском теста.',
+      openDictionary: 'Открыть словарь',
     },
     postProcessing: {
       enabled: {
@@ -530,6 +543,8 @@ const ru: typeof en = {
   dictionary: {
     newWord: 'Новое слово',
     addWord: 'Добавить слово',
+    openSettings: 'Открыть настройки',
+    sttPromptLimitExceededDescription: 'Сократите системный промпт или словарь.',
   },
   history: {
     previousMonth: 'Предыдущий месяц',

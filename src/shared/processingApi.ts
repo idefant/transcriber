@@ -17,6 +17,17 @@ export const updateSttConfig = (input: SttConfigInput) =>
 export const updatePostProcessConfig = (input: PostProcessConfigInput) =>
   invoke<ProcessingConfig>('update_post_process_config', { input });
 
+export interface SttPromptAnalysis {
+  excludedTokenCount: number;
+  fittingTokenCount: number;
+  limit: number;
+  tokenCount: number;
+  usagePercent: number;
+}
+
+export const analyzeSttPrompt = (systemPrompt?: string) =>
+  invoke<SttPromptAnalysis | null>('analyze_stt_prompt', { systemPrompt });
+
 export interface SttTestInput {
   audio: number[];
   fileName: string;

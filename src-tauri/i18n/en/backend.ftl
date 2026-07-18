@@ -6,6 +6,7 @@ notification-config-error-title = Couldn't start dictation
 notification-config-error-body = Check the { $section } settings: { $message }. Click to open settings.
 config-section-speech-to-text = speech-to-text
 config-section-post-processing = post-processing
+config-section-dictionary = dictionary
 
 config-error-custom-provider-url-required = URL is required for custom provider
 config-error-model-not-available-for-provider = Model is not available for this provider
@@ -31,6 +32,7 @@ header-value-invalid = Invalid header value for `{ $name }`: { $error }
 
 mime-type-invalid = Invalid MIME type: { $error }
 stt-request-failed = STT request failed with status { $status }
+stt-prompt-token-limit-exceeded = The speech-to-text prompt is too large
 post-process-request-failed = Post-process request failed with status { $status }
 
 history-record-not-found = History record was not found

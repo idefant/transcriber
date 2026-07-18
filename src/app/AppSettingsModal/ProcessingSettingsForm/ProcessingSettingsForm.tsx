@@ -1,9 +1,12 @@
 import { type FC, useEffect, useMemo, useState } from 'react';
-import { Empty, Form, Select, Switch } from 'antd';
+import { useNavigate } from 'react-router';
+import { Button, Empty, Form, Select, Switch } from 'antd';
 import { sortBy } from 'lodash-es';
 import { useTranslation } from 'react-i18next';
 
+import SttPromptLimitAlert from '#/app/SttPromptLimitAlert';
 import * as providersApi from '#/shared/providersApi';
+import { routes } from '#/shared/routes';
 
 import PromptField from './PromptField';
 
@@ -11,7 +14,7 @@ import styles from './ProcessingSettingsForm.module.scss';
 
 import type { ModelTask } from '#/models/Catalog';
 import type { OpenRouterProviderOption } from '#/models/Provider';
-import { useAppSettings, useCatalog, useProcessing, useProviders } from '#/stores';
+import { useAppSettings, useCatalog, useProcessing, useProviders, useUiStore } from '#/stores';
 
 const AUTO_OPENROUTER_PROVIDER = '';
 
@@ -40,7 +43,10 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
   const { config, defaultPrompts, loadDefaultPrompts, updateSttConfig, updatePostProcessConfig } =
     useProcessing();
   const { catalog, isLoading: isCatalogLoading } = useCatalog();
+  const closeSettings = useUiStore((state) => state.closeSettings);
+  const navigate = useNavigate();
   const { t } = useTranslation();
+  const [sttSystemPromptDraft, setSttSystemPromptDraft] = useState<string>();
   const languageOptions = [
     { label: t('settings.processing.languages.auto'), value: 'auto' },
     { label: t('settings.processing.languages.ru'), value: 'ru' },
@@ -375,7 +381,27 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
             storedValue={currentConfig.systemPrompt}
             onPersist={persistSystemPrompt}
             onReset={resetSystemPrompt}
+            onValueChange={isStt ? setSttSystemPromptDraft : undefined}
           />
+
+          {isStt && (
+            <SttPromptLimitAlert
+              action={
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={() => {
+                    closeSettings();
+                    void navigate(routes.dictionary);
+                  }}
+                >
+                  {t('settings.processing.openDictionary')}
+                </Button>
+              }
+              draftSystemPrompt={useCustomPrompts ? sttSystemPromptDraft : undefined}
+              exceededDescription={t('settings.processing.sttPromptLimitExceededDescription')}
+            />
+          )}
 
           {!isStt && (
             <PromptField
