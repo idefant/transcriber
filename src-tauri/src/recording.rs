@@ -16,7 +16,8 @@ use cpal::{
 };
 use rubato::{FftFixedInOut, Resampler};
 use silero_vad_rust::{
-    get_speech_timestamps, load_silero_vad, silero_vad::utils_vad::VadParameters,
+    get_speech_timestamps,
+    silero_vad::{model::OnnxModel, utils_vad::VadParameters},
 };
 use tauri::Manager;
 
@@ -292,6 +293,7 @@ enum SilenceTrimError {
 enum VadFailureClassification {
     Resample,
     RuntimeUnavailable,
+    ModelResourceMissing,
     ModelLoad,
     Inference,
 }
@@ -301,6 +303,7 @@ impl VadFailureClassification {
         match self {
             Self::Resample => "resampleFailed",
             Self::RuntimeUnavailable => "runtimeUnavailable",
+            Self::ModelResourceMissing => "modelResourceMissing",
             Self::ModelLoad => "modelLoadFailed",
             Self::Inference => "inferenceFailed",
         }
@@ -358,15 +361,15 @@ fn trim_silence(
             error,
         ));
     }
-    let mut model = match load_silero_vad() {
+    let mut model = match load_silero_vad_model(app) {
         Ok(model) => model,
-        Err(_) => {
+        Err(error) => {
             return Err(log_vad_failure(
                 app,
                 input_duration_ms,
                 sample_rate,
                 channels as u16,
-                SilenceTrimError::VadFailed(VadFailureClassification::ModelLoad),
+                error,
             ));
         }
     };
@@ -391,7 +394,7 @@ fn trim_silence(
         }
     };
     if segments.is_empty() {
-        let error = match classify_empty_speech(&vad_audio) {
+        let error = match classify_empty_speech(app, &vad_audio) {
             Ok(error) => error,
             Err(error) => {
                 return Err(log_vad_failure(
@@ -511,30 +514,53 @@ fn configure_onnx_runtime(app: &tauri::AppHandle) -> Result<(), SilenceTrimError
     let resource_path = app
         .path()
         .resource_dir()
-        .map(|directory| directory.join("onnxruntime.dll"))
-        .unwrap_or_else(|_| PathBuf::new());
-    let runtime_path = if resource_path.is_file() {
-        resource_path
-    } else {
-        // В dev-режиме Tauri не копирует bundle resources рядом с бинарным файлом.
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("resources")
-            .join("onnxruntime.dll")
-    };
-
-    if !runtime_path.is_file() {
-        return Err(SilenceTrimError::VadFailed(
+        .ok()
+        .map(|directory| directory.join("onnxruntime.dll"));
+    let development_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("onnxruntime.dll");
+    let runtime_path = resource_path
+        .filter(|path| path.is_file())
+        .or_else(|| {
+            // В dev-режиме Tauri не копирует bundle resources рядом с бинарным файлом.
+            (cfg!(debug_assertions) && development_path.is_file()).then_some(development_path)
+        })
+        .ok_or(SilenceTrimError::VadFailed(
             VadFailureClassification::RuntimeUnavailable,
-        ));
-    }
+        ))?;
 
     env::set_var("ORT_DYLIB_PATH", runtime_path);
     Ok(())
 }
 
-fn classify_empty_speech(vad_audio: &[f32]) -> Result<SilenceTrimError, SilenceTrimError> {
-    let mut model = load_silero_vad()
-        .map_err(|_| SilenceTrimError::VadFailed(VadFailureClassification::ModelLoad))?;
+/// Загружает ONNX-модель из ресурсов приложения, не полагаясь на путь Cargo registry.
+fn load_silero_vad_model(app: &tauri::AppHandle) -> Result<OnnxModel, SilenceTrimError> {
+    let resource_path = app
+        .path()
+        .resource_dir()
+        .ok()
+        .map(|directory| directory.join("silero_vad.onnx"));
+    let development_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("silero_vad.onnx");
+    let model_path = resource_path
+        .filter(|path| path.is_file())
+        .or_else(|| {
+            (cfg!(debug_assertions) && development_path.is_file()).then_some(development_path)
+        })
+        .ok_or(SilenceTrimError::VadFailed(
+            VadFailureClassification::ModelResourceMissing,
+        ))?;
+
+    OnnxModel::from_path(model_path, true)
+        .map_err(|_| SilenceTrimError::VadFailed(VadFailureClassification::ModelLoad))
+}
+
+fn classify_empty_speech(
+    app: &tauri::AppHandle,
+    vad_audio: &[f32],
+) -> Result<SilenceTrimError, SilenceTrimError> {
+    let mut model = load_silero_vad_model(app)?;
     let parameters = VadParameters {
         sampling_rate: VAD_SAMPLE_RATE,
         min_speech_duration_ms: 1,

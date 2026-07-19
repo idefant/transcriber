@@ -32,6 +32,7 @@
     "createUpdaterArtifacts": true,
     "resources": {
       "resources/onnxruntime.dll": "onnxruntime.dll",
+      "resources/silero_vad.onnx": "silero_vad.onnx",
       "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
     },
     "icon": [
