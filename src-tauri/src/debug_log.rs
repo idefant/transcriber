@@ -121,6 +121,18 @@ pub fn log_event(
     let _ = write_event(app, event, None, context, payload);
 }
 
+/// Записывает важное локальное диагностическое событие независимо от настройки
+/// расширенного отладочного логирования. Используется только для безопасных
+/// метаданных о сбоях, которые иначе невозможно расследовать после релиза.
+pub fn log_critical_event(
+    app: &tauri::AppHandle,
+    event: &'static str,
+    context: Option<&ModelRunLogContext>,
+    payload: serde_json::Value,
+) {
+    let _ = write_event_forcefully(app, event, None, context, payload);
+}
+
 pub fn sanitized_headers(headers: &[crate::runner::HeaderSnapshot]) -> Vec<String> {
     headers.iter().map(|header| header.name.clone()).collect()
 }
@@ -136,6 +148,16 @@ fn write_event(
         return Ok(());
     }
 
+    write_event_forcefully(app, event, stage, context, payload)
+}
+
+fn write_event_forcefully(
+    app: &tauri::AppHandle,
+    event: &'static str,
+    stage: Option<ModelRunStage>,
+    context: Option<&ModelRunLogContext>,
+    payload: serde_json::Value,
+) -> AppResult<()> {
     cleanup_logs(app)?;
 
     let path = current_log_file_path(app)?;

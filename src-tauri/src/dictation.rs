@@ -832,7 +832,12 @@ fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
     let audio = match finish_recording(&app, recording_handle) {
         Ok(audio) => audio,
         Err(error) => {
-            let _ = reset_session(&app, id, true);
+            // Ошибка VAD или формирования WAV происходит до создания записи истории
+            // и до STT. Оставляем штатное Error-состояние видимым, чтобы оно не
+            // выглядело как молчаливое завершение диктовки.
+            if reset_session(&app, id, false) {
+                let _ = overlay::show_error_overlay(&app, None);
+            }
             emit_dictation_error(&app, error.into_message());
             return;
         }

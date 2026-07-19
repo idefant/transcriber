@@ -21,6 +21,7 @@ use silero_vad_rust::{
 use tauri::Manager;
 
 use crate::{
+    debug_log,
     error::{AppError, AppResult},
     i18n,
     settings::{self, EffectiveUiLanguage},
@@ -235,12 +236,12 @@ impl PreparedRecorder {
         }
 
         if is_silence_trimming_enabled {
-            samples =
-                trim_silence(samples, self.sample_rate, self.channels, app).map_err(|error| {
+            samples = trim_silence(samples, self.sample_rate, self.channels, started_at, app)
+                .map_err(|error| {
                     let message_id = match error {
                         SilenceTrimError::NoSpeech => "recording-no-speech-detected",
                         SilenceTrimError::SpeechTooShort => "recording-speech-too-short",
-                        SilenceTrimError::VadFailed => "recording-vad-failed",
+                        SilenceTrimError::VadFailed(_) => "recording-vad-failed",
                     };
 
                     AppError::from(i18n::text_for_language(ui_language, message_id, &[]))
@@ -284,7 +285,26 @@ impl PreparedRecorder {
 enum SilenceTrimError {
     NoSpeech,
     SpeechTooShort,
-    VadFailed,
+    VadFailed(VadFailureClassification),
+}
+
+#[derive(Clone, Copy)]
+enum VadFailureClassification {
+    Resample,
+    RuntimeUnavailable,
+    ModelLoad,
+    Inference,
+}
+
+impl VadFailureClassification {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Resample => "resampleFailed",
+            Self::RuntimeUnavailable => "runtimeUnavailable",
+            Self::ModelLoad => "modelLoadFailed",
+            Self::Inference => "inferenceFailed",
+        }
+    }
 }
 
 /// Удаляет тишину по сегментам Silero VAD до нормализации и кодирования WAV.
@@ -292,19 +312,64 @@ fn trim_silence(
     samples: Vec<f32>,
     sample_rate: u32,
     channels: u16,
+    started_at: DateTime<Utc>,
     app: &tauri::AppHandle,
 ) -> Result<Vec<f32>, SilenceTrimError> {
+    let input_duration_ms = audio_duration_ms(&samples, sample_rate, channels);
+    debug_log::log_event(
+        app,
+        "vad.started",
+        None,
+        serde_json::json!({
+            "recordingStartedAt": started_at.to_rfc3339(),
+            "inputDurationMs": input_duration_ms,
+            "sampleRate": sample_rate,
+            "channels": channels,
+            "inputSampleCount": samples.len(),
+        }),
+    );
     let channels = channels as usize;
     if sample_rate == 0 || channels == 0 {
+        log_vad_result(app, "noSpeech", input_duration_ms, 0, 0, None);
         return Err(SilenceTrimError::NoSpeech);
     }
     let mono: Vec<f32> = samples
         .chunks_exact(channels)
         .map(|frame| frame.iter().sum::<f32>() / channels as f32)
         .collect();
-    let vad_audio = resample_for_vad(&mono, sample_rate)?;
-    configure_onnx_runtime(app)?;
-    let mut model = load_silero_vad().map_err(|_| SilenceTrimError::VadFailed)?;
+    let vad_audio = match resample_for_vad(&mono, sample_rate) {
+        Ok(audio) => audio,
+        Err(error) => {
+            return Err(log_vad_failure(
+                app,
+                input_duration_ms,
+                sample_rate,
+                channels as u16,
+                error,
+            ));
+        }
+    };
+    if let Err(error) = configure_onnx_runtime(app) {
+        return Err(log_vad_failure(
+            app,
+            input_duration_ms,
+            sample_rate,
+            channels as u16,
+            error,
+        ));
+    }
+    let mut model = match load_silero_vad() {
+        Ok(model) => model,
+        Err(_) => {
+            return Err(log_vad_failure(
+                app,
+                input_duration_ms,
+                sample_rate,
+                channels as u16,
+                SilenceTrimError::VadFailed(VadFailureClassification::ModelLoad),
+            ));
+        }
+    };
     let parameters = VadParameters {
         sampling_rate: VAD_SAMPLE_RATE,
         min_speech_duration_ms: VAD_MINIMUM_SPEECH_DURATION_MS,
@@ -313,12 +378,36 @@ fn trim_silence(
         return_seconds: false,
         ..Default::default()
     };
-    let segments = get_speech_timestamps(&vad_audio, &mut model, &parameters)
-        .map_err(|_| SilenceTrimError::VadFailed)?;
+    let segments = match get_speech_timestamps(&vad_audio, &mut model, &parameters) {
+        Ok(segments) => segments,
+        Err(_) => {
+            return Err(log_vad_failure(
+                app,
+                input_duration_ms,
+                sample_rate,
+                channels as u16,
+                SilenceTrimError::VadFailed(VadFailureClassification::Inference),
+            ));
+        }
+    };
     if segments.is_empty() {
-        return Err(classify_empty_speech(&vad_audio)?);
+        let error = match classify_empty_speech(&vad_audio) {
+            Ok(error) => error,
+            Err(error) => {
+                return Err(log_vad_failure(
+                    app,
+                    input_duration_ms,
+                    sample_rate,
+                    channels as u16,
+                    error,
+                ));
+            }
+        };
+        log_vad_result(app, error.as_str(), input_duration_ms, 0, 0, None);
+        return Err(error);
     }
 
+    let segment_count = segments.len();
     let mut trimmed = Vec::with_capacity(samples.len());
     for segment in segments {
         let start = segment.start as u64 * sample_rate as u64 / VAD_SAMPLE_RATE as u64;
@@ -332,10 +421,88 @@ fn trim_silence(
         }
     }
     if trimmed.is_empty() {
+        log_vad_result(
+            app,
+            "speechTooShort",
+            input_duration_ms,
+            0,
+            segment_count,
+            None,
+        );
         Err(SilenceTrimError::SpeechTooShort)
     } else {
+        log_vad_result(
+            app,
+            "completed",
+            input_duration_ms,
+            audio_duration_ms(&trimmed, sample_rate, channels as u16),
+            segment_count,
+            Some(vad_audio.len()),
+        );
         Ok(trimmed)
     }
+}
+
+impl SilenceTrimError {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::NoSpeech => "noSpeech",
+            Self::SpeechTooShort => "speechTooShort",
+            Self::VadFailed(classification) => classification.as_str(),
+        }
+    }
+}
+
+fn log_vad_failure(
+    app: &tauri::AppHandle,
+    input_duration_ms: u64,
+    sample_rate: u32,
+    channels: u16,
+    error: SilenceTrimError,
+) -> SilenceTrimError {
+    let classification = error.as_str();
+    debug_log::log_critical_event(
+        app,
+        "vad.failed",
+        None,
+        serde_json::json!({
+            "classification": classification,
+            "inputDurationMs": input_duration_ms,
+            "sampleRate": sample_rate,
+            "channels": channels,
+        }),
+    );
+    error
+}
+
+fn log_vad_result(
+    app: &tauri::AppHandle,
+    outcome: &'static str,
+    input_duration_ms: u64,
+    output_duration_ms: u64,
+    segment_count: usize,
+    vad_sample_count: Option<usize>,
+) {
+    debug_log::log_event(
+        app,
+        "vad.completed",
+        None,
+        serde_json::json!({
+            "outcome": outcome,
+            "inputDurationMs": input_duration_ms,
+            "outputDurationMs": output_duration_ms,
+            "segmentCount": segment_count,
+            "vadSampleCount": vad_sample_count,
+        }),
+    );
+}
+
+fn audio_duration_ms(samples: &[f32], sample_rate: u32, channels: u16) -> u64 {
+    if channels == 0 || sample_rate == 0 {
+        return 0;
+    }
+
+    ((samples.len() as f64 / channels as f64) / sample_rate as f64 * 1000.0) as u64
 }
 
 /// Явно выбирает ONNX Runtime, поставляемый вместе с приложением, чтобы VAD не
@@ -356,7 +523,9 @@ fn configure_onnx_runtime(app: &tauri::AppHandle) -> Result<(), SilenceTrimError
     };
 
     if !runtime_path.is_file() {
-        return Err(SilenceTrimError::VadFailed);
+        return Err(SilenceTrimError::VadFailed(
+            VadFailureClassification::RuntimeUnavailable,
+        ));
     }
 
     env::set_var("ORT_DYLIB_PATH", runtime_path);
@@ -364,7 +533,8 @@ fn configure_onnx_runtime(app: &tauri::AppHandle) -> Result<(), SilenceTrimError
 }
 
 fn classify_empty_speech(vad_audio: &[f32]) -> Result<SilenceTrimError, SilenceTrimError> {
-    let mut model = load_silero_vad().map_err(|_| SilenceTrimError::VadFailed)?;
+    let mut model = load_silero_vad()
+        .map_err(|_| SilenceTrimError::VadFailed(VadFailureClassification::ModelLoad))?;
     let parameters = VadParameters {
         sampling_rate: VAD_SAMPLE_RATE,
         min_speech_duration_ms: 1,
@@ -373,7 +543,7 @@ fn classify_empty_speech(vad_audio: &[f32]) -> Result<SilenceTrimError, SilenceT
         ..Default::default()
     };
     let segments = get_speech_timestamps(vad_audio, &mut model, &parameters)
-        .map_err(|_| SilenceTrimError::VadFailed)?;
+        .map_err(|_| SilenceTrimError::VadFailed(VadFailureClassification::Inference))?;
     Ok(if segments.is_empty() {
         SilenceTrimError::NoSpeech
     } else {
@@ -387,7 +557,7 @@ fn resample_for_vad(samples: &[f32], source_rate: u32) -> Result<Vec<f32>, Silen
     }
     let mut resampler =
         FftFixedInOut::<f32>::new(source_rate as usize, VAD_SAMPLE_RATE as usize, 1_024, 1)
-            .map_err(|_| SilenceTrimError::VadFailed)?;
+            .map_err(|_| SilenceTrimError::VadFailed(VadFailureClassification::Resample))?;
     let block_size = resampler.input_frames_next();
     let mut output = Vec::new();
     let mut blocks = samples.chunks_exact(block_size);
@@ -395,7 +565,7 @@ fn resample_for_vad(samples: &[f32], source_rate: u32) -> Result<Vec<f32>, Silen
     for block in &mut blocks {
         let mut channels = resampler
             .process(&[block], None)
-            .map_err(|_| SilenceTrimError::VadFailed)?;
+            .map_err(|_| SilenceTrimError::VadFailed(VadFailureClassification::Resample))?;
         output.append(&mut channels.remove(0));
     }
 
@@ -403,7 +573,7 @@ fn resample_for_vad(samples: &[f32], source_rate: u32) -> Result<Vec<f32>, Silen
     if !remainder.is_empty() {
         let mut channels = resampler
             .process_partial(Some(&[remainder]), None)
-            .map_err(|_| SilenceTrimError::VadFailed)?;
+            .map_err(|_| SilenceTrimError::VadFailed(VadFailureClassification::Resample))?;
         output.append(&mut channels.remove(0));
     }
 
