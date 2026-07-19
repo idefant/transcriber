@@ -187,7 +187,7 @@ fn setup_tray(app: &tauri::AppHandle) -> AppResult<()> {
                 event,
                 TrayIconEvent::Click {
                     button: MouseButton::Left,
-                    button_state: MouseButtonState::Up,
+                    button_state: MouseButtonState::Down,
                     ..
                 }
             ) {
@@ -244,9 +244,9 @@ pub(crate) fn show_main_window(app: &tauri::AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-/// Поведение при клике левой кнопкой по иконке в трее: скрывать окно только тогда, когда пользователь
-/// действительно может его видеть, иначе возвращать его на экран. Любая неудавшаяся проверка
-/// приводит к варианту «вернуть на экран».
+/// Переключает главное окно при нажатии на tray-иконку. Скрывает только верхнее среди обычных окон
+/// на текущем виртуальном рабочем столе, иначе показывает его и передаёт фокус. Любая неудавшаяся
+/// проверка приводит к варианту «показать окно».
 fn toggle_main_window(app: &tauri::AppHandle) -> AppResult<()> {
     let window = main_window(app)?;
 
@@ -269,9 +269,62 @@ fn toggle_main_window(app: &tauri::AppHandle) -> AppResult<()> {
         return Ok(());
     }
 
-    window.hide()?;
+    // Скрытые значки в трее могут снять фокус ещё до WM_LBUTTONDOWN, поэтому фокус здесь ненадёжен.
+    // Always-on-top окна намеренно не учитываются: они не должны менять переключение обычного окна.
+    if is_main_window_frontmost(&window).unwrap_or(false) {
+        window.hide()?;
+    } else {
+        show_main_window(app)?;
+    }
 
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn is_main_window_frontmost(window: &WebviewWindow) -> AppResult<bool> {
+    use std::collections::HashSet;
+
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetWindow, GetWindowLongPtrW, IsIconic, IsWindowVisible, GWL_EXSTYLE, GW_HWNDPREV,
+        WS_EX_TOPMOST,
+    };
+
+    let handle = window
+        .window_handle()
+        .map_err(|error| AppError::from(format!("Window handle error: {error}")))?;
+
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        return Err(AppError::from("Unsupported window handle".to_string()));
+    };
+
+    let hwnd = handle.hwnd.get() as *mut core::ffi::c_void;
+    let mut visited = HashSet::new();
+    let mut window_above = unsafe { GetWindow(hwnd, GW_HWNDPREV) };
+
+    while !window_above.is_null() {
+        if !visited.insert(window_above as usize) {
+            return Err(AppError::from("Circular window z-order".to_string()));
+        }
+
+        let is_visible = unsafe { IsWindowVisible(window_above) != 0 };
+        let is_minimized = unsafe { IsIconic(window_above) != 0 };
+        let is_topmost =
+            unsafe { GetWindowLongPtrW(window_above, GWL_EXSTYLE) as u32 } & WS_EX_TOPMOST != 0;
+
+        if is_visible && !is_minimized && !is_topmost {
+            return Ok(false);
+        }
+
+        window_above = unsafe { GetWindow(window_above, GW_HWNDPREV) };
+    }
+
+    Ok(true)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn is_main_window_frontmost(_window: &WebviewWindow) -> AppResult<bool> {
+    Ok(false)
 }
 
 #[cfg(target_os = "windows")]
