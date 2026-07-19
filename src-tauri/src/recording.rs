@@ -209,7 +209,7 @@ impl PreparedRecorder {
         app: &tauri::AppHandle,
         started_at: DateTime<Utc>,
         is_silence_trimming_enabled: bool,
-    ) -> AppResult<RecordedAudio> {
+    ) -> AppResult<Option<RecordedAudio>> {
         let ui_language = settings::get_effective_ui_language(app).unwrap_or_default();
 
         // Сначала ставим на паузу, чтобы индикатор микрофона ОС выключился сразу.
@@ -237,16 +237,20 @@ impl PreparedRecorder {
         }
 
         if is_silence_trimming_enabled {
-            samples = trim_silence(samples, self.sample_rate, self.channels, started_at, app)
-                .map_err(|error| {
-                    let message_id = match error {
-                        SilenceTrimError::NoSpeech => "recording-no-speech-detected",
-                        SilenceTrimError::SpeechTooShort => "recording-speech-too-short",
-                        SilenceTrimError::VadFailed(_) => "recording-vad-failed",
-                    };
-
-                    AppError::from(i18n::text_for_language(ui_language, message_id, &[]))
-                })?;
+            samples = match trim_silence(samples, self.sample_rate, self.channels, started_at, app)
+            {
+                Ok(samples) => samples,
+                Err(SilenceTrimError::NoSpeech | SilenceTrimError::SpeechTooShort) => {
+                    return Ok(None);
+                }
+                Err(SilenceTrimError::VadFailed(_)) => {
+                    return Err(AppError::from(i18n::text_for_language(
+                        ui_language,
+                        "recording-vad-failed",
+                        &[],
+                    )));
+                }
+            };
         }
 
         normalize_peak(&mut samples);
@@ -258,12 +262,12 @@ impl PreparedRecorder {
                 as u64
         };
 
-        Ok(RecordedAudio {
+        Ok(Some(RecordedAudio {
             bytes: encode_wav_pcm16(&samples, self.sample_rate, self.channels, ui_language)?,
             duration_ms,
             file_name: "dictation.wav".to_string(),
             started_at,
-        })
+        }))
     }
 
     /// Отменяет захват без создания аудио и отбрасывает все сэмплы. Оставляет

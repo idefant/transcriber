@@ -675,7 +675,10 @@ fn release_recording(app: &tauri::AppHandle) {
 /// Останавливает подготовленный recorder и кодирует захваченное аудио. Drop `handle`
 /// возвращает системный звук после того, как микрофон освобождён; если запись
 /// останавливают с паузы, звук уже вернула сама пауза, и drop ничего не делает.
-fn finish_recording(app: &tauri::AppHandle, handle: RecordingHandle) -> AppResult<RecordedAudio> {
+fn finish_recording(
+    app: &tauri::AppHandle,
+    handle: RecordingHandle,
+) -> AppResult<Option<RecordedAudio>> {
     let runtime = app.state::<DictationRuntime>();
     let audio = {
         let prepared = runtime
@@ -830,7 +833,11 @@ fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
     // Останавливаем аудиопоток синхронно, чтобы индикатор микрофона ОС погас,
     // а системный звук включился обратно до начала STT/постобработки.
     let audio = match finish_recording(&app, recording_handle) {
-        Ok(audio) => audio,
+        Ok(Some(audio)) => audio,
+        Ok(None) => {
+            let _ = reset_session(&app, id, true);
+            return;
+        }
         Err(error) => {
             // Ошибка VAD или формирования WAV происходит до создания записи истории
             // и до STT. Оставляем штатное Error-состояние видимым, чтобы оно не
