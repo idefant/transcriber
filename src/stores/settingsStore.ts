@@ -13,6 +13,7 @@ const defaultAppSettings: AppSettings = {
   isLaunchAtLoginEnabled: true,
   isRestoreAudioWhilePausedEnabled: true,
   isSilenceTrimmingEnabled: true,
+  isTelemetryEnabled: true,
   isUpdateNotificationsEnabled: true,
   isOfferUnstableVersionsEnabled: false,
   overlayScreenMode: 'all',

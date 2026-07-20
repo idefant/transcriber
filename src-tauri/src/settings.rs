@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     autostart, debug_log, dictation,
     error::{AppError, AppResult},
-    shortcut_hook, storage,
+    shortcut_hook, storage, telemetry,
 };
 
 const SETTINGS_FILE_NAME: &str = "settings.json";
@@ -93,6 +93,8 @@ pub struct AppSettings {
     is_launch_at_login_enabled: bool,
     #[serde(default = "default_update_notifications_enabled")]
     is_update_notifications_enabled: bool,
+    #[serde(default = "default_telemetry_enabled")]
+    is_telemetry_enabled: bool,
     #[serde(default = "default_hotkey")]
     hotkey: String,
     #[serde(default = "default_cancel_hotkey")]
@@ -127,6 +129,7 @@ impl Default for AppSettings {
             is_debug_logging_enabled: false,
             is_launch_at_login_enabled: default_launch_at_login_enabled(),
             is_update_notifications_enabled: default_update_notifications_enabled(),
+            is_telemetry_enabled: default_telemetry_enabled(),
             hotkey: default_hotkey(),
             cancel_hotkey: default_cancel_hotkey(),
             pause_hotkey: String::new(),
@@ -148,6 +151,10 @@ impl AppSettings {
 
     pub fn is_silence_trimming_enabled(&self) -> bool {
         self.is_silence_trimming_enabled
+    }
+
+    pub fn is_telemetry_enabled(&self) -> bool {
+        self.is_telemetry_enabled
     }
 
     pub fn is_restore_audio_while_paused_enabled(&self) -> bool {
@@ -202,6 +209,7 @@ pub struct AppSettingsInput {
     is_debug_logging_enabled: Option<bool>,
     is_launch_at_login_enabled: Option<bool>,
     is_update_notifications_enabled: Option<bool>,
+    is_telemetry_enabled: Option<bool>,
     hotkey: Option<String>,
     cancel_hotkey: Option<String>,
     pause_hotkey: Option<String>,
@@ -227,6 +235,10 @@ fn default_launch_at_login_enabled() -> bool {
 }
 
 fn default_update_notifications_enabled() -> bool {
+    true
+}
+
+fn default_telemetry_enabled() -> bool {
     true
 }
 
@@ -289,6 +301,10 @@ fn update_app_settings_inner(
 
     if let Some(is_update_notifications_enabled) = input.is_update_notifications_enabled {
         settings.is_update_notifications_enabled = is_update_notifications_enabled;
+    }
+
+    if let Some(is_telemetry_enabled) = input.is_telemetry_enabled {
+        settings.is_telemetry_enabled = is_telemetry_enabled;
     }
 
     let current_language = resolve_effective_ui_language(&settings.ui_language);
@@ -356,6 +372,7 @@ fn update_app_settings_inner(
     settings.effective_ui_language = resolve_effective_ui_language(&settings.ui_language);
 
     save_app_settings(app, &settings)?;
+    telemetry::set_enabled(settings.is_telemetry_enabled);
     autostart::sync_launch_at_login(settings.is_launch_at_login_enabled)?;
     dictation::update_dictation_shortcut(app)?;
 

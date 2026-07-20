@@ -23,6 +23,7 @@ mod settings;
 mod shortcut_hook;
 mod storage;
 mod stt_prompt;
+mod telemetry;
 mod updater;
 
 use tauri::Manager;
@@ -44,6 +45,8 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let app_handle = app.handle().clone();
+
+            telemetry::initialize(&app_handle)?;
 
             // База истории открывается до миграций: миграция схемы v3
             // импортирует в неё history.json.

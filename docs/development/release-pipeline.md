@@ -39,6 +39,14 @@
 
 Необходимые секреты: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 
+## Sentry
+
+Sentry необязателен для сборки и работы приложения. Если DSN или переменные CI отсутствуют, Sentry не инициализируется, source maps и PDB не загружаются, а релиз продолжает собираться и публиковаться как обычно.
+
+Для фронтенда добавьте GitHub Actions variable `VITE_SENTRY_DSN`, для Rust — secret `SENTRY_DSN_RUST`. В оба проекта передаётся одно имя релиза `transcriber@<версия>`; для стабильного тега используется окружение `production`, для pre-release — `canary`.
+
+Чтобы CI загрузил диагностические файлы, добавьте secret `SENTRY_AUTH_TOKEN` со scope `org:ci`, а также Actions variables `SENTRY_ORG`, `SENTRY_PROJECT_REACT` и `SENTRY_PROJECT_RUST`. Vite загружает source maps и удаляет их из итогового артефакта. После сборки CI загружает Rust PDB вместе с исходным контекстом в проект `SENTRY_PROJECT_RUST`. GitHub Release остаётся черновиком, пока эти загрузки не завершатся, затем публикуется.
+
 ## Каналы обновлений
 
 Два JSON-файла на GitHub Pages служат манифестами обновлений:

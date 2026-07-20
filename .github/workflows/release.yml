@@ -77,15 +77,40 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_RUST }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT_REACT: ${{ vars.SENTRY_PROJECT_REACT }}
+          SENTRY_PROJECT_RUST: ${{ vars.SENTRY_PROJECT_RUST }}
+          SENTRY_RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
           VITE_APP_CHANNEL: ${{ steps.version.outputs.prerelease == 'true' && 'canary' || 'stable' }}
         with:
           tagName: ${{ steps.version.outputs.tag }}
           releaseName: 'Transcriber v__VERSION__'
           releaseBody: ${{ steps.changelog.outputs.notes }}
-          releaseDraft: false
+          releaseDraft: true
           prerelease: ${{ steps.version.outputs.prerelease }}
           includeUpdaterJson: true
           args: ${{ steps.version.outputs.prerelease == 'true' && '--config src-tauri/tauri.canary.conf.json' || '' }}
+
+      - name: Upload Rust debug files to Sentry
+        if: ${{ secrets.SENTRY_AUTH_TOKEN != '' && secrets.SENTRY_DSN_RUST != '' && vars.SENTRY_ORG != '' && vars.SENTRY_PROJECT_RUST != '' }}
+        shell: bash
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT_RUST }}
+        run: |
+          PDB=src-tauri/target/release/transcriber.pdb
+          test -f "$PDB"
+          npx sentry-cli debug-files upload --include-sources "$PDB"
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ steps.version.outputs.tag }}" --draft=false
 
       - name: Download update manifest
         shell: bash

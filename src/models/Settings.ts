@@ -25,6 +25,7 @@ export interface AppSettings {
   isLaunchAtLoginEnabled: boolean;
   isRestoreAudioWhilePausedEnabled: boolean;
   isSilenceTrimmingEnabled: boolean;
+  isTelemetryEnabled: boolean;
   isUpdateNotificationsEnabled: boolean;
   isOfferUnstableVersionsEnabled: boolean;
   overlayScreenMode: OverlayScreenMode;

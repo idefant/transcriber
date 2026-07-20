@@ -15,6 +15,7 @@ import { i18n } from '#/app/I18nProvider/i18n';
 import { router } from '#/app/router';
 import StartupGate from '#/app/StartupGate';
 import { routes } from '#/shared/routes';
+import { configureTelemetry } from '#/shared/telemetry';
 
 import type { SettingsSectionKey } from '#/models/Settings';
 import {
@@ -192,6 +193,20 @@ const UpdateChecker: FC = () => {
   return <>{notificationContextHolder}</>;
 };
 
+/** Синхронизирует разрешение пользователя на отправку обезличенных отчётов об ошибках. */
+const Telemetry: FC = () => {
+  const isSettingsLoaded = useSettingsStore((s) => !s.isLoading && !s.error);
+  const isTelemetryEnabled = useSettingsStore((s) => s.settings.isTelemetryEnabled);
+
+  useEffect(() => {
+    if (isSettingsLoaded) {
+      configureTelemetry(isTelemetryEnabled);
+    }
+  }, [isSettingsLoaded, isTelemetryEnabled]);
+
+  return null;
+};
+
 const App: FC = () => {
   return (
     <I18nProvider>
@@ -204,6 +219,7 @@ const App: FC = () => {
           <OpenDictionarySubscription />
           <DictationHotkeyFallback />
           <CloseWindowHotkey />
+          <Telemetry />
           <UpdateChecker />
           <RouterProvider router={router} />
         </StartupGate>

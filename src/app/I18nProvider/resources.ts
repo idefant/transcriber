@@ -60,6 +60,10 @@ const en = {
         title: 'Trim silence before transcription',
         description: 'Remove long pauses and skip recordings without enough speech',
       },
+      telemetry: {
+        title: 'Send error reports',
+        description: 'Send only anonymized application errors to help improve Transcriber',
+      },
       launchAtLogin: {
         title: 'Launch at login',
         description: 'Start Transcriber in the background when you sign in to Windows',
@@ -363,6 +367,10 @@ const ru: typeof en = {
       silenceTrimming: {
         title: 'Удалять тишину перед распознаванием',
         description: 'Удалять длинные паузы и не отправлять записи без достаточной речи',
+      },
+      telemetry: {
+        title: 'Отправлять отчёты об ошибках',
+        description: 'Отправлять только обезличенные ошибки приложения, чтобы улучшать Transcriber',
       },
       launchAtLogin: {
         title: 'Запускать при входе в Windows',
