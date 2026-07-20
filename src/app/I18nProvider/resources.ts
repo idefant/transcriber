@@ -25,6 +25,12 @@ const en = {
     history: 'History',
     settings: 'Settings',
   },
+  errorBoundary: {
+    title: 'Something went wrong',
+    description: 'Restart the application to continue working.',
+    telemetrySent: 'An error report has been sent to the developer.',
+    reload: 'Restart application',
+  },
   settings: {
     title: 'Settings',
     sections: {
@@ -345,6 +351,12 @@ const ru: typeof en = {
     dictionary: 'Словарь',
     history: 'История',
     settings: 'Настройки',
+  },
+  errorBoundary: {
+    title: 'Что-то пошло не так',
+    description: 'Перезапустите приложение, чтобы продолжить работу.',
+    telemetrySent: 'Отчёт об ошибке отправлен разработчику.',
+    reload: 'Перезапустить приложение',
   },
   settings: {
     title: 'Настройки',

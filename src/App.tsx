@@ -3,6 +3,7 @@ import { RouterProvider } from 'react-router';
 import { listen } from '@tauri-apps/api/event';
 import { notification } from 'antd';
 
+import ApplicationErrorBoundary from '#/app/ApplicationErrorBoundary';
 import AppThemeProvider from '#/app/AppThemeProvider';
 import CloseWindowHotkey from '#/app/CloseWindowHotkey';
 import {
@@ -208,21 +209,25 @@ const Telemetry: FC = () => {
 };
 
 const App: FC = () => {
+  const isTelemetryEnabled = useSettingsStore((s) => s.settings.isTelemetryEnabled);
+
   return (
     <I18nProvider>
       <AppThemeProvider>
-        <StartupGate>
-          <StoreLoader />
-          <HistorySubscription />
-          <OpenRecordSubscription />
-          <OpenSettingsSubscription />
-          <OpenDictionarySubscription />
-          <DictationHotkeyFallback />
-          <CloseWindowHotkey />
-          <Telemetry />
-          <UpdateChecker />
-          <RouterProvider router={router} />
-        </StartupGate>
+        <ApplicationErrorBoundary isTelemetryEnabled={isTelemetryEnabled}>
+          <StartupGate>
+            <StoreLoader />
+            <HistorySubscription />
+            <OpenRecordSubscription />
+            <OpenSettingsSubscription />
+            <OpenDictionarySubscription />
+            <DictationHotkeyFallback />
+            <CloseWindowHotkey />
+            <Telemetry />
+            <UpdateChecker />
+            <RouterProvider router={router} />
+          </StartupGate>
+        </ApplicationErrorBoundary>
       </AppThemeProvider>
     </I18nProvider>
   );

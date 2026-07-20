@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 const isTelemetryAvailable = !import.meta.env.DEV && Boolean(import.meta.env.VITE_SENTRY_DSN);
 let isTelemetryInitialized = false;
+const capturedErrors = new WeakSet<Error>();
 
 const isValidDsn = (dsn: string): boolean => {
   try {
@@ -59,7 +60,7 @@ export const configureTelemetry = (isEnabled: boolean): void => {
       enableLogs: false,
       enableMetrics: false,
       environment: import.meta.env.VITE_APP_CHANNEL === 'canary' ? 'canary' : 'production',
-      integrations: [Sentry.globalHandlersIntegration()],
+      integrations: [Sentry.globalHandlersIntegration(), Sentry.dedupeIntegration()],
       release: `transcriber@${__APP_VERSION__}`,
       sendClientReports: false,
       sendDefaultPii: false,
@@ -68,6 +69,21 @@ export const configureTelemetry = (isEnabled: boolean): void => {
     isTelemetryInitialized = true;
   } catch {
     // Некорректный DSN не должен влиять на запуск приложения.
+  }
+};
+
+/** Передаёт пойманную React Error Boundary ошибку в уже настроенный Sentry-клиент. */
+export const captureTelemetryException = (error: Error): boolean => {
+  if (!isTelemetryInitialized || capturedErrors.has(error)) {
+    return false;
+  }
+
+  try {
+    const eventId = Sentry.captureException(error);
+    capturedErrors.add(error);
+    return Boolean(eventId);
+  } catch {
+    return false;
   }
 };
 
