@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router';
 
+import { RouteErrorBoundary } from '#/app/ApplicationErrorBoundary';
 import RootLayout from '#/app/RootLayout';
 import DictionaryPage from '#/pages/DictionaryPage';
 import HistoryPage from '#/pages/HistoryPage';
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
       },
     ],
     element: <RootLayout />,
+    errorElement: <RouteErrorBoundary />,
     path: '/',
   },
 ]);
