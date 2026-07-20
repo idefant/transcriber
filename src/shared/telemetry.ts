@@ -1,5 +1,4 @@
 import * as Sentry from '@sentry/react';
-import { invoke } from '@tauri-apps/api/core';
 
 const isTelemetryAvailable = !import.meta.env.DEV && Boolean(import.meta.env.VITE_SENTRY_DSN);
 let isTelemetryInitialized = false;
@@ -71,7 +70,6 @@ export const configureTelemetry = (isEnabled: boolean): void => {
     // Некорректный DSN не должен влиять на запуск приложения.
   }
 };
-
 /** Передаёт пойманную React Error Boundary ошибку в уже настроенный Sentry-клиент. */
 export const captureTelemetryException = (error: Error): boolean => {
   if (!isTelemetryInitialized || capturedErrors.has(error)) {
@@ -86,6 +84,3 @@ export const captureTelemetryException = (error: Error): boolean => {
     return false;
   }
 };
-
-/** Запускает временный нативный сценарий сбоя для проверки Rust telemetry. */
-export const triggerRustTelemetryFailure = () => invoke('trigger_rust_telemetry_failure');

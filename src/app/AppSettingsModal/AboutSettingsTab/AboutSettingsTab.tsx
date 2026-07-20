@@ -5,12 +5,10 @@ import { DownloadIcon, RefreshCwIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import ResetAppDataButton from '#/app/ResetAppDataButton';
-import { triggerRustTelemetryFailure } from '#/shared/telemetry';
 
 import SettingRow from '../SettingRow';
 
 import ReleaseNotes from './ReleaseNotes';
-import TelemetryReactCrash from './TelemetryReactCrash';
 
 import styles from './AboutSettingsTab.module.scss';
 
@@ -19,10 +17,6 @@ import { useAppSettings, useUpdaterStore } from '#/stores';
 const isCanary = import.meta.env.VITE_APP_CHANNEL === 'canary';
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
-
-const triggerRustTelemetryFailureSafely = () => {
-  void triggerRustTelemetryFailure().catch(() => {});
-};
 
 const AboutSettingsTab: FC = () => {
   const { t } = useTranslation();
@@ -36,7 +30,6 @@ const AboutSettingsTab: FC = () => {
   const isInstalling = useUpdaterStore((s) => s.isInstalling);
   const lastCheckedAt = useUpdaterStore((s) => s.lastCheckedAt);
   const [version, setVersion] = useState('');
-  const [isReactTelemetryCrashActive, setIsReactTelemetryCrashActive] = useState(false);
 
   useEffect(() => {
     void getVersion().then(setVersion);
@@ -159,31 +152,7 @@ const AboutSettingsTab: FC = () => {
         >
           <ResetAppDataButton />
         </SettingRow>
-
-        <SettingRow
-          description={t('settings.about.telemetryTest.react.description')}
-          title={t('settings.about.telemetryTest.react.title')}
-        >
-          <Button
-            danger
-            onClick={() => {
-              setIsReactTelemetryCrashActive(true);
-            }}
-          >
-            {t('settings.about.telemetryTest.react.action')}
-          </Button>
-        </SettingRow>
-
-        <SettingRow
-          description={t('settings.about.telemetryTest.rust.description')}
-          title={t('settings.about.telemetryTest.rust.title')}
-        >
-          <Button danger onClick={triggerRustTelemetryFailureSafely}>
-            {t('settings.about.telemetryTest.rust.action')}
-          </Button>
-        </SettingRow>
       </div>
-      <TelemetryReactCrash isActive={isReactTelemetryCrashActive} />
     </>
   );
 };
