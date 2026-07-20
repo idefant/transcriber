@@ -102,11 +102,14 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN_RUST }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT_RUST }}
+          SENTRY_RELEASE: transcriber@${{ steps.version.outputs.version }}
         run: |
           if [ -z "$SENTRY_AUTH_TOKEN" ] || [ -z "$SENTRY_DSN" ] || [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_PROJECT" ]; then
             echo "Sentry Rust debug files upload is skipped: configuration is incomplete."
             exit 0
           fi
+
+          npx sentry-cli releases -o "$SENTRY_ORG" new -p "$SENTRY_PROJECT" "$SENTRY_RELEASE"
 
           PDB=src-tauri/target/release/transcriber.pdb
           test -f "$PDB"
