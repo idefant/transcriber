@@ -1,10 +1,11 @@
-use std::str::FromStr;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, OnceLock,
 };
+use std::{fs, str::FromStr};
 
 use sentry::{protocol::Event, ClientOptions};
+use tauri::Manager;
 
 use crate::{error::AppResult, settings};
 
@@ -53,6 +54,21 @@ pub fn set_enabled(is_enabled: bool) {
     if let Some(enabled) = IS_TELEMETRY_ENABLED.get() {
         enabled.store(is_enabled, Ordering::Relaxed);
     }
+}
+
+/// Временно воспроизводит panic при загрузке обязательного файла состояния для проверки Rust telemetry.
+#[tauri::command]
+pub fn trigger_rust_telemetry_failure(app: tauri::AppHandle) {
+    let state_path = app
+        .path()
+        .app_data_dir()
+        .expect("application data directory must be available")
+        .join("active-import-state.json");
+
+    // Состояние активного импорта должно существовать, пока код пытается
+    // восстановить его после перезапуска. Здесь файл намеренно отсутствует,
+    // чтобы проверить захват настоящей ошибки обработки обязательного ресурса.
+    fs::read_to_string(&state_path).expect("active import state must be readable");
 }
 
 fn sanitize_event(mut event: Event<'static>, is_enabled: &AtomicBool) -> Option<Event<'static>> {

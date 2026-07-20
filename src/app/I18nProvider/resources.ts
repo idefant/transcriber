@@ -229,6 +229,19 @@ const en = {
         canary: 'Canary',
       },
       releaseNotesTitle: "What's new in {{version}}",
+      telemetryTest: {
+        react: {
+          title: 'React telemetry test',
+          description: 'Temporary action: reproduce an unhandled React render failure.',
+          action: 'Trigger React render failure',
+        },
+        rust: {
+          title: 'Rust telemetry test',
+          description:
+            'Temporary action: reproduce a native Rust panic while loading required state.',
+          action: 'Trigger Rust resource failure',
+        },
+      },
     },
     tests: {
       title: 'Configuration test',
@@ -541,6 +554,19 @@ const ru: typeof en = {
         canary: 'Canary',
       },
       releaseNotesTitle: 'Что нового в {{version}}',
+      telemetryTest: {
+        react: {
+          title: 'React telemetry test',
+          description: 'Temporary action: reproduce an unhandled React render failure.',
+          action: 'Trigger React render failure',
+        },
+        rust: {
+          title: 'Rust telemetry test',
+          description:
+            'Temporary action: reproduce a native Rust panic while loading required state.',
+          action: 'Trigger Rust resource failure',
+        },
+      },
     },
     tests: {
       title: 'Тест конфигурации',

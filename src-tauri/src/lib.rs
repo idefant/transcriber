@@ -119,6 +119,7 @@ pub fn run() {
             updater::download_and_install_update,
             maintenance::get_startup_status,
             maintenance::reset_app_data,
+            telemetry::trigger_rust_telemetry_failure,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Transcriber");
