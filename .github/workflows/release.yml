@@ -21,6 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -95,13 +96,18 @@ jobs:
           args: ${{ steps.version.outputs.prerelease == 'true' && '--config src-tauri/tauri.canary.conf.json' || '' }}
 
       - name: Upload Rust debug files to Sentry
-        if: ${{ secrets.SENTRY_AUTH_TOKEN != '' && secrets.SENTRY_DSN_RUST != '' && vars.SENTRY_ORG != '' && vars.SENTRY_PROJECT_RUST != '' }}
         shell: bash
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_RUST }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT_RUST }}
         run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ] || [ -z "$SENTRY_DSN" ] || [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_PROJECT" ]; then
+            echo "Sentry Rust debug files upload is skipped: configuration is incomplete."
+            exit 0
+          fi
+
           PDB=src-tauri/target/release/transcriber.pdb
           test -f "$PDB"
           npx sentry-cli debug-files upload --include-sources "$PDB"
