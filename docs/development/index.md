@@ -185,7 +185,10 @@ npm run encoding:check
 # Запустить rustfmt --check и clippy с запретом предупреждений.
 npm run rust:check
 
-# Запустить полную проверку качества: TypeScript, ESLint, Stylelint, проверка Prettier, проверка кодировки, проверки Rust и продакшен-сборка.
+# Запустить тесты крейта Tauri.
+npm run rust:test
+
+# Запустить полную проверку качества: TypeScript, ESLint, Stylelint, проверка Prettier, проверка кодировки, проверки Rust, тесты Rust и продакшен-сборка.
 npm run check
 ```
 

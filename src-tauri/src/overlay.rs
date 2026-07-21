@@ -828,7 +828,9 @@ mod tests {
         let (x, y) = compute_overlay_position(anchor_area, &OverlayVariant::Bottom, 1.0, geometry);
 
         assert_eq!(x, 834);
-        assert_eq!(y, 892);
+        // 1040 (низ области) − 16 (OVERLAY_BOTTOM_OFFSET) − 20 (половина карточки)
+        // − 56 (половина высоты окна с полем под тень).
+        assert_eq!(y, 948);
     }
 
     #[test]
@@ -862,7 +864,9 @@ mod tests {
         let top = compute_bottom_overlay_top(anchor_area, 1.0, geometry);
         let card_bottom = top as f64 + geometry.physical_height / 2.0 + geometry.card_height / 2.0;
 
-        assert_eq!(card_bottom, 968.0);
+        // Поле под тень не смещает карточку: её низ отстоит от низа области
+        // ровно на OVERLAY_BOTTOM_OFFSET.
+        assert_eq!(card_bottom, 1040.0 - OVERLAY_BOTTOM_OFFSET);
     }
 
     #[test]
@@ -873,6 +877,8 @@ mod tests {
         let (x, y) = compute_overlay_position(anchor_area, &OverlayVariant::Bottom, 1.5, geometry);
 
         assert_eq!(x, 1091);
-        assert_eq!(y, 1218);
+        // Те же слагаемые, что и при масштабе 1.0, умноженные на 1.5:
+        // 1440 − 24 − 30 − 84.
+        assert_eq!(y, 1302);
     }
 }

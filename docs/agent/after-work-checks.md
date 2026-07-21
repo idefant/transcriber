@@ -10,6 +10,7 @@ npm run lint
 npm run stylelint
 npm run format:check
 npm run rust:check
+npm run rust:test
 ```
 
 В Windows предпочитай Git Bash для этих команд. Если прямой PowerShell блокирует `npm.ps1`, запусти команду через `scripts/powershell-utf8.cmd`, например:

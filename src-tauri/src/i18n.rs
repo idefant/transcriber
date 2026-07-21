@@ -25,6 +25,7 @@ impl BackendI18n {
         loader
             .load_fallback_language(&Localizations)
             .expect("failed to load fallback backend locale");
+        disable_bidi_isolation(&loader);
 
         Self {
             loader,
@@ -75,15 +76,36 @@ impl BackendI18n {
     ) -> Result<(), i18n_embed::I18nEmbedError> {
         let primary = language_identifier(language);
 
-        if matches!(language, EffectiveUiLanguage::En) {
+        let result = if matches!(language, EffectiveUiLanguage::En) {
             self.loader.load_languages(&Localizations, &[primary])
         } else {
             self.loader.load_languages(
                 &Localizations,
                 &[primary, language_identifier(EffectiveUiLanguage::En)],
             )
-        }
+        };
+
+        // Загрузка языка создаёт новые бандлы с настройками по умолчанию,
+        // поэтому изоляцию приходится отключать заново после каждой смены
+        // языка, а не один раз при создании загрузчика.
+        disable_bidi_isolation(&self.loader);
+
+        result
     }
+}
+
+/// Убирает Unicode-изоляторы направления текста (U+2068, U+2069), которыми
+/// Fluent по умолчанию оборачивает подставленные аргументы.
+///
+/// Изоляторы нужны, когда в строку одного направления письма подставляется
+/// значение другого. Оба языка приложения — LTR, поэтому они ничего не решают,
+/// зато невидимыми символами попадают в сообщения об ошибках и всплывают,
+/// когда пользователь копирует такое сообщение.
+///
+/// Действует только на уже загруженные бандлы, поэтому вызывается после каждой
+/// загрузки языка.
+fn disable_bidi_isolation(loader: &FluentLanguageLoader) {
+    loader.set_use_isolating(false);
 }
 
 fn backend_i18n() -> &'static BackendI18n {
