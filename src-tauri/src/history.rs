@@ -10,6 +10,7 @@ use crate::{
     debug_log::{self, ModelRunLogContext, ModelRunSource},
     error::{AppError, AppResult},
     i18n,
+    metrics::{RunOutcome, RunTimer},
     processing::load_processing_config,
     recording::RecordedAudio,
     runner::{
@@ -577,6 +578,10 @@ async fn repeat_history_transcription_inner(
             return save_repeated_stt_error(app, record_id, None, error);
         }
     };
+    let timer = RunTimer::new(&ModelRunSource::HistoryRepeat);
+    timer.set_history_record_id(record_id);
+    timer.set_audio(audio_duration_ms, audio_bytes.len());
+
     let result = runner::run_stt_with_snapshot(
         app,
         &stt_snapshot,
@@ -584,8 +589,18 @@ async fn repeat_history_transcription_inner(
         "dictation.wav".to_string(),
         Some(audio_duration_ms),
         Some(log_context),
+        Some(&timer),
     )
     .await;
+
+    timer.finish(
+        app,
+        if result.is_ok() {
+            RunOutcome::Completed
+        } else {
+            RunOutcome::SttError
+        },
+    );
 
     match result {
         Ok(output) => {
@@ -685,8 +700,26 @@ async fn repeat_history_post_processing_inner(
             .and_then(|metadata| metadata.len().try_into().ok()),
         audio_path: Some(audio_path),
     };
-    let result =
-        runner::run_post_process_with_snapshot(app, &snapshot, input_text, Some(log_context)).await;
+    let timer = RunTimer::new(&ModelRunSource::HistoryRepeat);
+    timer.set_history_record_id(record_id);
+
+    let result = runner::run_post_process_with_snapshot(
+        app,
+        &snapshot,
+        input_text,
+        Some(log_context),
+        Some(&timer),
+    )
+    .await;
+
+    timer.finish(
+        app,
+        if result.is_ok() {
+            RunOutcome::Completed
+        } else {
+            RunOutcome::PostProcessError
+        },
+    );
 
     // Перечитываем запись: за время постобработки её могли изменить.
     let mut record = find_history_record(app, record_id)?;
@@ -965,6 +998,28 @@ fn local_month_bounds(month: &str) -> AppResult<(String, String)> {
 
 fn upsert_record(app: &tauri::AppHandle, record: &HistoryRecord) -> AppResult<()> {
     db::upsert(app, &record_row(record)?)
+}
+
+/// Дозаписывает стоимость постобработки, полученную уже после вставки текста.
+///
+/// OpenRouter сообщает стоимость отдельным запросом, и раньше его ждали до
+/// вставки. Теперь запрос уходит в фон, а результат догоняет запись здесь.
+/// Запись перечитывается: за это время её могли изменить или удалить, и второе
+/// не считается ошибкой — догонять больше нечего.
+pub fn set_post_processing_cost(
+    app: &tauri::AppHandle,
+    record_id: &str,
+    cost: f64,
+) -> AppResult<()> {
+    let Ok(mut record) = find_history_record(app, record_id) else {
+        return Ok(());
+    };
+
+    record.postprocessing.cost = format_cost(Some(cost));
+    upsert_record(app, &record)?;
+    emit_history_updated(app, Some(&record));
+
+    Ok(())
 }
 
 /// Переносит историю из `history.json` в базу SQLite. Вызывается один раз

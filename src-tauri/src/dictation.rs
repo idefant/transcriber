@@ -1,7 +1,10 @@
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    mpsc::{self, Sender},
-    Mutex, OnceLock,
+use std::{
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        mpsc::{self, Sender},
+        Mutex, OnceLock,
+    },
+    time::Instant,
 };
 
 use chrono::{DateTime, Utc};
@@ -14,8 +17,9 @@ use crate::{
     audio_mute::OutputMuteGuard,
     debug_log::{ModelRunLogContext, ModelRunSource},
     error::{AppError, AppResult},
-    history, i18n, keyboard,
+    history, http, i18n, keyboard,
     media_control::{self, MediaPauseGuard},
+    metrics::{RunOutcome, RunStage, RunTimer},
     notification::{self, ConfigError, ConfigErrorSection},
     overlay,
     processing::load_processing_config,
@@ -48,6 +52,11 @@ struct ActiveDictationTask {
 struct RecordingHandle {
     started_at: DateTime<Utc>,
     is_silence_trimming_enabled: bool,
+    /// Частота дискретизации выбранной модели распознавания, определённая при
+    /// старте записи. Настройки уже читаются здесь ради проверки готовности,
+    /// поэтому частота достаётся тем же чтением, а не ещё одним — уже после
+    /// того, как пользователь договорил.
+    model_sample_rate: Option<u32>,
     /// Возвращает системный звук при drop. Пауза диктовки снимает guard, а продолжение
     /// записи берёт его заново, поэтому поле изменяемое, а не только ради Drop.
     audio_guard: Option<RecordingAudioGuard>,
@@ -473,11 +482,14 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
     // показывается, а пользователь получает системное уведомление. Возвращаем
     // Ok, чтобы не сработала ветка ошибки в start_dictation (она бы показала
     // dictation-error и попыталась скрыть несуществующий оверлей).
-    if let Err(config_error) = validate_processing_ready(app) {
-        drop(session);
-        notification::show_config_error(app, &config_error);
-        return Ok(());
-    }
+    let model_sample_rate = match validate_processing_ready(app) {
+        Ok(input_sample_rate) => Some(input_sample_rate),
+        Err(config_error) => {
+            drop(session);
+            notification::show_config_error(app, &config_error);
+            return Ok(());
+        }
+    };
 
     // Читаем настройки приложения один раз здесь и переиспользуем их и для режима
     // звука, и для хоткеев отмены и паузы, вместо многократной загрузки с диска.
@@ -503,6 +515,11 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
     // вызов `play()`, и звук начинает поступать почти мгновенно.
     let started_at = begin_recording(app)?;
 
+    // Пока пользователь говорит, поднимаем соединение к провайдеру
+    // распознавания: DNS, TCP и TLS успеют отработать до того, как появится
+    // что отправлять, и запрос уйдёт по готовому соединению.
+    http::warm_up_connections(app);
+
     // Заглушаем вывод по умолчанию ПОСЛЕ начала захвата, чтобы держать затраты
     // на COM/заглушение вне пути перед захватом. Спецификация допускает продолжение
     // записи, даже если приглушить звук не удалось, поэтому здесь достаточно guard'а
@@ -520,6 +537,7 @@ fn start_dictation_inner(app: &tauri::AppHandle, activation_id: Option<u64>) -> 
         handle: RecordingHandle {
             started_at,
             is_silence_trimming_enabled,
+            model_sample_rate,
             audio_guard,
         },
         is_paused: false,
@@ -678,6 +696,7 @@ fn release_recording(app: &tauri::AppHandle) {
 fn finish_recording(
     app: &tauri::AppHandle,
     handle: RecordingHandle,
+    timer: &RunTimer,
 ) -> AppResult<Option<RecordedAudio>> {
     let runtime = app.state::<DictationRuntime>();
     let audio = {
@@ -693,7 +712,13 @@ fn finish_recording(
             )));
         };
 
-        recorder.stop_to_audio(app, handle.started_at, handle.is_silence_trimming_enabled)?
+        recorder.stop_to_audio(
+            app,
+            handle.started_at,
+            handle.is_silence_trimming_enabled,
+            handle.model_sample_rate,
+            Some(timer),
+        )?
     };
 
     drop(handle); // возвращаем звук теперь, когда микрофон освобождён
@@ -705,11 +730,15 @@ fn finish_recording(
 /// API-ключ. Если включена постобработка, те же проверки выполняются для неё.
 /// Переиспользует `build_stt_snapshot` / `build_post_process_snapshot` (чистая
 /// проверка конфигурации без сетевых запросов) и `resolve_provider_api_key`.
-fn validate_processing_ready(app: &tauri::AppHandle) -> Result<(), ConfigError> {
+///
+/// Возвращает частоту дискретизации выбранной модели распознавания: снимок для
+/// неё уже построен здесь, и повторно читать настройки после записи незачем.
+fn validate_processing_ready(app: &tauri::AppHandle) -> Result<u32, ConfigError> {
     let stt = runner::build_stt_snapshot(app).map_err(|error| ConfigError {
         section: ConfigErrorSection::SpeechToText,
         message: error.into_message(),
     })?;
+    let input_sample_rate = stt.input_sample_rate;
     runner::ensure_stt_prompt_within_limit(app, &stt).map_err(|error| ConfigError {
         section: ConfigErrorSection::Dictionary,
         message: error.into_message(),
@@ -739,7 +768,7 @@ fn validate_processing_ready(app: &tauri::AppHandle) -> Result<(), ConfigError> 
         })?;
     }
 
-    Ok(())
+    Ok(input_sample_rate)
 }
 
 async fn repeat_latest_history_record_inner(app: tauri::AppHandle) -> AppResult<()> {
@@ -808,6 +837,14 @@ fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
         }
     };
 
+    // Замер начинается здесь: всё, что дальше, — это ожидание пользователя
+    // между окончанием речи и появлением текста.
+    let timer = RunTimer::new(&ModelRunSource::Dictation);
+
+    if let Some(warmup) = http::take_last_warmup() {
+        timer.record_call(warmup);
+    }
+
     // Запись закончилась: пауза больше не применима, поэтому её хоткей снимается с
     // взвода и снова доходит до других приложений (в отличие от хоткея отмены,
     // который действует до конца постобработки).
@@ -826,16 +863,18 @@ fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
         release_recording(&app);
         drop(recording_handle);
         let _ = reset_session(&app, id, true);
+        timer.finish(&app, RunOutcome::Failed);
         emit_dictation_error(&app, error.into_message());
         return;
     }
 
     // Останавливаем аудиопоток синхронно, чтобы индикатор микрофона ОС погас,
     // а системный звук включился обратно до начала STT/постобработки.
-    let audio = match finish_recording(&app, recording_handle) {
+    let audio = match finish_recording(&app, recording_handle, &timer) {
         Ok(Some(audio)) => audio,
         Ok(None) => {
             let _ = reset_session(&app, id, true);
+            timer.finish(&app, RunOutcome::Cancelled);
             return;
         }
         Err(error) => {
@@ -845,21 +884,25 @@ fn stop_dictation(app: tauri::AppHandle, activation_id: Option<u64>) {
             if reset_session(&app, id, false) {
                 let _ = overlay::show_error_overlay(&app, None);
             }
+            timer.finish(&app, RunOutcome::Failed);
             emit_dictation_error(&app, error.into_message());
             return;
         }
     };
 
+    timer.set_audio(audio.duration_ms, audio.bytes.len());
+
     // VAD завершился: следующий этап — сетевое распознавание речи.
     if is_silence_trimming_enabled {
         if let Err(error) = overlay::show_transcribing_overlay(&app) {
             let _ = reset_session(&app, id, true);
+            timer.finish(&app, RunOutcome::Failed);
             emit_dictation_error(&app, error.into_message());
             return;
         }
     }
 
-    let handle = tauri::async_runtime::spawn(process_recording(app.clone(), id, audio));
+    let handle = tauri::async_runtime::spawn(process_recording(app.clone(), id, audio, timer));
     register_active_task(&app, id, handle);
 }
 
@@ -903,9 +946,11 @@ fn take_recording(
     Ok(Some((id, handle)))
 }
 
-async fn process_recording(app: tauri::AppHandle, id: u64, audio: RecordedAudio) {
-    let outcome = process_recording_inner(&app, id, audio).await;
+async fn process_recording(app: tauri::AppHandle, id: u64, audio: RecordedAudio, timer: RunTimer) {
+    let outcome = process_recording_inner(&app, id, audio, &timer).await;
     clear_active_task(&app, id);
+
+    timer.finish(&app, run_outcome(&outcome));
 
     // Отменённая или заменённая сессия уже скрыла свой оверлей через
     // cancel_dictation_inner; нужно лишь убедиться, что состояние сессии сброшено.
@@ -934,6 +979,16 @@ async fn process_recording(app: tauri::AppHandle, id: u64, audio: RecordedAudio)
                 let _ = overlay::show_error_overlay(&app, None);
             }
         }
+    }
+}
+
+/// Переводит результат обработки в исход для метрик.
+fn run_outcome(outcome: &AppResult<DictationOutcome>) -> RunOutcome {
+    match outcome {
+        Ok(DictationOutcome::Completed) => RunOutcome::Completed,
+        Ok(DictationOutcome::SttError { .. }) => RunOutcome::SttError,
+        Ok(DictationOutcome::PostProcessError { .. }) => RunOutcome::PostProcessError,
+        Err(_) => RunOutcome::Failed,
     }
 }
 
@@ -973,6 +1028,7 @@ async fn process_recording_inner(
     app: &tauri::AppHandle,
     id: u64,
     audio: RecordedAudio,
+    timer: &RunTimer,
 ) -> AppResult<DictationOutcome> {
     let config = load_processing_config(app)?;
 
@@ -984,14 +1040,17 @@ async fn process_recording_inner(
     }
 
     let history_record_id = Uuid::new_v4().to_string();
+    timer.set_history_record_id(&history_record_id);
 
     if !is_current_session(app, id) {
         return Ok(DictationOutcome::Completed);
     }
 
-    let stt_snapshot = runner::build_stt_snapshot(app)?;
+    let stt_snapshot = timer.measure(RunStage::Snapshot, || runner::build_stt_snapshot(app))?;
     let postprocessing_snapshot = if config.post_process.enabled {
-        runner::build_post_process_snapshot(app).ok()
+        timer.measure(RunStage::Snapshot, || {
+            runner::build_post_process_snapshot(app).ok()
+        })
     } else {
         None
     };
@@ -1012,22 +1071,25 @@ async fn process_recording_inner(
         audio.file_name.clone(),
         Some(audio.duration_ms),
         Some(stt_log_context),
+        Some(timer),
     )
     .await
     {
         Ok(output) => output,
         Err(error) => {
             let record_id = history_record_id.clone();
-            let _ = history::save_new_history_record(
-                app,
-                history::NewHistoryRecord {
-                    id: Some(history_record_id),
-                    audio,
-                    postprocessing: None,
-                    postprocessing_snapshot,
-                    transcription: Err((stt_snapshot, error)),
-                },
-            );
+            let _ = timer.measure(RunStage::HistorySave, || {
+                history::save_new_history_record(
+                    app,
+                    history::NewHistoryRecord {
+                        id: Some(history_record_id),
+                        audio,
+                        postprocessing: None,
+                        postprocessing_snapshot,
+                        transcription: Err((stt_snapshot, error)),
+                    },
+                )
+            });
 
             return Ok(DictationOutcome::SttError {
                 record_id: Some(record_id),
@@ -1043,7 +1105,9 @@ async fn process_recording_inner(
         if !begin_processing_phase(app, id)? {
             return Ok(DictationOutcome::Completed);
         }
-        let postprocessing_snapshot = runner::build_post_process_snapshot(app)?;
+        let postprocessing_snapshot = timer.measure(RunStage::Snapshot, || {
+            runner::build_post_process_snapshot(app)
+        })?;
         let postprocessing_log_context = ModelRunLogContext {
             source: ModelRunSource::Dictation,
             operation_id: Uuid::new_v4().to_string(),
@@ -1059,6 +1123,7 @@ async fn process_recording_inner(
             &postprocessing_snapshot,
             transcription.text.clone(),
             Some(postprocessing_log_context),
+            Some(timer),
         )
         .await
         {
@@ -1066,21 +1131,23 @@ async fn process_recording_inner(
             Err(error) => {
                 let record_id = history_record_id.clone();
                 let stt_text = transcription.text.clone();
-                let _ = history::save_new_history_record(
-                    app,
-                    history::NewHistoryRecord {
-                        id: Some(history_record_id),
-                        audio,
-                        postprocessing: Some(Err((postprocessing_snapshot, error))),
-                        postprocessing_snapshot: None,
-                        transcription: Ok(transcription),
-                    },
-                );
+                let _ = timer.measure(RunStage::HistorySave, || {
+                    history::save_new_history_record(
+                        app,
+                        history::NewHistoryRecord {
+                            id: Some(history_record_id),
+                            audio,
+                            postprocessing: Some(Err((postprocessing_snapshot, error))),
+                            postprocessing_snapshot: None,
+                            transcription: Ok(transcription),
+                        },
+                    )
+                });
 
                 // Постобработка не удалась, но текст распознавания речи корректен —
                 // всё равно вставляем его, чтобы пользователь не потерял свою диктовку.
                 if is_current_session(app, id) {
-                    keyboard::paste_text(app, &stt_text).await?;
+                    paste_measured(app, &stt_text, timer).await?;
                 }
 
                 return Ok(DictationOutcome::PostProcessError { record_id });
@@ -1091,20 +1158,36 @@ async fn process_recording_inner(
     };
 
     if is_current_session(app, id) {
-        let _ = history::save_new_history_record(
-            app,
-            history::NewHistoryRecord {
-                id: Some(history_record_id),
-                audio,
-                postprocessing,
-                postprocessing_snapshot,
-                transcription: Ok(transcription),
-            },
-        );
-        keyboard::paste_text(app, &final_text).await?;
+        let _ = timer.measure(RunStage::HistorySave, || {
+            history::save_new_history_record(
+                app,
+                history::NewHistoryRecord {
+                    id: Some(history_record_id),
+                    audio,
+                    postprocessing,
+                    postprocessing_snapshot,
+                    transcription: Ok(transcription),
+                },
+            )
+        });
+        paste_measured(app, &final_text, timer).await?;
     }
 
     Ok(DictationOutcome::Completed)
+}
+
+/// Вставляет текст, замеряя длительность.
+///
+/// Вставка идёт через буфер обмена и синтетическое нажатие, то есть зависит от
+/// скорости приложения-получателя, — и до сих пор была единственным этапом
+/// пути, о котором не было никаких данных.
+async fn paste_measured(app: &tauri::AppHandle, text: &str, timer: &RunTimer) -> AppResult<()> {
+    let started_at = Instant::now();
+    let result = keyboard::paste_text(app, text).await;
+
+    timer.record_stage(RunStage::Paste, started_at.elapsed());
+
+    result
 }
 
 async fn process_repeat_latest_history_record_inner(

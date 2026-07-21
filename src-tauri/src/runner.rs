@@ -1,14 +1,16 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{
     catalog::{model_by_key, ModelParams},
-    debug_log::{self, ModelRunLogContext, ModelRunStage},
+    debug_log::{self, ModelRunLogContext, ModelRunSource, ModelRunStage},
     dictionary,
     error::{AppError, AppResult},
-    i18n,
+    http, i18n,
+    metrics::{ProviderCall, ProviderCallStage, ProviderTimings, RunOutcome, RunTimer},
     processing::load_processing_config,
     providers::{resolve_provider_api_key, resolve_provider_credentials, ProviderKind},
     settings::{get_effective_ui_language, EffectiveUiLanguage},
@@ -46,6 +48,16 @@ pub struct SttSettingsSnapshot {
     pub response_format: String,
     pub prompt: String,
     pub prompt_token_limit: Option<usize>,
+    /// Частота дискретизации, в которую приводится запись перед отправкой.
+    #[serde(default = "default_input_sample_rate")]
+    pub input_sample_rate: u32,
+}
+
+/// Значение для снимков, сохранённых до появления поля: у них в истории лежит
+/// аудио в частоте устройства, и поле нужно лишь для того, чтобы снимок
+/// прочитался.
+fn default_input_sample_rate() -> u32 {
+    16_000
 }
 
 /// Результат проверки итогового prompt для модели с документированным лимитом.
@@ -172,23 +184,46 @@ pub async fn run_stt(
     audio: Vec<u8>,
     file_name: String,
 ) -> AppResult<String> {
-    Ok(run_stt_detailed(
+    let timer = RunTimer::new(&ModelRunSource::SettingsTest);
+    let result = run_stt_detailed(
         app,
         audio,
         file_name,
         None,
         Some(ModelRunLogContext::settings_test()),
+        Some(&timer),
     )
-    .await?
-    .text)
+    .await;
+
+    timer.finish(app, run_outcome(result.is_ok(), RunOutcome::SttError));
+
+    Ok(result?.text)
 }
 
 pub async fn run_post_process(app: &tauri::AppHandle, text: String) -> AppResult<String> {
-    Ok(
-        run_post_process_detailed(app, text, Some(ModelRunLogContext::settings_test()))
-            .await?
-            .text,
+    let timer = RunTimer::new(&ModelRunSource::SettingsTest);
+    let result = run_post_process_detailed(
+        app,
+        text,
+        Some(ModelRunLogContext::settings_test()),
+        Some(&timer),
     )
+    .await;
+
+    timer.finish(
+        app,
+        run_outcome(result.is_ok(), RunOutcome::PostProcessError),
+    );
+
+    Ok(result?.text)
+}
+
+fn run_outcome(is_ok: bool, failure: RunOutcome) -> RunOutcome {
+    if is_ok {
+        RunOutcome::Completed
+    } else {
+        failure
+    }
 }
 
 pub async fn run_stt_detailed(
@@ -197,6 +232,7 @@ pub async fn run_stt_detailed(
     file_name: String,
     audio_duration_ms: Option<u64>,
     log_context: Option<ModelRunLogContext>,
+    timer: Option<&RunTimer>,
 ) -> AppResult<SttRunOutput> {
     let snapshot = build_stt_snapshot(app)?;
 
@@ -207,6 +243,7 @@ pub async fn run_stt_detailed(
         file_name,
         audio_duration_ms,
         log_context,
+        timer,
     )
     .await
 }
@@ -215,10 +252,11 @@ pub async fn run_post_process_detailed(
     app: &tauri::AppHandle,
     text: String,
     log_context: Option<ModelRunLogContext>,
+    timer: Option<&RunTimer>,
 ) -> AppResult<PostProcessRunOutput> {
     let snapshot = build_post_process_snapshot(app)?;
 
-    run_post_process_with_snapshot(app, &snapshot, text, log_context).await
+    run_post_process_with_snapshot(app, &snapshot, text, log_context, timer).await
 }
 
 pub async fn run_stt_with_snapshot(
@@ -228,6 +266,7 @@ pub async fn run_stt_with_snapshot(
     file_name: String,
     audio_duration_ms: Option<u64>,
     log_context: Option<ModelRunLogContext>,
+    timer: Option<&RunTimer>,
 ) -> AppResult<SttRunOutput> {
     ensure_stt_prompt_within_limit(app, snapshot)?;
     let api_key = resolve_provider_api_key(app, &snapshot.provider.provider_id)?;
@@ -305,9 +344,18 @@ pub async fn run_stt_with_snapshot(
         request = request.headers(headers);
     }
 
+    let mut call = CallMetrics::new(
+        ProviderCallStage::Stt,
+        &snapshot.provider,
+        &snapshot.api_model_id,
+        Some(audio_size_bytes as u64),
+        started_at,
+    );
     let response = match request.send().await {
         Ok(response) => response,
         Err(error) => {
+            call.fail(&error);
+            call.commit(timer);
             debug_log::log_model_event(
                 app,
                 "speechToText.error",
@@ -322,9 +370,17 @@ pub async fn run_stt_with_snapshot(
         }
     };
     let status = response.status();
+    let headers = response.headers().clone();
+    call.received_headers(status.as_u16());
 
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
+        call.received_body(provider_timings(
+            snapshot.provider.provider_kind,
+            &headers,
+            None,
+        ));
+        call.commit(timer);
         debug_log::log_model_event(
             app,
             "speechToText.error",
@@ -346,6 +402,8 @@ pub async fn run_stt_with_snapshot(
     let stt_response = match response.json::<SttResponse>().await {
         Ok(stt_response) => stt_response,
         Err(error) => {
+            call.fail(&error);
+            call.commit(timer);
             debug_log::log_model_event(
                 app,
                 "speechToText.error",
@@ -363,6 +421,12 @@ pub async fn run_stt_with_snapshot(
         }
     };
     let duration_ms = elapsed_ms(started_at);
+    call.received_body(provider_timings(
+        snapshot.provider.provider_kind,
+        &headers,
+        stt_response.usage.as_ref(),
+    ));
+    call.commit(timer);
     let cost = stt_cost(snapshot, audio_duration_ms, stt_response.usage.as_ref());
     let text = stt_response.text.trim().to_string();
 
@@ -398,6 +462,7 @@ pub async fn run_post_process_with_snapshot(
     snapshot: &PostProcessSettingsSnapshot,
     text: String,
     log_context: Option<ModelRunLogContext>,
+    timer: Option<&RunTimer>,
 ) -> AppResult<PostProcessRunOutput> {
     let api_key = resolve_provider_api_key(app, &snapshot.provider.provider_id)?;
     let mut system_prompt = apply_template(
@@ -502,9 +567,21 @@ pub async fn run_post_process_with_snapshot(
         request = request.headers(headers);
     }
 
+    let request_bytes = serde_json::to_vec(&body)
+        .map(|bytes| bytes.len() as u64)
+        .ok();
+    let mut call = CallMetrics::new(
+        ProviderCallStage::PostProcess,
+        &snapshot.provider,
+        &snapshot.api_model_id,
+        request_bytes,
+        started_at,
+    );
     let response = match request.send().await {
         Ok(response) => response,
         Err(error) => {
+            call.fail(&error);
+            call.commit(timer);
             debug_log::log_model_event(
                 app,
                 "postProcessing.error",
@@ -519,9 +596,17 @@ pub async fn run_post_process_with_snapshot(
         }
     };
     let status = response.status();
+    let response_headers = response.headers().clone();
+    call.received_headers(status.as_u16());
 
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
+        call.received_body(provider_timings(
+            snapshot.provider.provider_kind,
+            &response_headers,
+            None,
+        ));
+        call.commit(timer);
         debug_log::log_model_event(
             app,
             "postProcessing.error",
@@ -547,6 +632,8 @@ pub async fn run_post_process_with_snapshot(
     let chat_response = match response.json::<ChatResponse>().await {
         Ok(chat_response) => chat_response,
         Err(error) => {
+            call.fail(&error);
+            call.commit(timer);
             debug_log::log_model_event(
                 app,
                 "postProcessing.error",
@@ -565,19 +652,34 @@ pub async fn run_post_process_with_snapshot(
     };
     let duration_ms = elapsed_ms(started_at);
     let resolved_provider = chat_response.provider.clone();
+    let mut timings = provider_timings(
+        snapshot.provider.provider_kind,
+        &response_headers,
+        chat_response.usage.as_ref(),
+    );
+    timings.upstream_provider = resolved_provider.clone();
+    call.received_body(timings);
+    call.commit(timer);
     let content = chat_response
         .choices
         .into_iter()
         .next()
         .and_then(|c| c.message.content)
         .unwrap_or_default();
-    let cost = post_process_cost(
-        app,
-        snapshot,
-        chat_response.id.as_deref(),
-        chat_response.usage.as_ref(),
-    )
-    .await;
+    let cost = chat_response.usage.as_ref().and_then(find_cost);
+
+    if cost.is_none() {
+        spawn_openrouter_cost_backfill(
+            app,
+            snapshot,
+            chat_response.id.as_deref(),
+            log_context
+                .as_ref()
+                .and_then(|context| context.history_record_id.clone()),
+            timer.map(|timer| timer.id().to_string()),
+        );
+    }
+
     let usage = chat_response.usage.clone();
 
     debug_log::log_model_event(
@@ -648,6 +750,7 @@ pub fn build_stt_snapshot(app: &tauri::AppHandle) -> AppResult<SttSettingsSnapsh
         response_format: params.response_format.to_string(),
         prompt,
         prompt_token_limit: params.prompt_token_limit,
+        input_sample_rate: params.input_sample_rate,
     })
 }
 
@@ -848,47 +951,140 @@ fn header_map_from_snapshot(
     Ok(header_map)
 }
 
-async fn post_process_cost(
+/// Догружает стоимость генерации OpenRouter уже после того, как пользователь
+/// получил свой текст.
+///
+/// Раньше этот запрос выполнялся до вставки и добавлял на горячий путь целый
+/// лишний round-trip. Стоимость нужна только для истории, поэтому её не
+/// обязательно знать к моменту вставки: фоновая задача дозаписывает её в
+/// запись, а фронтенд перечитывает месяц по событию `history-updated`.
+///
+/// Стоимость запрашивается, только если её не оказалось в `usage` ответа, и
+/// только у OpenRouter: другие провайдеры такого эндпоинта не имеют.
+fn spawn_openrouter_cost_backfill(
     app: &tauri::AppHandle,
     snapshot: &PostProcessSettingsSnapshot,
     generation_id: Option<&str>,
-    usage: Option<&serde_json::Value>,
-) -> Option<f64> {
-    if let Some(cost) = usage.and_then(find_cost) {
-        return Some(cost);
+    history_record_id: Option<String>,
+    run_id: Option<String>,
+) {
+    if !matches!(snapshot.provider.provider_kind, ProviderKind::Openrouter) {
+        return;
     }
 
-    if matches!(snapshot.provider.provider_kind, ProviderKind::Openrouter) {
-        if let Some(cost) = openrouter_generation_cost(app, snapshot, generation_id).await {
-            return Some(cost);
+    let Some(generation_id) = generation_id.map(ToString::to_string) else {
+        return;
+    };
+
+    let app = app.clone();
+    let provider = snapshot.provider.clone();
+    let model = snapshot.api_model_id.clone();
+
+    tauri::async_runtime::spawn(async move {
+        let started_at = Instant::now();
+        let Some((cost, call)) =
+            request_openrouter_generation(&app, &provider, &model, &generation_id, started_at)
+                .await
+        else {
+            return;
+        };
+
+        if let Some(run_id) = run_id {
+            crate::metrics::record_background_call(&app, &run_id, call);
         }
-    }
 
-    None
+        if let (Some(cost), Some(record_id)) = (cost, history_record_id) {
+            let _ = crate::history::set_post_processing_cost(&app, &record_id, cost);
+        }
+    });
 }
 
-async fn openrouter_generation_cost(
+/// Запрашивает у OpenRouter сведения о завершённой генерации. Возвращает
+/// стоимость и метрики самого запроса: он тоже часть картины задержек, пусть и
+/// вне пути пользователя.
+async fn request_openrouter_generation(
     app: &tauri::AppHandle,
-    snapshot: &PostProcessSettingsSnapshot,
-    generation_id: Option<&str>,
-) -> Option<f64> {
-    let generation_id = generation_id?;
-    let api_key = resolve_provider_api_key(app, &snapshot.provider.provider_id).ok()?;
+    provider: &ProviderSnapshot,
+    model: &str,
+    generation_id: &str,
+    started_at: Instant,
+) -> Option<(Option<f64>, ProviderCall)> {
+    let api_key = resolve_provider_api_key(app, &provider.provider_id).ok()?;
     let url = format!(
         "{}/generation?id={}",
-        snapshot.provider.base_url.trim_end_matches('/'),
+        provider.base_url.trim_end_matches('/'),
         generation_id
     );
     let client = build_client().ok()?;
-    let response = client
+    let mut call = CallMetrics::new(
+        ProviderCallStage::OpenrouterGeneration,
+        provider,
+        model,
+        None,
+        started_at,
+    );
+    let response = match client
         .get(url)
         .header(AUTHORIZATION, format!("Bearer {api_key}"))
         .send()
         .await
-        .ok()?;
-    let value = response.json::<serde_json::Value>().await.ok()?;
+    {
+        Ok(response) => response,
+        Err(error) => {
+            call.fail(&error);
 
-    find_cost(&value)
+            return Some((None, call.into_provider_call()));
+        }
+    };
+    let status = response.status();
+    let headers = response.headers().clone();
+    call.received_headers(status.as_u16());
+
+    let value = response.json::<serde_json::Value>().await.ok();
+    let mut timings = provider_timings(provider.provider_kind, &headers, None);
+
+    if let Some(value) = value.as_ref() {
+        apply_openrouter_generation_timings(&mut timings, value);
+    }
+
+    call.received_body(timings);
+
+    Some((
+        value.as_ref().and_then(find_cost),
+        call.into_provider_call(),
+    ))
+}
+
+/// Переносит тайминги генерации OpenRouter в общий вид.
+///
+/// `latency` — время до первого токена, `generation_time` — длительность самой
+/// генерации; остальное складывается в `raw`, потому что своих колонок не имеет.
+fn apply_openrouter_generation_timings(timings: &mut ProviderTimings, value: &serde_json::Value) {
+    let data = value.get("data").unwrap_or(value);
+
+    timings.ttft_ms = data
+        .get("latency")
+        .and_then(serde_json::Value::as_f64)
+        .map(|value| value as u64);
+    timings.total_ms = data
+        .get("generation_time")
+        .and_then(serde_json::Value::as_f64)
+        .map(|value| value as u64)
+        .or(timings.total_ms);
+    timings.upstream_provider = data
+        .get("provider_name")
+        .and_then(serde_json::Value::as_str)
+        .map(ToString::to_string);
+
+    if let Some(moderation_latency) = data.get("moderation_latency") {
+        let mut raw = match timings.raw.take() {
+            Some(serde_json::Value::Object(raw)) => raw,
+            _ => serde_json::Map::new(),
+        };
+
+        raw.insert("moderation_latency".to_string(), moderation_latency.clone());
+        timings.raw = Some(serde_json::Value::Object(raw));
+    }
 }
 
 fn stt_cost(
@@ -922,11 +1118,188 @@ fn find_cost(value: &serde_json::Value) -> Option<f64> {
 }
 
 fn elapsed_ms(started_at: Instant) -> u64 {
-    started_at
-        .elapsed()
-        .as_millis()
-        .try_into()
-        .unwrap_or(u64::MAX)
+    http::elapsed_ms(started_at)
+}
+
+/// Накопитель метрик одного HTTP-вызова.
+///
+/// Разделяет время до заголовков ответа и время дочитывания тела: первое —
+/// это отправка запроса плюс работа провайдера, второе — только загрузка
+/// ответа. Раньше обе части сливались в одно число, и по нему нельзя было
+/// понять, чего именно ждали.
+struct CallMetrics {
+    id: String,
+    stage: ProviderCallStage,
+    provider_kind: String,
+    provider_id: String,
+    base_url: String,
+    model: String,
+    request_bytes: Option<u64>,
+    status: Option<u16>,
+    error_kind: Option<String>,
+    started_at: Instant,
+    headers_ms: u64,
+    headers_at: Option<Instant>,
+    body_ms: u64,
+    provider: ProviderTimings,
+}
+
+impl CallMetrics {
+    fn new(
+        stage: ProviderCallStage,
+        provider: &ProviderSnapshot,
+        model: &str,
+        request_bytes: Option<u64>,
+        started_at: Instant,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            stage,
+            provider_kind: provider.provider_kind.as_str().to_string(),
+            provider_id: provider.provider_id.clone(),
+            base_url: provider.base_url.clone(),
+            model: model.to_string(),
+            request_bytes,
+            status: None,
+            error_kind: None,
+            started_at,
+            headers_ms: 0,
+            headers_at: None,
+            body_ms: 0,
+            provider: ProviderTimings::default(),
+        }
+    }
+
+    fn received_headers(&mut self, status: u16) {
+        self.status = Some(status);
+        self.headers_ms = elapsed_ms(self.started_at);
+        self.headers_at = Some(Instant::now());
+    }
+
+    fn received_body(&mut self, provider: ProviderTimings) {
+        if let Some(headers_at) = self.headers_at {
+            self.body_ms = elapsed_ms(headers_at);
+        }
+
+        self.provider = provider;
+    }
+
+    /// Фиксирует неудачу. Если ответ не пришёл вовсе, время до отказа
+    /// записывается как `headers_ms`: ждали именно его.
+    fn fail(&mut self, error: &reqwest::Error) {
+        self.error_kind = Some(http::classify_error(error));
+
+        if self.headers_at.is_none() {
+            self.headers_ms = elapsed_ms(self.started_at);
+        }
+    }
+
+    fn commit(self, timer: Option<&RunTimer>) {
+        let Some(timer) = timer else {
+            return;
+        };
+
+        timer.record_call(self.into_provider_call());
+    }
+
+    fn into_provider_call(self) -> ProviderCall {
+        ProviderCall {
+            id: self.id,
+            stage: self.stage,
+            provider_kind: self.provider_kind,
+            provider_id: self.provider_id,
+            base_url: self.base_url,
+            model: self.model,
+            status: self.status,
+            error_kind: self.error_kind,
+            request_bytes: self.request_bytes,
+            headers_ms: self.headers_ms,
+            body_ms: self.body_ms,
+            provider: self.provider,
+        }
+    }
+}
+
+/// Собирает тайминги, сообщённые провайдером, из заголовков ответа и `usage`.
+///
+/// Провайдеры делятся ими по-разному: OpenAI кладёт время обработки в заголовок
+/// `openai-processing-ms`, Groq — в `usage` ответа chat/completions (в
+/// секундах), а для распознавания речи не сообщает его вовсе. Ничего из этого
+/// не является обязательным, поэтому все поля результата необязательные.
+fn provider_timings(
+    kind: ProviderKind,
+    headers: &HeaderMap,
+    usage: Option<&serde_json::Value>,
+) -> ProviderTimings {
+    let mut timings = ProviderTimings {
+        total_ms: header_as_f64(headers, "openai-processing-ms").map(|value| value as u64),
+        request_id: header_as_string(headers, "x-request-id"),
+        retry_after_ms: header_as_f64(headers, "retry-after")
+            .map(|seconds| (seconds * 1000.0) as u64),
+        ..ProviderTimings::default()
+    };
+
+    if let Some(usage) = usage {
+        if matches!(kind, ProviderKind::Groq) {
+            // Groq отдаёт длительности в секундах с плавающей точкой.
+            timings.total_ms = seconds_field_as_ms(usage, "total_time").or(timings.total_ms);
+            timings.queue_ms = seconds_field_as_ms(usage, "queue_time");
+        }
+    }
+
+    let raw = raw_timing_headers(headers);
+
+    if !raw.is_empty() {
+        timings.raw = Some(serde_json::Value::Object(raw));
+    }
+
+    timings
+}
+
+/// Заголовки, полезные для разбора задержек, но не имеющие своей колонки.
+/// Значения не содержат секретов: это идентификаторы запроса, лимиты и
+/// диагностика прокси.
+const RAW_TIMING_HEADERS: [&str; 6] = [
+    "server-timing",
+    "x-ratelimit-remaining-requests",
+    "x-ratelimit-remaining-tokens",
+    "x-ratelimit-reset-requests",
+    "x-groq-region",
+    "cf-ray",
+];
+
+fn raw_timing_headers(headers: &HeaderMap) -> serde_json::Map<String, serde_json::Value> {
+    RAW_TIMING_HEADERS
+        .iter()
+        .filter_map(|name| {
+            let value = header_as_string(headers, name)?;
+
+            Some(((*name).to_string(), serde_json::Value::String(value)))
+        })
+        .collect()
+}
+
+fn header_as_string(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(name)?
+        .to_str()
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn header_as_f64(headers: &HeaderMap, name: &str) -> Option<f64> {
+    header_as_string(headers, name)?.parse().ok()
+}
+
+fn seconds_field_as_ms(value: &serde_json::Value, key: &str) -> Option<u64> {
+    let seconds = value.get(key)?.as_f64()?;
+
+    if seconds < 0.0 {
+        return None;
+    }
+
+    Some((seconds * 1000.0).round() as u64)
 }
 
 fn apply_template(template: &str, vars: &[(&str, &str)]) -> String {
@@ -941,9 +1314,7 @@ fn apply_template(template: &str, vars: &[(&str, &str)]) -> String {
 }
 
 fn build_client() -> AppResult<reqwest::Client> {
-    Ok(reqwest::Client::builder()
-        .timeout(Duration::from_secs(60))
-        .build()?)
+    http::processing_client()
 }
 
 fn mime_from_filename(name: &str) -> &'static str {

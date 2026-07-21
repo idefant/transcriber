@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use chrono::Utc;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
@@ -27,6 +25,18 @@ pub enum ProviderKind {
 }
 
 impl ProviderKind {
+    /// Стабильный идентификатор вида провайдера для метрик и логов.
+    /// Совпадает с представлением в JSON, чтобы данные из базы и из
+    /// отладочного лога сходились без сопоставления вручную.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Custom => "custom",
+            Self::Groq => "groq",
+            Self::Openai => "openai",
+            Self::Openrouter => "openrouter",
+        }
+    }
+
     fn default_base_url(&self) -> Option<&'static str> {
         match self {
             Self::Custom => None,
@@ -325,9 +335,7 @@ async fn request_provider_models(
         should_use_advanced_settings,
         language,
     )?;
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(20))
-        .build()?;
+    let client = crate::http::interactive_client()?;
     let url = format!("{}/models", base_url.trim_end_matches('/'));
     let mut request = client.get(url).bearer_auth(api_key);
 
@@ -397,9 +405,7 @@ async fn request_openrouter_model_providers(
         credentials.base_url.trim_end_matches('/'),
         api_model_id
     );
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(20))
-        .build()?;
+    let client = crate::http::interactive_client()?;
     let mut request = client.get(url).bearer_auth(api_key);
 
     if !credentials.headers.is_empty() {

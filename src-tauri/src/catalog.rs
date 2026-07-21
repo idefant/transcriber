@@ -13,6 +13,14 @@ pub struct SttParams {
     pub prompt_token_limit: Option<usize>,
     pub temperature: f32,
     pub response_format: &'static str,
+    /// Частота дискретизации, на которой модель работает внутри.
+    ///
+    /// Запись приводится к ней перед отправкой: посылать больше бессмысленно —
+    /// провайдер всё равно пересчитает вход и лишние байты уйдут впустую, — а
+    /// посылать меньше значит отдать модели полосу уже, чем та, на которой её
+    /// обучали. Апсемплинг не выполняется: если устройство отдаёт меньше, чем
+    /// хочет модель, запись уходит как есть.
+    pub input_sample_rate: u32,
 }
 
 pub struct PostProcessParams {
@@ -108,6 +116,12 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 prompt_token_limit: None,
                 temperature: 0.0,
                 response_format: "json",
+                // Аудио-стек GPT-4o работает на 24 кГц: Realtime API той же
+                // модели принимает PCM16 строго на этой частоте. Препроцессинг
+                // batch-эндпоинта OpenAI не документирует, поэтому берём
+                // осторожное значение — понижать до 16 кГц значило бы отдать
+                // модели полосу уже, чем та, на которой её обучали.
+                input_sample_rate: 24_000,
             }),
         },
         CuratedModel {
@@ -127,6 +141,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 prompt_token_limit: None,
                 temperature: 0.0,
                 response_format: "json",
+                input_sample_rate: 24_000,
             }),
         },
         CuratedModel {
@@ -146,6 +161,11 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 prompt_token_limit: Some(224),
                 temperature: 0.0,
                 response_format: "json",
+                // Whisper приводит любой вход к 16 кГц моно сам: `SAMPLE_RATE`
+                // зашит в архитектуру, mel-спектрограмма считается на ней.
+                // Отправлять больше — значит платить за передачу того, что
+                // модель всё равно отбросит.
+                input_sample_rate: 16_000,
             }),
         },
         CuratedModel {
@@ -165,6 +185,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 prompt_token_limit: Some(224),
                 temperature: 0.0,
                 response_format: "json",
+                input_sample_rate: 16_000,
             }),
         },
         // PostProcess

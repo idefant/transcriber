@@ -25,6 +25,7 @@ use crate::{
     debug_log,
     error::{AppError, AppResult},
     i18n,
+    metrics::{RunStage, RunTimer},
     settings::{self, EffectiveUiLanguage},
 };
 
@@ -36,6 +37,16 @@ const LEVEL_EMIT_INTERVAL: Duration = Duration::from_millis(50);
 const PAUSE_GAP_DURATION: Duration = Duration::from_millis(500);
 
 const VAD_SAMPLE_RATE: u32 = 16_000;
+
+/// Частота дискретизации, применяемая, когда модель распознавания неизвестна:
+/// при отмене записи ещё до выбора модели или при повторе старой записи.
+/// Совпадает с частотой Whisper — самой распространённой у моделей речи.
+const FALLBACK_OUTPUT_SAMPLE_RATE: u32 = 16_000;
+
+/// Число каналов отправляемого и сохраняемого аудио. Речь с микрофона моно по
+/// смыслу, а второй канал удваивал бы объём без пользы; модели распознавания
+/// принимают только моно и сводят стерео сами.
+const OUTPUT_CHANNELS: u16 = 1;
 const VAD_MINIMUM_SPEECH_DURATION_MS: u32 = 300;
 const VAD_MINIMUM_SILENCE_DURATION_MS: u32 = 1_200;
 const VAD_SPEECH_PAD_MS: u32 = 350;
@@ -204,13 +215,18 @@ impl PreparedRecorder {
 
     /// Останавливает захват и кодирует записанное в WAV. Оставляет рекордер
     /// на паузе и пустым, чтобы его можно было переиспользовать в следующей сессии.
+    /// `model_sample_rate` — частота, на которой работает выбранная модель
+    /// распознавания; `None`, если модель ещё неизвестна.
     pub fn stop_to_audio(
         &self,
         app: &tauri::AppHandle,
         started_at: DateTime<Utc>,
         is_silence_trimming_enabled: bool,
+        model_sample_rate: Option<u32>,
+        timer: Option<&RunTimer>,
     ) -> AppResult<Option<RecordedAudio>> {
         let ui_language = settings::get_effective_ui_language(app).unwrap_or_default();
+        let stop_started_at = Instant::now();
 
         // Сначала ставим на паузу, чтобы индикатор микрофона ОС выключился сразу.
         self.pause_and_deactivate();
@@ -228,6 +244,8 @@ impl PreparedRecorder {
                 ))
             })?;
 
+        record_stage(timer, RunStage::RecordStop, stop_started_at);
+
         if samples.is_empty() {
             return Err(AppError::from(i18n::text_for_language(
                 ui_language,
@@ -237,8 +255,12 @@ impl PreparedRecorder {
         }
 
         if is_silence_trimming_enabled {
-            samples = match trim_silence(samples, self.sample_rate, self.channels, started_at, app)
-            {
+            let vad_started_at = Instant::now();
+            let trimmed = trim_silence(samples, self.sample_rate, self.channels, started_at, app);
+
+            record_stage(timer, RunStage::Vad, vad_started_at);
+
+            samples = match trimmed {
                 Ok(samples) => samples,
                 Err(SilenceTrimError::NoSpeech | SilenceTrimError::SpeechTooShort) => {
                     return Ok(None);
@@ -253,21 +275,44 @@ impl PreparedRecorder {
             };
         }
 
-        normalize_peak(&mut samples);
+        let duration_ms = audio_duration_ms(&samples, self.sample_rate, self.channels);
+        let encode_started_at = Instant::now();
+        let bytes = self.encode_for_upload(&samples, model_sample_rate, ui_language)?;
 
-        let duration_ms = if self.channels == 0 || self.sample_rate == 0 {
-            0
-        } else {
-            ((samples.len() as f64 / self.channels as f64) / self.sample_rate as f64 * 1000.0)
-                as u64
-        };
+        record_stage(timer, RunStage::Encode, encode_started_at);
 
         Ok(Some(RecordedAudio {
-            bytes: encode_wav_pcm16(&samples, self.sample_rate, self.channels, ui_language)?,
+            bytes,
             duration_ms,
             file_name: "dictation.wav".to_string(),
             started_at,
         }))
+    }
+
+    /// Приводит запись к формату, в котором она уходит провайдеру и ложится в
+    /// историю: моно, PCM16, частота модели распознавания.
+    ///
+    /// Нормализация идёт после ресемплинга: интерполяция может дать отсчёты
+    /// чуть выше исходного пика, и выравнивать громкость до неё означало бы
+    /// клиппинг на выходе.
+    fn encode_for_upload(
+        &self,
+        samples: &[f32],
+        model_sample_rate: Option<u32>,
+        ui_language: EffectiveUiLanguage,
+    ) -> AppResult<Vec<u8>> {
+        let mono = downmix_to_mono(samples, self.channels as usize);
+        let target_rate = output_sample_rate(self.sample_rate, model_sample_rate);
+        // Если ресемплинг не удался, аудио уходит в исходной частоте: потерять
+        // диктовку из-за неудачного пересчёта хуже, чем отправить файл крупнее.
+        let (mut output, output_rate) = match resample_mono(&mono, self.sample_rate, target_rate) {
+            Ok(resampled) => (resampled, target_rate),
+            Err(()) => (mono, self.sample_rate),
+        };
+
+        normalize_peak(&mut output);
+
+        encode_wav_pcm16(&output, output_rate, OUTPUT_CHANNELS, ui_language)
     }
 
     /// Отменяет захват без создания аудио и отбрасывает все сэмплы. Оставляет
@@ -340,10 +385,7 @@ fn trim_silence(
         log_vad_result(app, "noSpeech", input_duration_ms, 0, 0, None);
         return Err(SilenceTrimError::NoSpeech);
     }
-    let mono: Vec<f32> = samples
-        .chunks_exact(channels)
-        .map(|frame| frame.iter().sum::<f32>() / channels as f32)
-        .collect();
+    let mono = downmix_to_mono(&samples, channels);
     let vad_audio = match resample_for_vad(&mono, sample_rate) {
         Ok(audio) => audio,
         Err(error) => {
@@ -582,20 +624,28 @@ fn classify_empty_speech(
 }
 
 fn resample_for_vad(samples: &[f32], source_rate: u32) -> Result<Vec<f32>, SilenceTrimError> {
-    if source_rate == VAD_SAMPLE_RATE || samples.is_empty() {
+    resample_mono(samples, source_rate, VAD_SAMPLE_RATE)
+        .map_err(|()| SilenceTrimError::VadFailed(VadFailureClassification::Resample))
+}
+
+/// Пересчитывает моно-дорожку в другую частоту дискретизации.
+///
+/// Используется и для подготовки входа VAD, и для приведения записи к формату
+/// отправки, поэтому целевая частота — параметр, а не константа.
+fn resample_mono(samples: &[f32], source_rate: u32, target_rate: u32) -> Result<Vec<f32>, ()> {
+    if source_rate == target_rate || samples.is_empty() {
         return Ok(samples.to_vec());
     }
+
     let mut resampler =
-        FftFixedInOut::<f32>::new(source_rate as usize, VAD_SAMPLE_RATE as usize, 1_024, 1)
-            .map_err(|_| SilenceTrimError::VadFailed(VadFailureClassification::Resample))?;
+        FftFixedInOut::<f32>::new(source_rate as usize, target_rate as usize, 1_024, 1)
+            .map_err(|_| ())?;
     let block_size = resampler.input_frames_next();
     let mut output = Vec::new();
     let mut blocks = samples.chunks_exact(block_size);
 
     for block in &mut blocks {
-        let mut channels = resampler
-            .process(&[block], None)
-            .map_err(|_| SilenceTrimError::VadFailed(VadFailureClassification::Resample))?;
+        let mut channels = resampler.process(&[block], None).map_err(|_| ())?;
         output.append(&mut channels.remove(0));
     }
 
@@ -603,11 +653,41 @@ fn resample_for_vad(samples: &[f32], source_rate: u32) -> Result<Vec<f32>, Silen
     if !remainder.is_empty() {
         let mut channels = resampler
             .process_partial(Some(&[remainder]), None)
-            .map_err(|_| SilenceTrimError::VadFailed(VadFailureClassification::Resample))?;
+            .map_err(|_| ())?;
         output.append(&mut channels.remove(0));
     }
 
     Ok(output)
+}
+
+/// Частота, в которую пересчитывается запись перед отправкой.
+///
+/// Никогда не превышает частоту устройства: апсемплинг не добавил бы модели ни
+/// одной новой детали, зато увеличил бы файл и время передачи. Если модель
+/// неизвестна, берётся [`FALLBACK_OUTPUT_SAMPLE_RATE`].
+fn output_sample_rate(device_sample_rate: u32, model_sample_rate: Option<u32>) -> u32 {
+    model_sample_rate
+        .unwrap_or(FALLBACK_OUTPUT_SAMPLE_RATE)
+        .min(device_sample_rate)
+}
+
+/// Сводит чередующиеся каналы в один усреднением кадра.
+fn downmix_to_mono(samples: &[f32], channels: usize) -> Vec<f32> {
+    if channels <= 1 {
+        return samples.to_vec();
+    }
+
+    samples
+        .chunks_exact(channels)
+        .map(|frame| frame.iter().sum::<f32>() / channels as f32)
+        .collect()
+}
+
+/// Записывает длительность локального этапа, если замер ведётся.
+fn record_stage(timer: Option<&RunTimer>, stage: RunStage, started_at: Instant) {
+    if let Some(timer) = timer {
+        timer.record_stage(stage, started_at.elapsed());
+    }
 }
 
 fn build_stream<T>(
@@ -782,5 +862,58 @@ impl AudioSample for i16 {
 impl AudioSample for u16 {
     fn to_f32(&self) -> f32 {
         (*self as f32 - 32768.0) / 32768.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn downsamples_to_model_rate() {
+        assert_eq!(output_sample_rate(48_000, Some(16_000)), 16_000);
+        assert_eq!(output_sample_rate(48_000, Some(24_000)), 24_000);
+    }
+
+    #[test]
+    fn never_upsamples_above_device_rate() {
+        assert_eq!(output_sample_rate(16_000, Some(24_000)), 16_000);
+        assert_eq!(output_sample_rate(8_000, Some(16_000)), 8_000);
+    }
+
+    #[test]
+    fn falls_back_when_model_is_unknown() {
+        assert_eq!(
+            output_sample_rate(48_000, None),
+            FALLBACK_OUTPUT_SAMPLE_RATE
+        );
+    }
+
+    #[test]
+    fn averages_channels_when_downmixing() {
+        let stereo = [1.0, 0.0, 0.5, 0.5];
+
+        assert_eq!(downmix_to_mono(&stereo, 2), vec![0.5, 0.5]);
+    }
+
+    #[test]
+    fn keeps_mono_samples_unchanged() {
+        let mono = [0.25, -0.5];
+
+        assert_eq!(downmix_to_mono(&mono, 1), vec![0.25, -0.5]);
+    }
+
+    #[test]
+    fn resamples_to_expected_length() {
+        let samples = vec![0.0_f32; 48_000];
+        let resampled = resample_mono(&samples, 48_000, 16_000).expect("resampling should succeed");
+
+        // FFT-ресемплер работает блоками, поэтому длина близка к трети, но не
+        // обязана совпадать с ней ровно.
+        assert!(
+            resampled.len().abs_diff(16_000) < 1_024,
+            "unexpected length: {}",
+            resampled.len()
+        );
     }
 }
