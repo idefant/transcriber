@@ -108,6 +108,7 @@ pub fn run() {
             overlay::overlay_notice_mouse_leave,
             shortcut_hook::set_hotkey_capture_active,
             history::get_history_groups,
+            history::get_history_oldest_month,
             history::search_history_records,
             history::delete_history_record,
             history::open_history_audio,

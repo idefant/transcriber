@@ -261,6 +261,9 @@ export default tseslint.config(
         },
       ],
       'import/order': 'off',
+      // Приложение — desktop-оболочка с собственными экранами: автофокус здесь
+      // ставится осознанно, когда поле появляется в ответ на действие пользователя.
+      'jsx-a11y/no-autofocus': 'off',
       'react-refresh/only-export-components': [
         'warn',
         {

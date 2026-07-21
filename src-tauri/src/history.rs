@@ -147,6 +147,16 @@ pub async fn get_history_groups(
     get_history_groups_inner(&app, month.as_deref()).map_err(AppError::into_message)
 }
 
+/// Локальный месяц самой старой записи истории в формате `YYYY-MM` или `None`,
+/// если история пуста. Фронтенд использует его как нижнюю границу выбора
+/// месяца. Асинхронная по той же причине, что и [`get_history_groups`]: команда
+/// вызывается на каждое обновление истории, в том числе во время диктовки, и не
+/// должна занимать главный поток.
+#[tauri::command]
+pub async fn get_history_oldest_month(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    get_history_oldest_month_inner(&app).map_err(AppError::into_message)
+}
+
 /// Асинхронная по той же причине, что и [`get_history_groups`]: страница поиска
 /// содержит до `SEARCH_PAGE_SIZE` записей, и их десериализация не должна
 /// выполняться в главном потоке.
@@ -385,6 +395,18 @@ fn get_history_groups_inner(
     )?;
 
     group_records(records)
+}
+
+fn get_history_oldest_month_inner(app: &tauri::AppHandle) -> AppResult<Option<String>> {
+    let Some(created_at) = db::oldest_created_at(app)? else {
+        return Ok(None);
+    };
+
+    // Записи хранятся в UTC, а месяц истории всегда локальный, поэтому границу
+    // нужно считать по локальному времени самой старой записи.
+    let local = parse_record_time(&created_at);
+
+    Ok(Some(format!("{:04}-{:02}", local.year(), local.month())))
 }
 
 fn search_history_records_inner(

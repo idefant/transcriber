@@ -1,6 +1,8 @@
-.settingsList {
+// Разрыв между секциями заметно больше внутреннего шага настроек,
+// чтобы подзаголовок читался как граница группы.
+.sectionList {
   display: grid;
-  gap: 24px;
+  gap: 36px;
 }
 
 .versionRow {
@@ -28,4 +30,9 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.debugLoggingGroup {
+  display: grid;
+  gap: 12px;
 }

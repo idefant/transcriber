@@ -60,6 +60,7 @@ const HistoryPage: FC = () => {
 
   const monthGroups = useHistoryStore((s) => s.groups);
   const selectedMonth = useHistoryStore((s) => s.selectedMonth);
+  const oldestMonth = useHistoryStore((s) => s.oldestMonth);
   const isMonthLoading = useHistoryStore((s) => s.isLoading);
   const storeLoad = useHistoryStore((s) => s.load);
   const storeSetSelectedMonth = useHistoryStore((s) => s.setSelectedMonth);
@@ -93,6 +94,18 @@ const HistoryPage: FC = () => {
   const [selectedRecordId, setSelectedRecordId] = useState<string>();
 
   const monthPickerValue = useMemo(() => dayjs(`${selectedMonth}-01`), [selectedMonth]);
+
+  // Диапазон выбора месяца: от месяца самой старой записи до текущего.
+  // Пока история пуста, доступен только текущий месяц.
+  const currentMonth = getCurrentMonth();
+  const minMonth = oldestMonth ?? currentMonth;
+  // Строки `YYYY-MM` сравниваются лексикографически так же, как хронологически.
+  const canGoToPreviousMonth = shiftMonth(selectedMonth, -1) >= minMonth;
+  const canGoToNextMonth = shiftMonth(selectedMonth, 1) <= currentMonth;
+  // Границы календаря отключают не только ячейки месяцев, но и стрелки
+  // переключения года в шапке панели.
+  const monthPickerMinDate = useMemo(() => dayjs(`${minMonth}-01`), [minMonth]);
+  const monthPickerMaxDate = useMemo(() => dayjs(`${currentMonth}-01`), [currentMonth]);
 
   const activeDate = useMemo(() => {
     if (preferredDate === null) return;
@@ -306,6 +319,7 @@ const HistoryPage: FC = () => {
                 <Input
                   allowClear
                   aria-label={t('history.searchPlaceholder')}
+                  autoFocus
                   className={styles.searchInput}
                   placeholder={t('history.searchPlaceholder')}
                   prefix={<SearchIcon className={styles.searchIcon} size={16} strokeWidth={2} />}
@@ -322,6 +336,7 @@ const HistoryPage: FC = () => {
                   <Tooltip title={t('history.previousMonth')}>
                     <Button
                       aria-label={t('history.previousMonth')}
+                      disabled={!canGoToPreviousMonth}
                       icon={<ChevronLeftIcon size={16} strokeWidth={2} />}
                       onClick={goToPreviousMonth}
                     />
@@ -329,7 +344,11 @@ const HistoryPage: FC = () => {
                   <DatePicker
                     allowClear={false}
                     className={styles.monthPicker}
+                    classNames={{ popup: { root: styles.monthPickerPopup } }}
                     format={monthFormat}
+                    maxDate={monthPickerMaxDate}
+                    minDate={monthPickerMinDate}
+                    mode="month"
                     picker="month"
                     placeholder={t('history.month')}
                     value={monthPickerValue}
@@ -343,6 +362,7 @@ const HistoryPage: FC = () => {
                   <Tooltip title={t('history.nextMonth')}>
                     <Button
                       aria-label={t('history.nextMonth')}
+                      disabled={!canGoToNextMonth}
                       icon={<ChevronRightIcon size={16} strokeWidth={2} />}
                       onClick={goToNextMonth}
                     />

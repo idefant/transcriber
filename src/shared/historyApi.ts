@@ -6,6 +6,12 @@ export const getHistoryGroups = (month?: string) =>
   invoke<HistoryGroup[]>('get_history_groups', { month });
 
 /**
+ * Локальный месяц самой старой записи истории в формате `YYYY-MM`.
+ * Возвращает `null`, если история пуста.
+ */
+export const getHistoryOldestMonth = () => invoke<string | null>('get_history_oldest_month');
+
+/**
  * Ищет подстроку в тексте распознавания и тексте постобработки по всей истории.
  * Запросы короче трёх символов бэкенд не выполняет и возвращает пустой результат.
  *

@@ -35,6 +35,17 @@
   width: 120px;
 }
 
+.monthPickerPopup {
+  :global {
+    // Панель зафиксирована на месяцах, поэтому год в шапке остаётся подписью:
+    // убираем у кнопки интерактивную подсветку, чтобы она не выглядела кликабельной.
+    .ant-picker-year-btn {
+      pointer-events: none;
+      cursor: default;
+    }
+  }
+}
+
 .searchInput {
   max-width: 360px;
 }

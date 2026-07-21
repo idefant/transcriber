@@ -11,8 +11,6 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import * as settingsApi from '#/shared/settingsApi';
-
 import AboutSettingsTab from './AboutSettingsTab';
 import DesignSettingsTab from './DesignSettingsTab';
 import GeneralSettingsTab from './GeneralSettingsTab';
@@ -119,14 +117,6 @@ const AppSettingsModal: FC = () => {
     }
   };
 
-  const handleOpenDebugLogsFolder = async () => {
-    try {
-      await settingsApi.openDebugLogsFolder();
-    } catch (error) {
-      void messageApi.error(getErrorMessage(error));
-    }
-  };
-
   const handleDeleteProvider = async (providerId: string) => {
     try {
       await deleteProvider(providerId);
@@ -195,19 +185,11 @@ const AppSettingsModal: FC = () => {
       case 'general': {
         return (
           <GeneralSettingsTab
-            isDebugLoggingEnabled={settings.isDebugLoggingEnabled}
             isLaunchAtLoginEnabled={settings.isLaunchAtLoginEnabled}
             isRestoreAudioWhilePausedEnabled={settings.isRestoreAudioWhilePausedEnabled}
             isSilenceTrimmingEnabled={settings.isSilenceTrimmingEnabled}
-            isTelemetryEnabled={settings.isTelemetryEnabled}
             recordingAudioMode={settings.recordingAudioMode}
             triggerMode={settings.triggerMode}
-            onDebugLogsFolderOpen={() => {
-              void handleOpenDebugLogsFolder();
-            }}
-            onDebugLoggingEnabledChange={(isDebugLoggingEnabled) => {
-              void handleSettingsChange({ isDebugLoggingEnabled });
-            }}
             onLaunchAtLoginEnabledChange={(isLaunchAtLoginEnabled) => {
               void handleSettingsChange({ isLaunchAtLoginEnabled });
             }}
@@ -219,9 +201,6 @@ const AppSettingsModal: FC = () => {
             }}
             onSilenceTrimmingEnabledChange={(isSilenceTrimmingEnabled) => {
               void handleSettingsChange({ isSilenceTrimmingEnabled });
-            }}
-            onTelemetryEnabledChange={(isTelemetryEnabled) => {
-              void handleSettingsChange({ isTelemetryEnabled });
             }}
             onTriggerModeChange={(triggerMode) => {
               void handleSettingsChange({ triggerMode });

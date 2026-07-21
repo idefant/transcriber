@@ -1,5 +1,5 @@
 import { type FC } from 'react';
-import { Button, Segmented, Select, Switch } from 'antd';
+import { Segmented, Select, Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import SettingRow from '../SettingRow';
@@ -9,36 +9,26 @@ import styles from './GeneralSettingsTab.module.scss';
 import type { RecordingAudioMode, TriggerMode } from '#/models/Settings';
 
 interface GeneralSettingsTabProps {
-  isDebugLoggingEnabled: boolean;
   isLaunchAtLoginEnabled: boolean;
   isRestoreAudioWhilePausedEnabled: boolean;
   isSilenceTrimmingEnabled: boolean;
-  isTelemetryEnabled: boolean;
-  onDebugLogsFolderOpen: () => void;
-  onDebugLoggingEnabledChange: (value: boolean) => void;
   onLaunchAtLoginEnabledChange: (value: boolean) => void;
   onRecordingAudioModeChange: (value: RecordingAudioMode) => void;
   onRestoreAudioWhilePausedEnabledChange: (value: boolean) => void;
   onSilenceTrimmingEnabledChange: (value: boolean) => void;
-  onTelemetryEnabledChange: (value: boolean) => void;
   recordingAudioMode: RecordingAudioMode;
   triggerMode: TriggerMode;
   onTriggerModeChange: (value: TriggerMode) => void;
 }
 
 const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
-  isDebugLoggingEnabled,
   isLaunchAtLoginEnabled,
   isRestoreAudioWhilePausedEnabled,
   isSilenceTrimmingEnabled,
-  isTelemetryEnabled,
-  onDebugLogsFolderOpen,
-  onDebugLoggingEnabledChange,
   onLaunchAtLoginEnabledChange,
   onRecordingAudioModeChange,
   onRestoreAudioWhilePausedEnabledChange,
   onSilenceTrimmingEnabledChange,
-  onTelemetryEnabledChange,
   recordingAudioMode,
   triggerMode,
   onTriggerModeChange,
@@ -120,32 +110,11 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
       </SettingRow>
 
       <SettingRow
-        description={t('settings.general.telemetry.description')}
-        title={t('settings.general.telemetry.title')}
-      >
-        <Switch checked={isTelemetryEnabled} onChange={onTelemetryEnabledChange} />
-      </SettingRow>
-
-      <SettingRow
         description={t('settings.general.launchAtLogin.description')}
         title={t('settings.general.launchAtLogin.title')}
       >
         <Switch checked={isLaunchAtLoginEnabled} onChange={onLaunchAtLoginEnabledChange} />
       </SettingRow>
-
-      <div className={styles.debugLoggingGroup}>
-        <SettingRow
-          description={t('settings.general.debugLogging.description')}
-          title={t('settings.general.debugLogging.title')}
-        >
-          <Switch checked={isDebugLoggingEnabled} onChange={onDebugLoggingEnabledChange} />
-        </SettingRow>
-        {isDebugLoggingEnabled && (
-          <Button block size="middle" type="primary" onClick={onDebugLogsFolderOpen}>
-            {t('settings.general.debugLogging.openFolder')}
-          </Button>
-        )}
-      </div>
     </div>
   );
 };

@@ -1,0 +1,20 @@
+.section {
+  display: grid;
+  gap: 20px;
+}
+
+.title {
+  padding-bottom: 8px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--app-color-border-secondary);
+}
+
+.body {
+  display: grid;
+  gap: 24px;
+}

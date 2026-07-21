@@ -66,18 +66,9 @@ const en = {
         title: 'Trim silence before transcription',
         description: 'Remove long pauses and skip recordings without enough speech',
       },
-      telemetry: {
-        title: 'Send error reports',
-        description: 'Send only anonymized application errors to help improve Transcriber',
-      },
       launchAtLogin: {
         title: 'Launch at login',
         description: 'Start Transcriber in the background when you sign in to Windows',
-      },
-      debugLogging: {
-        title: 'Enable logging',
-        description: 'Logs are not sent to a server and are only used for debugging.',
-        openFolder: 'Open logs folder',
       },
     },
     design: {
@@ -212,6 +203,11 @@ const en = {
       },
     },
     about: {
+      sections: {
+        version: 'Version and updates',
+        diagnostics: 'Diagnostics',
+        dangerZone: 'Critical actions',
+      },
       version: {
         title: 'Version',
         description: 'Current version of Transcriber',
@@ -235,6 +231,15 @@ const en = {
         canary: 'Canary',
       },
       releaseNotesTitle: "What's new in {{version}}",
+      telemetry: {
+        title: 'Send error reports',
+        description: 'Send only anonymized application errors to help improve Transcriber',
+      },
+      debugLogging: {
+        title: 'Enable logging',
+        description: 'Logs are not sent to a server and are only used for debugging.',
+        openFolder: 'Open logs folder',
+      },
     },
     tests: {
       title: 'Configuration test',
@@ -380,18 +385,9 @@ const ru: typeof en = {
         title: 'Удалять тишину перед распознаванием',
         description: 'Удалять длинные паузы и не отправлять записи без достаточной речи',
       },
-      telemetry: {
-        title: 'Отправлять отчёты об ошибках',
-        description: 'Отправлять только обезличенные ошибки приложения, чтобы улучшать Transcriber',
-      },
       launchAtLogin: {
         title: 'Запускать при входе в Windows',
         description: 'Запускать Transcriber в фоновом режиме после входа в Windows',
-      },
-      debugLogging: {
-        title: 'Включить логирование',
-        description: 'Логи не отправляются на сервер и нужны только для отладки.',
-        openFolder: 'Открыть папку логов',
       },
     },
     design: {
@@ -529,6 +525,11 @@ const ru: typeof en = {
       },
     },
     about: {
+      sections: {
+        version: 'Версия и обновления',
+        diagnostics: 'Диагностика',
+        dangerZone: 'Критические действия',
+      },
       version: {
         title: 'Версия',
         description: 'Текущая версия Transcriber',
@@ -553,6 +554,15 @@ const ru: typeof en = {
         canary: 'Canary',
       },
       releaseNotesTitle: 'Что нового в {{version}}',
+      telemetry: {
+        title: 'Отправлять отчёты об ошибках',
+        description: 'Отправлять только обезличенные ошибки приложения, чтобы улучшать Transcriber',
+      },
+      debugLogging: {
+        title: 'Включить логирование',
+        description: 'Логи не отправляются на сервер и нужны только для отладки.',
+        openFolder: 'Открыть папку логов',
+      },
     },
     tests: {
       title: 'Тест конфигурации',

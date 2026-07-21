@@ -47,6 +47,11 @@ export type HistoryViewMode = 'month' | 'search';
 interface HistoryState {
   groups: HistoryGroup[];
   selectedMonth: string;
+  /**
+   * Месяц самой старой записи (`YYYY-MM`) — нижняя граница выбора месяца.
+   * `null`, пока история пуста или граница ещё не загружена.
+   */
+  oldestMonth: string | null;
   isLoading: boolean;
   viewMode: HistoryViewMode;
   /** Сырой текст поля ввода. Живёт в сторе, чтобы пережить уход со страницы истории. */
@@ -86,6 +91,7 @@ const emptySearchState = {
 export const useHistoryStore = create<HistoryState>((set, get) => ({
   groups: [],
   selectedMonth: getCurrentMonth(),
+  oldestMonth: null,
   isLoading: false,
   viewMode: 'month',
   searchPageSize: defaultSearchPageSize,
@@ -97,8 +103,14 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       set({ isLoading: true });
     }
     try {
-      const groups = await historyApi.getHistoryGroups(targetMonth);
-      set({ groups });
+      // Границу выбора месяца обновляем вместе с записями: она меняется при
+      // появлении первой записи и при удалении самой старой, а оба случая
+      // приходят сюда же через событие history-updated.
+      const [groups, oldestMonth] = await Promise.all([
+        historyApi.getHistoryGroups(targetMonth),
+        historyApi.getHistoryOldestMonth(),
+      ]);
+      set({ groups, oldestMonth });
     } finally {
       if (!options.silent) {
         set({ isLoading: false });

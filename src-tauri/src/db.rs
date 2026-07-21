@@ -184,6 +184,22 @@ pub fn latest_data(app: &tauri::AppHandle) -> AppResult<Option<String>> {
     })
 }
 
+/// `created_at` самой старой записи или `None`, если история пуста.
+/// Возвращается только эта колонка: разбирать `data` ради нижней границы
+/// выбора месяца не нужно.
+pub fn oldest_created_at(app: &tauri::AppHandle) -> AppResult<Option<String>> {
+    with_connection(app, |connection| {
+        connection
+            .query_row(
+                "SELECT created_at FROM history_records ORDER BY created_at ASC LIMIT 1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(to_app_error)
+    })
+}
+
 /// JSON всех записей за полуоткрытый UTC-интервал в порядке убывания
 /// `created_at`. При `None` возвращает всю историю в том же порядке.
 pub fn list_data(
