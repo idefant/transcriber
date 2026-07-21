@@ -202,6 +202,7 @@ pub async fn list_provider_models(
 pub struct OpenRouterProviderOption {
     label: String,
     value: String,
+    supports_priority_processing: bool,
 }
 
 #[tauri::command]
@@ -423,6 +424,12 @@ async fn request_openrouter_model_providers(
             i18n::text_for_language(language, "provider-response-unsupported-models", &[])
         })?;
 
+    let priority_provider_tags = endpoints
+        .iter()
+        .filter_map(|endpoint| endpoint.get("tag").and_then(serde_json::Value::as_str))
+        .filter_map(|tag| tag.strip_suffix("/priority"))
+        .collect::<std::collections::HashSet<_>>();
+
     let mut seen = std::collections::HashSet::new();
     let mut options = Vec::new();
 
@@ -444,6 +451,7 @@ async fn request_openrouter_model_providers(
         options.push(OpenRouterProviderOption {
             label: endpoint_label(provider_name, tag),
             value: tag.to_string(),
+            supports_priority_processing: priority_provider_tags.contains(tag),
         });
     }
 

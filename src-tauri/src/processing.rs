@@ -76,6 +76,12 @@ pub struct PostProcessConfig {
     /// Предпочтительный апстрим-провайдер OpenRouter (slug). `None` означает «Авто».
     #[serde(default)]
     pub openrouter_provider: Option<String>,
+    /// Включает приоритетную обработку для поддерживаемой связки провайдера и модели.
+    #[serde(default)]
+    pub priority_processing: bool,
+    /// Разрешает OpenRouter переключаться на другой апстрим-провайдер при ошибке выбранного.
+    #[serde(default)]
+    pub openrouter_allow_fallbacks: bool,
 }
 
 impl PostProcessConfig {
@@ -194,6 +200,8 @@ pub struct PostProcessConfigInput {
     user_prompt_template: NullableInput<String>,
     #[serde(default)]
     openrouter_provider: NullableInput<String>,
+    priority_processing: Option<bool>,
+    openrouter_allow_fallbacks: Option<bool>,
 }
 
 // ── Команды Tauri ──────────────────────────────────────────────────────────────
@@ -293,6 +301,14 @@ fn update_post_process_config_inner(
         &mut config.post_process.openrouter_provider,
         input.openrouter_provider,
     );
+
+    if let Some(priority_processing) = input.priority_processing {
+        config.post_process.priority_processing = priority_processing;
+    }
+
+    if let Some(openrouter_allow_fallbacks) = input.openrouter_allow_fallbacks {
+        config.post_process.openrouter_allow_fallbacks = openrouter_allow_fallbacks;
+    }
 
     normalize_processing_config(app, &mut config)?;
     save_processing_config(app, &config)?;

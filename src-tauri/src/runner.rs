@@ -77,6 +77,8 @@ pub struct PostProcessSettingsSnapshot {
     pub system_prompt: String,
     pub user_prompt_template: String,
     pub openrouter_provider: Option<String>,
+    pub priority_processing: bool,
+    pub openrouter_allow_fallbacks: bool,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -446,6 +448,10 @@ pub async fn run_post_process_with_snapshot(
         body["include_reasoning"] = serde_json::json!(include_reasoning);
     }
 
+    if snapshot.priority_processing {
+        body["service_tier"] = serde_json::json!("priority");
+    }
+
     if matches!(snapshot.provider.provider_kind, ProviderKind::Openrouter) {
         if let Some(upstream_provider) = snapshot
             .openrouter_provider
@@ -455,7 +461,7 @@ pub async fn run_post_process_with_snapshot(
         {
             body["provider"] = serde_json::json!({
                 "order": [upstream_provider],
-                "allow_fallbacks": true,
+                "allow_fallbacks": snapshot.openrouter_allow_fallbacks,
             });
         }
     }
@@ -762,6 +768,10 @@ pub fn build_post_process_snapshot(
         system_prompt: post_process.effective_system_prompt(&ui_language)?,
         user_prompt_template: post_process.effective_user_template()?,
         openrouter_provider: post_process.openrouter_provider.clone(),
+        priority_processing: post_process.priority_processing
+            && (credentials.kind == ProviderKind::Openrouter
+                || model.supports_priority_processing(credentials.kind)),
+        openrouter_allow_fallbacks: post_process.openrouter_allow_fallbacks,
     })
 }
 

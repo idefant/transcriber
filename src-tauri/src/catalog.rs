@@ -56,6 +56,16 @@ impl CuratedModel {
     pub fn entry_for(&self, provider: ProviderKind) -> Option<&ProviderApiEntry> {
         self.entries.iter().find(|entry| entry.provider == provider)
     }
+
+    /// Поддерживает ли связка модели и прямого провайдера приоритетную обработку.
+    pub fn supports_priority_processing(&self, provider: ProviderKind) -> bool {
+        self.task == ModelTask::PostProcess
+            && provider == ProviderKind::Openai
+            && matches!(
+                self.key,
+                "gpt-4o-mini" | "gpt-4-1-mini" | "gpt-5-mini" | "gpt-5-4-mini"
+            )
+    }
 }
 
 #[derive(Serialize)]
@@ -75,6 +85,7 @@ pub struct ProviderModelInfo {
     pub api_id: &'static str,
     pub provider: ProviderKind,
     pub is_recommended: bool,
+    pub supports_priority_processing: bool,
 }
 
 pub fn curated_models() -> Vec<CuratedModel> {
@@ -516,11 +527,13 @@ pub fn get_model_catalog() -> Vec<CuratedModelInfo> {
             provider_kinds: model.entries.iter().map(|e| e.provider).collect(),
             provider_entries: model
                 .entries
-                .into_iter()
+                .iter()
                 .map(|entry| ProviderModelInfo {
                     api_id: entry.api_id,
                     provider: entry.provider,
                     is_recommended: entry.is_recommended,
+                    supports_priority_processing: model
+                        .supports_priority_processing(entry.provider),
                 })
                 .collect(),
             stt_prompt_token_limit: match model.params {

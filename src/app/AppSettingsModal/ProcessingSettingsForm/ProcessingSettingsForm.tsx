@@ -222,7 +222,13 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
     if (isStt) {
       void updateSttConfig({ modelKey: null, providerId });
     } else {
-      void updatePostProcessConfig({ modelKey: null, openrouterProvider: null, providerId });
+      void updatePostProcessConfig({
+        modelKey: null,
+        openrouterAllowFallbacks: false,
+        openrouterProvider: null,
+        priorityProcessing: false,
+        providerId,
+      });
     }
   };
 
@@ -230,15 +236,35 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
     if (isStt) {
       void updateSttConfig({ modelKey });
     } else {
-      void updatePostProcessConfig({ modelKey, openrouterProvider: null });
+      void updatePostProcessConfig({
+        modelKey,
+        openrouterAllowFallbacks: false,
+        openrouterProvider: null,
+        priorityProcessing: false,
+      });
     }
   };
 
   const handleOpenrouterProviderChange = (value: string) => {
     void updatePostProcessConfig({
+      openrouterAllowFallbacks: false,
       openrouterProvider: value === AUTO_OPENROUTER_PROVIDER ? null : value,
+      priorityProcessing: false,
     });
   };
+
+  const selectedOpenRouterProvider = sortedOpenrouterProviderOptions.find(
+    (option) => option.value === config.postProcess.openrouterProvider,
+  );
+  const selectedModelProviderEntry = catalog
+    .find((model) => model.key === selectedModelKey)
+    ?.providerEntries.find((entry) => entry.provider === selectedProvider?.provider);
+  const supportsPriorityProcessing =
+    !isStt &&
+    selectedModelKey !== undefined &&
+    (selectedProvider?.provider === 'openai'
+      ? selectedModelProviderEntry?.supportsPriorityProcessing === true
+      : selectedOpenRouterProvider?.supportsPriorityProcessing === true);
 
   const handleLanguageChange = (language: string) => {
     void updateSttConfig({ language });
@@ -330,23 +356,53 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
       </div>
 
       {isOpenRouterSelected && selectedModelKey !== undefined && (
-        <Form.Item label={t('settings.processing.openrouterProvider')}>
-          <Select
-            loading={isLoadingOpenrouterProviders}
-            options={[
-              {
-                label: t('settings.processing.openrouterProviderAuto'),
-                value: AUTO_OPENROUTER_PROVIDER,
-              },
-              ...sortedOpenrouterProviderOptions,
-            ]}
-            showSearch={{
-              filterOption: (input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase()),
-            }}
-            value={config.postProcess.openrouterProvider ?? AUTO_OPENROUTER_PROVIDER}
-            onChange={handleOpenrouterProviderChange}
-          />
+        <>
+          <Form.Item label={t('settings.processing.openrouterProvider')}>
+            <Select
+              loading={isLoadingOpenrouterProviders}
+              options={[
+                {
+                  label: t('settings.processing.openrouterProviderAuto'),
+                  value: AUTO_OPENROUTER_PROVIDER,
+                },
+                ...sortedOpenrouterProviderOptions,
+              ]}
+              showSearch={{
+                filterOption: (input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase()),
+              }}
+              value={config.postProcess.openrouterProvider ?? AUTO_OPENROUTER_PROVIDER}
+              onChange={handleOpenrouterProviderChange}
+            />
+          </Form.Item>
+
+          {config.postProcess.openrouterProvider !== null && (
+            <Form.Item>
+              <div className={styles.switchRow}>
+                <Switch
+                  checked={config.postProcess.openrouterAllowFallbacks}
+                  onChange={(openrouterAllowFallbacks) =>
+                    void updatePostProcessConfig({ openrouterAllowFallbacks })
+                  }
+                />
+                <span>{t('settings.processing.openrouterAllowFallbacks')}</span>
+              </div>
+            </Form.Item>
+          )}
+        </>
+      )}
+
+      {supportsPriorityProcessing && (
+        <Form.Item>
+          <div className={styles.switchRow}>
+            <Switch
+              checked={config.postProcess.priorityProcessing}
+              onChange={(priorityProcessing) =>
+                void updatePostProcessConfig({ priorityProcessing })
+              }
+            />
+            <span>{t('settings.processing.priorityProcessing')}</span>
+          </div>
         </Form.Item>
       )}
 

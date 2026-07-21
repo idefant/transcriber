@@ -7,6 +7,7 @@ export interface ModelInfo {
 
 export interface OpenRouterProviderOption {
   label: string;
+  supportsPriorityProcessing: boolean;
   value: string;
 }
 

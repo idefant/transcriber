@@ -6,6 +6,7 @@ export interface CuratedModelProviderEntry {
   apiId: string;
   isRecommended: boolean;
   provider: ProviderKind;
+  supportsPriorityProcessing: boolean;
 }
 
 export interface CuratedModelInfo {

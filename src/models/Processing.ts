@@ -9,7 +9,9 @@ export interface SttConfig {
 export interface PostProcessConfig {
   enabled: boolean;
   modelKey: string | null;
+  openrouterAllowFallbacks: boolean;
   openrouterProvider: string | null;
+  priorityProcessing: boolean;
   providerId: string | null;
   systemPrompt: string | null;
   useCustomPrompts: boolean;
