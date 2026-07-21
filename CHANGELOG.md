@@ -7,14 +7,29 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-21
+
 ### Added
 
+- Silence is now removed from a recording before it is sent for recognition. Transcriber detects speech locally, drops pauses longer than 1.2 s and keeps 0.35 s of padding around every speech segment, so recognition gets shorter audio and providers charge for less of it. If no speech is found, nothing is sent and no history record is created. The "Trim silence before recognition" setting is on by default and can be turned off to send the whole recording.
+- A pause hotkey can now suspend an in-progress dictation and resume it with the same combination. While paused the microphone is released and the overlay shows a paused state; resuming appends new audio to what was already recorded, separated by 0.5 s of silence regardless of how long the pause lasted. Stopping the dictation from a pause sends everything recorded so far. The hotkey is unset by default and is available only in the press-to-start trigger mode.
 - Audio during recording can now be paused instead of muted: Transcriber stops playback before recording starts and resumes it afterwards. It only resumes what it paused itself, so manually resuming or changing a track during a dictation is never overridden. The mode covers apps that report playback to Windows, such as media players and browsers; games, calls, and system notifications keep playing, and the mute mode still covers those.
-- A "Restore audio while paused" setting, on by default, brings audio back while a dictation is paused and applies the chosen mode again when recording continues. Turn it off to keep audio silent for the whole session. The setting is hidden when audio is left alone during recording.
+- A "Restore audio while paused" setting, on by default, brings audio back while a dictation is paused and applies the chosen mode again when recording continues. Turn it off to keep audio silent for the whole session. The setting is hidden when audio is left alone during recording, and it is disabled with an explanation in the hold-to-record trigger mode, where pausing is not supported.
+- History can now be searched by text. Search looks through the recognized and post-processed text of every record regardless of month, is case-insensitive, starts from three characters, highlights the matches in both the list and the detail panel, and pages results by 100. The search stays open with its query and results when you leave the history screen and come back.
+- Post-processing through OpenRouter can now target a specific upstream provider instead of letting OpenRouter choose. The list is fetched per model, supports search, distinguishes variants that differ by region or quantization (for example `Google (eu)` and `Google (global)`), and falls back to another provider if the preferred one is unavailable. The upstream provider that actually served a request is shown in the history detail panel when OpenRouter reports it.
+- Groq Whisper models now show how much of their 224-token prompt limit the system prompt plus dictionary takes, under both the prompt field and the dictionary list. If the limit is exceeded, dictation does not start and the speech-to-text test is blocked instead of sending a silently truncated prompt; on Windows the notification opens the Dictionary page.
+- Anonymous crash reporting, on by default and switchable on the About tab. Reports carry only technical diagnostics — no dictation text, audio, provider settings, API keys, response bodies, IP address, or session replays.
+- An unhandled error in the app interface now shows a recovery screen with a restart action instead of a blank window, and states when the crash report was delivered.
+- A new "Appearance" settings tab holding theme, interface language, and the recording overlay options.
+- Qwen 3.6 35B A3B is available for post-processing through OpenRouter.
 
 ### Changed
 
 - "Mute audio while recording" became "Audio while recording" and now offers three modes: mute the output device (the previous behavior, still the default), pause playback, or leave audio alone. The existing setting is migrated automatically.
+- Settings were regrouped. The General tab now holds the recording trigger mode, audio behavior during recording, silence trimming, and launch at login; theme, language, and overlay options moved to the new Appearance tab; debug logging and crash reporting moved to the About tab, which is now split into "Version and updates", "Diagnostics", and "Critical actions".
+- Left-clicking the tray icon now brings the window to the front when another window covers it, and only hides it to the tray when it is already the topmost window. Always-on-top windows, including the hidden-tray-icons flyout, no longer count as covering the app.
+- The month picker in history is limited to the range that actually contains records, and only allows picking a month — the year and decade views are gone.
+- The provider and model selects in the post-processing settings now sit on one row.
 
 ## [0.1.2] - 2026-07-13
 
