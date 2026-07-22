@@ -49,8 +49,6 @@ const PostProcessTestPanel: FC = () => {
 
   return (
     <div className={styles.panel}>
-      <Typography.Text strong>{t('settings.tests.title')}</Typography.Text>
-
       <Input.TextArea
         className={styles.inputText}
         placeholder={t('settings.tests.inputPlaceholder')}

@@ -67,7 +67,7 @@ const PromptField: FC<PromptFieldProps> = ({
   };
 
   return (
-    <Form.Item className={styles.field}>
+    <Form.Item>
       <div className={styles.headerRow}>
         <Typography.Text>{label}</Typography.Text>
         {enabled && onReset && resetLabel && (

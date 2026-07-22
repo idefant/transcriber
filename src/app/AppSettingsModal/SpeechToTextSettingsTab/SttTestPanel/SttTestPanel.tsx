@@ -140,8 +140,6 @@ const SttTestPanel: FC = () => {
 
   return (
     <div className={styles.panel}>
-      <Typography.Text strong>{t('settings.tests.title')}</Typography.Text>
-
       <Space wrap>
         {isRecording ? (
           <Button

@@ -3,12 +3,17 @@
   gap: 20px;
 }
 
+// Подзаголовок берёт основной цвет текста, а не приглушённый: рядом стоят подписи
+// полей и заголовки строк настроек обычного размера, и на приглушённом цвете
+// подзаголовок оказывался светлее собственного содержимого. Верхний уровень
+// иерархии здесь задают капитель и разрядка, а не кегль, поэтому он остаётся
+// мельче `h3` из `SettingRow`.
 .title {
   padding-bottom: 8px;
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--app-color-text-tertiary);
+  color: var(--app-color-text);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   border-bottom: 1px solid var(--app-color-border-secondary);
@@ -17,4 +22,15 @@
 .body {
   display: grid;
   gap: 24px;
+}
+
+// Плотный вариант для секций с полями формы. Шаг между полями задаёт antd через
+// `itemMarginBottom`, поэтому секция берёт его же значение вместо собственного:
+// иначе grid-gap перебивает тему и расстояние между полями удваивается.
+.compact {
+  gap: 12px;
+
+  .body {
+    gap: var(--ant-form-item-margin-bottom, 12px);
+  }
 }

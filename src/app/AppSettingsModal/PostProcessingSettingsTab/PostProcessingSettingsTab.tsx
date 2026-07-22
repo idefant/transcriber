@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import ProcessingSettingsForm from '../ProcessingSettingsForm';
 import SettingRow from '../SettingRow';
+import SettingsSection from '../SettingsSection';
 
 import PostProcessTestPanel from './PostProcessTestPanel';
 
@@ -16,7 +17,7 @@ const PostProcessingSettingsTab: FC = () => {
   const { t } = useTranslation();
 
   return (
-    <div className={styles.settingsTab}>
+    <div className={styles.sectionList}>
       <SettingRow
         description={t('settings.postProcessing.enabled.description')}
         title={t('settings.postProcessing.enabled.title')}
@@ -32,7 +33,10 @@ const PostProcessingSettingsTab: FC = () => {
       {config.postProcess.enabled && (
         <>
           <ProcessingSettingsForm task="postProcess" />
-          <PostProcessTestPanel />
+
+          <SettingsSection compact title={t('settings.tests.title')}>
+            <PostProcessTestPanel />
+          </SettingsSection>
         </>
       )}
     </div>

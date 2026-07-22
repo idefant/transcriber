@@ -8,6 +8,8 @@ import SttPromptLimitAlert from '#/app/SttPromptLimitAlert';
 import * as providersApi from '#/shared/providersApi';
 import { routes } from '#/shared/routes';
 
+import SettingsSection from '../SettingsSection';
+
 import PromptField from './PromptField';
 
 import styles from './ProcessingSettingsForm.module.scss';
@@ -324,158 +326,162 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
   }
 
   return (
-    <Form disabled={disabled} layout="vertical">
-      <div className={styles.modelProviderRow}>
-        <Form.Item
-          className={styles.field}
-          label={t('settings.processing.provider')}
-          validateStatus={isProviderMissing ? 'error' : undefined}
-        >
-          <Select
-            options={providerOptions}
-            placeholder={t('settings.processing.providerPlaceholder')}
-            value={selectedProviderId}
-            onChange={handleProviderChange}
-          />
-        </Form.Item>
-
-        <Form.Item
-          className={styles.field}
-          label={t('settings.processing.model')}
-          validateStatus={isModelMissing ? 'error' : undefined}
-        >
-          <Select
-            disabled={selectedProviderId === undefined}
-            notFoundContent={t('settings.processing.noModels')}
-            options={modelOptions}
-            placeholder={t('settings.processing.modelPlaceholder')}
-            value={selectedModelKey}
-            onChange={handleModelChange}
-          />
-        </Form.Item>
-      </div>
-
-      {isOpenRouterSelected && selectedModelKey !== undefined && (
-        <>
-          <Form.Item label={t('settings.processing.openrouterProvider')}>
+    <Form className={styles.form} disabled={disabled} layout="vertical">
+      <SettingsSection compact title={t('settings.processing.sections.model')}>
+        <div className={styles.modelProviderRow}>
+          <Form.Item
+            className={styles.field}
+            label={t('settings.processing.provider')}
+            validateStatus={isProviderMissing ? 'error' : undefined}
+          >
             <Select
-              loading={isLoadingOpenrouterProviders}
-              options={[
-                {
-                  label: t('settings.processing.openrouterProviderAuto'),
-                  value: AUTO_OPENROUTER_PROVIDER,
-                },
-                ...sortedOpenrouterProviderOptions,
-              ]}
-              showSearch={{
-                filterOption: (input, option) =>
-                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase()),
-              }}
-              value={config.postProcess.openrouterProvider ?? AUTO_OPENROUTER_PROVIDER}
-              onChange={handleOpenrouterProviderChange}
+              options={providerOptions}
+              placeholder={t('settings.processing.providerPlaceholder')}
+              value={selectedProviderId}
+              onChange={handleProviderChange}
             />
           </Form.Item>
 
-          {config.postProcess.openrouterProvider !== null && (
-            <Form.Item>
-              <div className={styles.switchRow}>
-                <Switch
-                  checked={config.postProcess.openrouterAllowFallbacks}
-                  onChange={(openrouterAllowFallbacks) =>
-                    void updatePostProcessConfig({ openrouterAllowFallbacks })
-                  }
-                />
-                <span>{t('settings.processing.openrouterAllowFallbacks')}</span>
-              </div>
-            </Form.Item>
-          )}
-        </>
-      )}
+          <Form.Item
+            className={styles.field}
+            label={t('settings.processing.model')}
+            validateStatus={isModelMissing ? 'error' : undefined}
+          >
+            <Select
+              disabled={selectedProviderId === undefined}
+              notFoundContent={t('settings.processing.noModels')}
+              options={modelOptions}
+              placeholder={t('settings.processing.modelPlaceholder')}
+              value={selectedModelKey}
+              onChange={handleModelChange}
+            />
+          </Form.Item>
+        </div>
 
-      {supportsPriorityProcessing && (
+        {isOpenRouterSelected && selectedModelKey !== undefined && (
+          <>
+            <Form.Item label={t('settings.processing.openrouterProvider')}>
+              <Select
+                loading={isLoadingOpenrouterProviders}
+                options={[
+                  {
+                    label: t('settings.processing.openrouterProviderAuto'),
+                    value: AUTO_OPENROUTER_PROVIDER,
+                  },
+                  ...sortedOpenrouterProviderOptions,
+                ]}
+                showSearch={{
+                  filterOption: (input, option) =>
+                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase()),
+                }}
+                value={config.postProcess.openrouterProvider ?? AUTO_OPENROUTER_PROVIDER}
+                onChange={handleOpenrouterProviderChange}
+              />
+            </Form.Item>
+
+            {config.postProcess.openrouterProvider !== null && (
+              <Form.Item>
+                <div className={styles.switchRow}>
+                  <Switch
+                    checked={config.postProcess.openrouterAllowFallbacks}
+                    onChange={(openrouterAllowFallbacks) =>
+                      void updatePostProcessConfig({ openrouterAllowFallbacks })
+                    }
+                  />
+                  <span>{t('settings.processing.openrouterAllowFallbacks')}</span>
+                </div>
+              </Form.Item>
+            )}
+          </>
+        )}
+
+        {supportsPriorityProcessing && (
+          <Form.Item>
+            <div className={styles.switchRow}>
+              <Switch
+                checked={config.postProcess.priorityProcessing}
+                onChange={(priorityProcessing) =>
+                  void updatePostProcessConfig({ priorityProcessing })
+                }
+              />
+              <span>{t('settings.processing.priorityProcessing')}</span>
+            </div>
+          </Form.Item>
+        )}
+
+        {isStt && (
+          <Form.Item label={t('settings.processing.language')}>
+            <Select
+              options={languageOptions}
+              placeholder={t('settings.processing.languagePlaceholder')}
+              value={config.stt.language}
+              onChange={handleLanguageChange}
+            />
+          </Form.Item>
+        )}
+      </SettingsSection>
+
+      <SettingsSection compact title={t('settings.processing.sections.prompts')}>
         <Form.Item>
           <div className={styles.switchRow}>
-            <Switch
-              checked={config.postProcess.priorityProcessing}
-              onChange={(priorityProcessing) =>
-                void updatePostProcessConfig({ priorityProcessing })
-              }
-            />
-            <span>{t('settings.processing.priorityProcessing')}</span>
+            <Switch checked={useCustomPrompts} onChange={handleUseCustomPromptsChange} />
+            <span>{t('settings.processing.useCustomPrompts')}</span>
           </div>
         </Form.Item>
-      )}
 
-      {isStt && (
-        <Form.Item label={t('settings.processing.language')}>
-          <Select
-            options={languageOptions}
-            placeholder={t('settings.processing.languagePlaceholder')}
-            value={config.stt.language}
-            onChange={handleLanguageChange}
-          />
-        </Form.Item>
-      )}
-
-      <Form.Item>
-        <div className={styles.switchRow}>
-          <Switch checked={useCustomPrompts} onChange={handleUseCustomPromptsChange} />
-          <span>{t('settings.processing.useCustomPrompts')}</span>
-        </div>
-      </Form.Item>
-
-      {defaultPrompts !== undefined && (
-        <>
-          <PromptField
-            key={`${task}-system-${String(useCustomPrompts)}-${defaultSystemPrompt}`}
-            defaultValue={defaultSystemPrompt}
-            disabled={disabled}
-            enabled={useCustomPrompts}
-            label={t('settings.processing.systemPrompt')}
-            placeholder={t('settings.processing.systemPromptPlaceholder')}
-            resetLabel={t('settings.processing.resetPrompt')}
-            storedValue={currentConfig.systemPrompt}
-            onPersist={persistSystemPrompt}
-            onReset={resetSystemPrompt}
-            onValueChange={isStt ? setSttSystemPromptDraft : undefined}
-          />
-
-          {isStt && (
-            <SttPromptLimitAlert
-              action={
-                <Button
-                  size="small"
-                  type="primary"
-                  onClick={() => {
-                    closeSettings();
-                    void navigate(routes.dictionary);
-                  }}
-                >
-                  {t('settings.processing.openDictionary')}
-                </Button>
-              }
-              draftSystemPrompt={useCustomPrompts ? sttSystemPromptDraft : undefined}
-              exceededDescription={t('settings.processing.sttPromptLimitExceededDescription')}
-            />
-          )}
-
-          {!isStt && (
+        {defaultPrompts !== undefined && (
+          <>
             <PromptField
-              key={`post-process-user-${String(useCustomPrompts)}-${defaultUserPromptTemplate}`}
-              defaultValue={defaultUserPromptTemplate}
+              key={`${task}-system-${String(useCustomPrompts)}-${defaultSystemPrompt}`}
+              defaultValue={defaultSystemPrompt}
               disabled={disabled}
               enabled={useCustomPrompts}
-              hint={t('settings.processing.userPromptTemplateHint')}
-              label={t('settings.processing.userPromptTemplate')}
-              placeholder={t('settings.processing.userPromptTemplatePlaceholder')}
+              label={t('settings.processing.systemPrompt')}
+              placeholder={t('settings.processing.systemPromptPlaceholder')}
               resetLabel={t('settings.processing.resetPrompt')}
-              storedValue={config.postProcess.userPromptTemplate}
-              onPersist={persistUserPromptTemplate}
-              onReset={resetUserPromptTemplate}
+              storedValue={currentConfig.systemPrompt}
+              onPersist={persistSystemPrompt}
+              onReset={resetSystemPrompt}
+              onValueChange={isStt ? setSttSystemPromptDraft : undefined}
             />
-          )}
-        </>
-      )}
+
+            {isStt && (
+              <SttPromptLimitAlert
+                action={
+                  <Button
+                    size="small"
+                    type="primary"
+                    onClick={() => {
+                      closeSettings();
+                      void navigate(routes.dictionary);
+                    }}
+                  >
+                    {t('settings.processing.openDictionary')}
+                  </Button>
+                }
+                draftSystemPrompt={useCustomPrompts ? sttSystemPromptDraft : undefined}
+                exceededDescription={t('settings.processing.sttPromptLimitExceededDescription')}
+              />
+            )}
+
+            {!isStt && (
+              <PromptField
+                key={`post-process-user-${String(useCustomPrompts)}-${defaultUserPromptTemplate}`}
+                defaultValue={defaultUserPromptTemplate}
+                disabled={disabled}
+                enabled={useCustomPrompts}
+                hint={t('settings.processing.userPromptTemplateHint')}
+                label={t('settings.processing.userPromptTemplate')}
+                placeholder={t('settings.processing.userPromptTemplatePlaceholder')}
+                resetLabel={t('settings.processing.resetPrompt')}
+                storedValue={config.postProcess.userPromptTemplate}
+                onPersist={persistUserPromptTemplate}
+                onReset={resetUserPromptTemplate}
+              />
+            )}
+          </>
+        )}
+      </SettingsSection>
     </Form>
   );
 };

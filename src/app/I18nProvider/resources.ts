@@ -164,6 +164,10 @@ const en = {
       },
     },
     processing: {
+      sections: {
+        model: 'Model',
+        prompts: 'Prompts',
+      },
       noProviders: 'Add a provider first',
       provider: 'Provider',
       providerPlaceholder: 'Choose provider',
@@ -486,6 +490,10 @@ const ru: typeof en = {
       },
     },
     processing: {
+      sections: {
+        model: 'Модель',
+        prompts: 'Промпты',
+      },
       noProviders: 'Сначала добавьте провайдера',
       provider: 'Провайдер',
       providerPlaceholder: 'Выберите провайдера',
