@@ -1,4 +1,4 @@
-import { type FC, useEffect, useMemo, useState } from 'react';
+import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
@@ -235,28 +235,34 @@ const HistoryPage: FC = () => {
     });
   };
 
-  const copyText = async (text: string | null) => {
-    if (text === null) {
-      return;
-    }
+  const copyText = useCallback(
+    async (text: string | null) => {
+      if (text === null) {
+        return;
+      }
 
-    try {
-      await navigator.clipboard.writeText(text);
-      void messageApi.success(t('history.copySuccess'));
-    } catch (error) {
-      void messageApi.error(getErrorMessage(error));
-    }
-  };
+      try {
+        await navigator.clipboard.writeText(text);
+        void messageApi.success(t('history.copySuccess'));
+      } catch (error) {
+        void messageApi.error(getErrorMessage(error));
+      }
+    },
+    [messageApi, t],
+  );
 
-  const handleDeleteRecord = async (record: HistoryRecord) => {
-    try {
-      await historyApi.deleteHistoryRecord(record.id);
-      storeRemoveRecord(record.id);
-      setSelectedRecordId((current) => (current === record.id ? undefined : current));
-    } catch (error) {
-      void messageApi.error(getErrorMessage(error));
-    }
-  };
+  const handleDeleteRecord = useCallback(
+    async (record: HistoryRecord) => {
+      try {
+        await historyApi.deleteHistoryRecord(record.id);
+        storeRemoveRecord(record.id);
+        setSelectedRecordId((current) => (current === record.id ? undefined : current));
+      } catch (error) {
+        void messageApi.error(getErrorMessage(error));
+      }
+    },
+    [messageApi, storeRemoveRecord],
+  );
 
   const handleOpenAudio = async (record: HistoryRecord) => {
     try {
@@ -270,17 +276,20 @@ const HistoryPage: FC = () => {
   // Обновления записи приходят через событие history-updated → historyStore.mergeRecord → обновление groups
   // → selectedRecord автоматически пересчитывается из стора через useMemo.
 
-  const handleRepeatRecord = async (record: HistoryRecord) => {
-    setProcessingRecordId(record.id);
+  const handleRepeatRecord = useCallback(
+    async (record: HistoryRecord) => {
+      setProcessingRecordId(record.id);
 
-    try {
-      await historyApi.repeatHistoryRecord(record.id);
-    } catch (error) {
-      void messageApi.error(getErrorMessage(error));
-    } finally {
-      setProcessingRecordId(undefined);
-    }
-  };
+      try {
+        await historyApi.repeatHistoryRecord(record.id);
+      } catch (error) {
+        void messageApi.error(getErrorMessage(error));
+      } finally {
+        setProcessingRecordId(undefined);
+      }
+    },
+    [messageApi],
+  );
 
   const handleRepeatTranscription = async (record: HistoryRecord) => {
     setProcessingRecordId(record.id);
@@ -305,6 +314,38 @@ const HistoryPage: FC = () => {
       setProcessingRecordId(undefined);
     }
   };
+
+  // Стабильные ссылки для пропсов `HistoryRecordsList`: только так срабатывает
+  // `memo` на списке и его строках — иначе смена выбранной записи перерисовывала
+  // бы все строки дня целиком.
+  const handleListActiveDateChange = useCallback((date: string | null) => {
+    setPreferredDate(date);
+  }, []);
+
+  const handleListRecordSelect = useCallback((record: HistoryRecord) => {
+    setSelectedRecordId(record.id);
+  }, []);
+
+  const handleListCopyRecordText = useCallback(
+    (record: HistoryRecord) => {
+      void copyText(getRecordTextForCopy(record));
+    },
+    [copyText],
+  );
+
+  const handleListDeleteRecord = useCallback(
+    (record: HistoryRecord) => {
+      void handleDeleteRecord(record);
+    },
+    [handleDeleteRecord],
+  );
+
+  const handleListRepeatTranscription = useCallback(
+    (record: HistoryRecord) => {
+      void handleRepeatRecord(record);
+    },
+    [handleRepeatRecord],
+  );
 
   const isDetailsOpen = selectedRecord !== undefined;
 
@@ -385,21 +426,11 @@ const HistoryPage: FC = () => {
                   isSearchMode={isSearchMode}
                   processingRecordId={processingRecordId}
                   selectedRecordId={selectedRecord?.id}
-                  onActiveDateChange={(date) => {
-                    setPreferredDate(date);
-                  }}
-                  onCopyRecordText={(record) => {
-                    void copyText(getRecordTextForCopy(record));
-                  }}
-                  onDeleteRecord={(record) => {
-                    void handleDeleteRecord(record);
-                  }}
-                  onRecordSelect={(record) => {
-                    setSelectedRecordId(record.id);
-                  }}
-                  onRepeatTranscription={(record) => {
-                    void handleRepeatRecord(record);
-                  }}
+                  onActiveDateChange={handleListActiveDateChange}
+                  onCopyRecordText={handleListCopyRecordText}
+                  onDeleteRecord={handleListDeleteRecord}
+                  onRecordSelect={handleListRecordSelect}
+                  onRepeatTranscription={handleListRepeatTranscription}
                 />
                 {isSearchMode ? (
                   <Pagination
