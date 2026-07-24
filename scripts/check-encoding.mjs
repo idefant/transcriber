@@ -1,5 +1,16 @@
-import { readdir, readFile } from 'node:fs/promises';
+/**
+ * Проверяет текстовые файлы на искажённые (mojibake) последовательности кодировки.
+ * Использование:
+ *   node scripts/check-encoding.mjs             # весь репозиторий
+ *   node scripts/check-encoding.mjs <файлы...>  # только указанные файлы
+ * Точечный режим используется Claude-хуком `.claude/hooks/encoding-check.mjs`
+ * для быстрой проверки конкретной правки.
+ */
+
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
+
+import { scanFile, shouldCheckFile } from './lib/mojibake.mjs';
 
 const rootDirectory = process.cwd();
 const ignoredDirectories = new Set([
@@ -13,43 +24,6 @@ const ignoredDirectories = new Set([
   'target',
   'ui-audit-artifacts',
 ]);
-const checkedExtensions = new Set([
-  '.css',
-  '.html',
-  '.js',
-  '.json',
-  '.jsx',
-  '.md',
-  '.rs',
-  '.scss',
-  '.toml',
-  '.ts',
-  '.tsx',
-]);
-const suspiciousSequences = [
-  '\u0420\u045F',
-  '\u0420\u0459',
-  '\u0420\u045A',
-  '\u0420\u045B',
-  '\u0420\u040E',
-  '\u0420\u201D',
-  '\u0420\u2019',
-  '\u0420\u0405',
-  '\u0420\u00B5',
-  '\u0421\u0402',
-  '\u0421\u0403',
-  '\u0421\u201A',
-  '\u0421\u040A',
-  '\u0421\u2039',
-  '\u0421\u040B',
-  '\u0421\u040F',
-  '\u0432\u0402',
-  '\u00C2',
-  '\u00D0',
-  '\u00D1',
-];
-
-const shouldCheckFile = (filePath) => checkedExtensions.has(path.extname(filePath));
 
 const findTextFiles = async (directory) => {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -74,33 +48,17 @@ const findTextFiles = async (directory) => {
   return files;
 };
 
-const getLineAndColumn = (text, index) => {
-  const precedingText = text.slice(0, index);
-  const lines = precedingText.split('\n');
-
-  return {
-    column: lines.at(-1).length + 1,
-    line: lines.length,
-  };
-};
+const explicitArguments = process.argv.slice(2);
+const filesToCheck =
+  explicitArguments.length > 0
+    ? explicitArguments.map((file) => path.resolve(file)).filter(shouldCheckFile)
+    : await findTextFiles(rootDirectory);
 
 const findings = [];
 
-for (const filePath of await findTextFiles(rootDirectory)) {
-  const text = await readFile(filePath, 'utf8');
-
-  for (const sequence of suspiciousSequences) {
-    const index = text.indexOf(sequence);
-
-    if (index === -1) {
-      continue;
-    }
-
-    findings.push({
-      ...getLineAndColumn(text, index),
-      filePath: path.relative(rootDirectory, filePath),
-      sequence,
-    });
+for (const filePath of filesToCheck) {
+  for (const finding of await scanFile(filePath)) {
+    findings.push({ ...finding, filePath: path.relative(rootDirectory, filePath) });
   }
 }
 

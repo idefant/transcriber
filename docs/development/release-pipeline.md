@@ -24,6 +24,14 @@
 
 ## Workflow релиза (`.github/workflows/release.yml`)
 
+### Job `check` (гейт перед сборкой)
+
+Перед сборкой запускается отдельный job `check`, который на том же теге прогоняет полный `npm run check` (typecheck, ESLint, Stylelint, проверка Prettier, проверка кодировки, `rust:check`, `rust:test`, продакшен-сборка фронтенда). Job `release` объявлен через `needs: check`, поэтому сборка и публикация начинаются только после успешных проверок. Если проверки падают, артефакты не публикуются, а GitHub Release остаётся черновиком. Тег при этом уже существует: после исправления перезапусти workflow вручную (`workflow_dispatch` с тем же тегом) либо пересоздай тег.
+
+Тулчейн Rust в этом job ставится с компонентами `clippy` и `rustfmt`, которые нужны для `rust:check`.
+
+### Job `release`
+
 Шаги:
 
 1. `actions/checkout` с `fetch-depth: 0` (нужно для просмотра полной истории для CHANGELOG).

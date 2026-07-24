@@ -18,7 +18,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .codex-openai-docs-cache
-.claude
+# Claude Code: локальные артефакты игнорируем, конфиг автоматизаций коммитим
+.claude/*
+!.claude/settings.json
+!.claude/commands/
+!.claude/hooks/
 .playwright-mcp
 src-tauri/extensions/
 
