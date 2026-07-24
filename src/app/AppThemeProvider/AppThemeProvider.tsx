@@ -21,6 +21,7 @@ const appTokenVariableNames = [
   '--app-color-bg-text-hover',
   '--app-color-border',
   '--app-color-border-secondary',
+  '--app-color-fill-alter',
   '--app-color-fill-tertiary',
   '--app-color-link',
   '--app-color-primary-bg',
@@ -153,6 +154,7 @@ const AppThemeTokenVariables: FC<AppThemeTokenVariablesProps> = ({ isDarkMode })
     rootStyle.setProperty('--app-color-bg-text-hover', token.colorBgTextHover);
     rootStyle.setProperty('--app-color-border', token.colorBorder);
     rootStyle.setProperty('--app-color-border-secondary', token.colorBorderSecondary);
+    rootStyle.setProperty('--app-color-fill-alter', token.colorFillAlter);
     rootStyle.setProperty('--app-color-fill-tertiary', token.colorFillTertiary);
     rootStyle.setProperty('--app-color-link', token.colorLink);
     rootStyle.setProperty('--app-color-primary-bg', token.colorPrimaryBg);

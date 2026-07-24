@@ -8,13 +8,14 @@ import styles from './HistoryRecordsList.module.scss';
 import type { HistoryGroup, HistoryRecord } from '#/models/History';
 
 interface HistoryRecordsListProps {
-  activeDate?: string;
+  /** Даты групп, раскрытых в помесячном режиме. Можно держать открытыми сразу несколько. */
+  activeDates: string[];
   groups: HistoryGroup[];
   /** Подстрока, подсвечиваемая в тексте записей. */
   highlightQuery?: string;
   /** В режиме поиска все группы раскрыты и свернуть их нельзя. */
   isSearchMode?: boolean;
-  onActiveDateChange: (date: string | null) => void;
+  onActiveDatesChange: (dates: string[]) => void;
   onCopyRecordText: (record: HistoryRecord) => void;
   onDeleteRecord: (record: HistoryRecord) => void;
   onRecordSelect: (record: HistoryRecord) => void;
@@ -24,11 +25,11 @@ interface HistoryRecordsListProps {
 }
 
 const HistoryRecordsList: FC<HistoryRecordsListProps> = ({
-  activeDate,
+  activeDates,
   groups,
   highlightQuery,
   isSearchMode = false,
-  onActiveDateChange,
+  onActiveDatesChange,
   onCopyRecordText,
   onDeleteRecord,
   onRecordSelect,
@@ -66,10 +67,15 @@ const HistoryRecordsList: FC<HistoryRecordsListProps> = ({
   // В режиме поиска раскрыты все группы. `collapsible="icon"` разрешает сворачивание
   // только кликом по стрелке, а стрелка здесь скрыта — значит свернуть группу нельзя.
   // Вариант `"disabled"` не подошёл бы: он красит заголовок в неактивный цвет.
+  //
+  // Аккордеон намеренно отключён: он закрывал предыдущую группу при открытии новой,
+  // из-за чего высота над кликнутым заголовком менялась и он «уезжал» вверх. Позволяя
+  // держать открытыми несколько групп, мы разворачиваем контент только вниз, и заголовок
+  // остаётся на месте (`className={styles.collapse}` дополнительно прилипает его к верху).
   return (
     <Collapse
-      accordion={!isSearchMode}
-      activeKey={isSearchMode ? groups.map((group) => group.date) : activeDate}
+      activeKey={isSearchMode ? groups.map((group) => group.date) : activeDates}
+      className={styles.collapse}
       collapsible={isSearchMode ? 'icon' : undefined}
       items={collapseItems}
       onChange={(key) => {
@@ -77,8 +83,7 @@ const HistoryRecordsList: FC<HistoryRecordsListProps> = ({
           return;
         }
 
-        const date = Array.isArray(key) ? key.at(0) : key;
-        onActiveDateChange(date === '' ? null : (date ?? null));
+        onActiveDatesChange(Array.isArray(key) ? key : [key]);
       }}
     />
   );

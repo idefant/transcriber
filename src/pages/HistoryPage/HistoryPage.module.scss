@@ -3,7 +3,12 @@
 
   position: absolute;
   inset: 0;
-  padding: 32px 0 32px 32px;
+
+  // Верхний отступ намеренно не здесь, а в `margin-top` у `.historyCard`: padding
+  // скролл-контейнера сдвигал бы вниз линию прилипания sticky-заголовков групп
+  // (`sticky top: 0` отсчитывается от content-box). Так заголовок прилипает
+  // вплотную к шапке приложения, а видимый отступ сверху сохраняется.
+  padding: 0 0 32px 32px;
   overflow-y: auto;
 
   @media (width <= 1280px) {
@@ -17,6 +22,10 @@
 
 .historyCard {
   min-width: 0;
+
+  // Верхний отступ страницы (см. `.page`): держим его на карточке, чтобы padding
+  // скролл-контейнера не отодвигал линию прилипания sticky-заголовков.
+  margin-top: 32px;
   margin-right: calc(24px + var(--details-width));
 
   .withDetails & {

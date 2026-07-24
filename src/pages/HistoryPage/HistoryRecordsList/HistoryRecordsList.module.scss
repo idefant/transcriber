@@ -2,3 +2,32 @@
   display: grid;
   gap: 8px;
 }
+
+.collapse:global(.ant-collapse) {
+  // Заголовок группы дня прилипает к верху области прокрутки — вплотную к шапке
+  // приложения, чтобы просматриваемая дата всегда оставалась видимой. Прилипание
+  // ограничено рамками своей группы (containing block — `.ant-collapse-item`),
+  // поэтому одновременно приклеен только один заголовок: следующая группа
+  // выталкивает предыдущий вверх.
+
+  :global(.ant-collapse-item .ant-collapse-header) {
+    transition:
+      all var(--ant-motion-duration-slow),
+      visibility 0s,
+      border 0s;
+  }
+
+  :global(.ant-collapse-item-active .ant-collapse-header) {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background:
+      linear-gradient(var(--app-color-fill-alter), var(--app-color-fill-alter)),
+      var(--app-color-bg-container);
+    border-bottom: var(--ant-line-width) var(--ant-line-type) var(--ant-color-border);
+  }
+
+  :global(.ant-collapse-panel-active) {
+    border-top: none;
+  }
+}

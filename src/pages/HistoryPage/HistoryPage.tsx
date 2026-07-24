@@ -24,10 +24,16 @@ import HistoryRecordsList from './HistoryRecordsList';
 
 import styles from './HistoryPage.module.scss';
 
-import type { HistoryRecord } from '#/models/History';
+import type { HistoryGroup, HistoryRecord } from '#/models/History';
 import { useHistoryStore } from '#/stores';
 
 const monthFormat = 'YYYY-MM';
+
+/** Даты групп, раскрытых по умолчанию (авторежим): сегодняшний день, если для него есть записи. */
+const getDefaultOpenDates = (groups: HistoryGroup[]): string[] => {
+  const today = dayjs().format('YYYY-MM-DD');
+  return groups.some((group) => group.date === today) ? [today] : [];
+};
 
 const shiftMonth = (month: string, monthOffset: number) =>
   dayjs(`${month}-01`).add(monthOffset, 'month').format(monthFormat);
@@ -84,11 +90,10 @@ const HistoryPage: FC = () => {
   const isLoading = isSearchMode ? isSearchLoading : isMonthLoading;
 
   const [processingRecordId, setProcessingRecordId] = useState<string>();
-  // preferredDate — выбранная пользователем дата.
+  // preferredDates — набор дат, раскрытых пользователем.
   // undefined = автоматически (открыть сегодняшнюю дату, если для неё есть записи)
-  // null      = явно закрыто пользователем
-  // string    = явно открыто пользователем
-  const [preferredDate, setPreferredDate] = useState<string | null | undefined>();
+  // string[]  = явный выбор пользователя (пустой массив = все группы свёрнуты)
+  const [preferredDates, setPreferredDates] = useState<string[] | undefined>();
   // selectedRecordId хранит id; сама запись берётся из groups в сторе, поэтому
   // она автоматически отражает обновления, вызванные событиями, без отдельного эффекта синхронизации.
   const [selectedRecordId, setSelectedRecordId] = useState<string>();
@@ -107,15 +112,14 @@ const HistoryPage: FC = () => {
   const monthPickerMinDate = useMemo(() => dayjs(`${minMonth}-01`), [minMonth]);
   const monthPickerMaxDate = useMemo(() => dayjs(`${currentMonth}-01`), [currentMonth]);
 
-  const activeDate = useMemo(() => {
-    if (preferredDate === null) return;
-    if (preferredDate !== undefined && monthGroups.some((g) => g.date === preferredDate)) {
-      return preferredDate;
+  const activeDates = useMemo(() => {
+    if (preferredDates !== undefined) {
+      // Держим открытыми только даты, которые ещё есть в текущем месяце: после смены
+      // месяца или удаления записи сохранённый набор мог устареть.
+      return preferredDates.filter((date) => monthGroups.some((g) => g.date === date));
     }
-    // Автоматический режим: открыть сегодняшнюю дату, если для неё есть записи, иначе — ничего.
-    const today = dayjs().format('YYYY-MM-DD');
-    return monthGroups.some((g) => g.date === today) ? today : undefined;
-  }, [monthGroups, preferredDate]);
+    return getDefaultOpenDates(monthGroups);
+  }, [monthGroups, preferredDates]);
 
   const selectedRecord = useMemo(
     () =>
@@ -153,7 +157,12 @@ const HistoryPage: FC = () => {
 
       setSelectedRecordId(state.pendingOpenRecordId);
       if (state.pendingOpenDate !== undefined) {
-        setPreferredDate(state.pendingOpenDate);
+        // Добавляем нужный день к уже раскрытым, не сворачивая остальные группы.
+        const dateToOpen = state.pendingOpenDate;
+        setPreferredDates((prev) => {
+          const base = prev ?? getDefaultOpenDates(useHistoryStore.getState().groups);
+          return base.includes(dateToOpen) ? base : [...base, dateToOpen];
+        });
       }
       state.consumePendingOpenRecord();
     };
@@ -174,7 +183,7 @@ const HistoryPage: FC = () => {
 
   const setMonth = (month: string) => {
     storeSetSelectedMonth(month);
-    setPreferredDate(undefined);
+    setPreferredDates(undefined);
     setSelectedRecordId(undefined);
     void storeLoad(month).catch((error: unknown) => {
       void messageApi.error(getErrorMessage(error));
@@ -318,8 +327,8 @@ const HistoryPage: FC = () => {
   // Стабильные ссылки для пропсов `HistoryRecordsList`: только так срабатывает
   // `memo` на списке и его строках — иначе смена выбранной записи перерисовывала
   // бы все строки дня целиком.
-  const handleListActiveDateChange = useCallback((date: string | null) => {
-    setPreferredDate(date);
+  const handleListActiveDatesChange = useCallback((dates: string[]) => {
+    setPreferredDates(dates);
   }, []);
 
   const handleListRecordSelect = useCallback((record: HistoryRecord) => {
@@ -420,13 +429,13 @@ const HistoryPage: FC = () => {
             {groups.length > 0 ? (
               <>
                 <HistoryRecordsList
-                  activeDate={activeDate}
+                  activeDates={activeDates}
                   groups={groups}
                   highlightQuery={isSearchMode ? searchQuery : undefined}
                   isSearchMode={isSearchMode}
                   processingRecordId={processingRecordId}
                   selectedRecordId={selectedRecord?.id}
-                  onActiveDateChange={handleListActiveDateChange}
+                  onActiveDatesChange={handleListActiveDatesChange}
                   onCopyRecordText={handleListCopyRecordText}
                   onDeleteRecord={handleListDeleteRecord}
                   onRecordSelect={handleListRecordSelect}
@@ -458,8 +467,8 @@ const HistoryPage: FC = () => {
           </Spin>
         </Card>
 
-        <aside className={styles.detailsSlot}>
-          {selectedRecord === undefined ? undefined : (
+        {selectedRecord === undefined ? undefined : (
+          <aside className={styles.detailsSlot}>
             <HistoryDetailsPanel
               highlightQuery={isSearchMode ? searchQuery : undefined}
               record={selectedRecord}
@@ -485,8 +494,8 @@ const HistoryPage: FC = () => {
                 void handleRepeatTranscription(record);
               }}
             />
-          )}
-        </aside>
+          </aside>
+        )}
       </div>
     </>
   );

@@ -61,15 +61,17 @@
 Временное состояние UI остаётся локальным в компонентах — не выносите его в хранилище:
 
 - `isSaving` / `processingRecordId` — флаги загрузки, привязанные к одному действию пользователя
-- `activeDate` / `selectedRecord` в `HistoryPage` — выводятся из групп хранилища через `useMemo`, а не синхронизируются через `useEffect`
+- `activeDates` / `selectedRecord` в `HistoryPage` — выводятся из групп хранилища через `useMemo`, а не синхронизируются через `useEffect`
 
-Когда `HistoryPage` нужно отразить изменения групп, вызванные событиями, в `activeDate` или `selectedRecord`, она вычисляет их синхронно:
+Когда `HistoryPage` нужно отразить изменения групп, вызванные событиями, в `activeDates` или `selectedRecord`, она вычисляет их синхронно. `preferredDates` хранит явный выбор пользователя (`undefined` — авторежим с раскрытием сегодняшнего дня):
 
 ```ts
-const activeDate = useMemo(
-  () => (groups.some((g) => g.date === preferredDate) ? preferredDate : groups[0]?.date),
-  [groups, preferredDate],
-);
+const activeDates = useMemo(() => {
+  if (preferredDates !== undefined) {
+    return preferredDates.filter((date) => groups.some((g) => g.date === date));
+  }
+  return getDefaultOpenDates(groups);
+}, [groups, preferredDates]);
 ```
 
 Это позволяет избежать ошибки линтера `react-hooks/set-state-in-effect` и устраняет каскадный ререндер от `useEffect`, вызывающего `setState`.
