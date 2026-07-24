@@ -28,6 +28,7 @@
     "model-test": "node scripts/model-testing/run.mjs",
     "model-test:smoke": "node scripts/model-testing/run.mjs --smoke",
     "check": "npm run typecheck && npm run lint && npm run stylelint && npm run format:check && npm run encoding:check && npm run rust:check && npm run rust:test && npm run build",
+    "check:ci": "npm run typecheck && npm run lint && npm run stylelint && npm run encoding:check && npm run rust:check && npm run rust:test && npm run build",
     "prepare": "husky",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"

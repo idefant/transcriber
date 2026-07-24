@@ -190,6 +190,9 @@ npm run rust:test
 
 # Запустить полную проверку качества: TypeScript, ESLint, Stylelint, проверка Prettier, проверка кодировки, проверки Rust, тесты Rust и продакшен-сборка.
 npm run check
+
+# То же, что npm run check, но без проверки Prettier — используется в CI (см. release-pipeline.md).
+npm run check:ci
 ```
 
 ## Пайплайн релиза
