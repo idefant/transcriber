@@ -24,7 +24,7 @@
 .audioSection {
   display: grid;
   grid-template-columns: max-content 1fr max-content;
-  gap: 12px;
+  gap: 28px 12px;
   align-items: center;
   padding: 14px 0;
   border-top: 1px solid var(--app-color-border-secondary);
@@ -36,4 +36,8 @@
 
 .audioDuration {
   color: var(--app-color-text-secondary);
+}
+
+.playerRow {
+  grid-column: 1 / -1;
 }

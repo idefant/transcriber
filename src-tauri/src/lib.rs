@@ -115,6 +115,7 @@ pub fn run() {
             history::search_history_records,
             history::delete_history_record,
             history::open_history_audio,
+            history::get_history_audio,
             history::open_history_record,
             history::repeat_history_record,
             history::repeat_history_transcription,

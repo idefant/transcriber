@@ -28,6 +28,10 @@ export const openHistoryAudio = async (recordId: string): Promise<void> => {
   await invoke('open_history_audio', { recordId });
 };
 
+/** Читает байты сохранённого аудиофайла записи истории для воспроизведения в приложении. */
+export const getHistoryAudioData = (recordId: string) =>
+  invoke<ArrayBuffer>('get_history_audio', { recordId });
+
 export const openHistoryRecord = async (recordId: string): Promise<void> => {
   await invoke('open_history_record', { recordId });
 };

@@ -180,6 +180,17 @@ pub fn open_history_audio(app: tauri::AppHandle, record_id: String) -> Result<()
     open_history_audio_inner(&app, &record_id).map_err(AppError::into_message)
 }
 
+/// Читает байты сохранённого аудиофайла записи истории для воспроизведения
+/// внутри приложения. Отдаёт содержимое файла как бинарный IPC-ответ, чтобы
+/// фронтенд получил его в виде `ArrayBuffer` без промежуточной base64-кодировки.
+#[tauri::command]
+pub fn get_history_audio(
+    app: tauri::AppHandle,
+    record_id: String,
+) -> Result<tauri::ipc::Response, String> {
+    get_history_audio_inner(&app, &record_id).map_err(AppError::into_message)
+}
+
 #[tauri::command]
 pub async fn repeat_history_transcription(
     app: tauri::AppHandle,
@@ -501,6 +512,22 @@ fn delete_history_record_inner(app: &tauri::AppHandle, record_id: &str) -> AppRe
     emit_history_updated(app, None);
 
     Ok(())
+}
+
+fn get_history_audio_inner(
+    app: &tauri::AppHandle,
+    record_id: &str,
+) -> AppResult<tauri::ipc::Response> {
+    let record = find_history_record(app, record_id)?;
+    let path = PathBuf::from(record.audio.path);
+
+    if !path.exists() {
+        return Err(i18n::text(app, "history-audio-file-not-found").into());
+    }
+
+    let bytes = fs::read(&path)?;
+
+    Ok(tauri::ipc::Response::new(bytes))
 }
 
 fn open_history_audio_inner(app: &tauri::AppHandle, record_id: &str) -> AppResult<()> {

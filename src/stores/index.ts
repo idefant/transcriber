@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 export { useCatalogStore } from './catalogStore';
 export { useDictionaryStore } from './dictionaryStore';
 export { initHistoryEventSubscription, useHistoryStore } from './historyStore';
+export { usePlayerStore } from './playerStore';
 export { useProcessingStore } from './processingStore';
 export { useProvidersStore } from './providersStore';
 export { useSettingsStore } from './settingsStore';

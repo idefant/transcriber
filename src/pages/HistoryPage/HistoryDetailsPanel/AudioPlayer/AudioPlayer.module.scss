@@ -1,0 +1,49 @@
+.player {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+
+.progress {
+  flex: 1;
+  margin: 0;
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+  color: var(--app-color-text-secondary);
+}
+
+.unavailable {
+  color: var(--app-color-text-secondary);
+}
+
+.volumePopover {
+  display: flex;
+  justify-content: center;
+  height: 120px;
+  padding: 4px 0;
+}
+
+// Акцент усиления: когда громкость выше 100%, трек и ручка ползунка становятся
+// предупреждающе-оранжевыми. Вложенность в `.boosted` даёт большую специфичность,
+// чем базовые стили antd, поэтому `!important` не нужен.
+.boosted {
+  :global(.ant-slider-track) {
+    background-color: var(--app-color-warning);
+  }
+
+  &:hover :global(.ant-slider-track) {
+    background-color: var(--app-color-warning);
+  }
+
+  // Оранжевое кольцо ручки сохраняется и в состояниях наведения/перетаскивания,
+  // где antd по умолчанию подставляет свой акцентный цвет.
+  :global(.ant-slider-handle)::after,
+  :global(.ant-slider-handle):hover::after,
+  :global(.ant-slider-handle):focus::after,
+  :global(.ant-slider-handle-dragging)::after {
+    box-shadow: 0 0 0 2px var(--app-color-warning);
+  }
+}

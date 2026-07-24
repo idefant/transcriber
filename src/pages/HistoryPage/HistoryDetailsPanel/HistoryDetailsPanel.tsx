@@ -1,8 +1,9 @@
-import { type FC } from 'react';
+import { type FC, useState } from 'react';
 import { Button, Card, Space, Tooltip, Typography } from 'antd';
-import { ClipboardCopyIcon, FolderOpenIcon, XIcon } from 'lucide-react';
+import { ClipboardCopyIcon, FolderOpenIcon, PlayIcon, XIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import AudioPlayer from './AudioPlayer';
 import ModelResult from './ModelResult';
 
 import styles from './HistoryDetailsPanel.module.scss';
@@ -38,6 +39,17 @@ const HistoryDetailsPanel: FC<HistoryDetailsPanelProps> = ({
 }) => {
   const { t } = useTranslation();
   const { config } = useProcessing();
+  const [isPlayerVisible, setIsPlayerVisible] = useState(false);
+
+  // Сбрасываем видимость плеера при выборе другой записи прямо во время рендера:
+  // снова показывается кнопка-триггер, а плеер прежней записи скрывается. Приём
+  // из документации React для сброса состояния при смене пропса без эффекта.
+  const [shownRecordId, setShownRecordId] = useState(record.id);
+  if (shownRecordId !== record.id) {
+    setShownRecordId(record.id);
+    setIsPlayerVisible(false);
+  }
+
   const canRepeatTranscription = true;
   const canRepeatPostProcessing =
     config.postProcess.enabled && record.transcription.status === 'success';
@@ -67,6 +79,18 @@ const HistoryDetailsPanel: FC<HistoryDetailsPanelProps> = ({
         </Title>
         <Text className={styles.audioDuration}>{record.audio.duration}</Text>
         <Space size={4}>
+          {isPlayerVisible ? undefined : (
+            <Tooltip title={t('history.details.play')}>
+              <Button
+                aria-label={t('history.details.play')}
+                icon={<PlayIcon size={16} strokeWidth={2} />}
+                size="small"
+                onClick={() => {
+                  setIsPlayerVisible(true);
+                }}
+              />
+            </Tooltip>
+          )}
           <Tooltip title={t('history.details.copyPath')}>
             <Button
               aria-label={t('history.details.copyPath')}
@@ -88,6 +112,11 @@ const HistoryDetailsPanel: FC<HistoryDetailsPanelProps> = ({
             />
           </Tooltip>
         </Space>
+        {isPlayerVisible ? (
+          <div className={styles.playerRow}>
+            <AudioPlayer record={record} />
+          </div>
+        ) : undefined}
       </section>
 
       <ModelResult
