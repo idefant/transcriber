@@ -63,6 +63,7 @@ flush: () => void;
 - Перед выполнением **любой команды оболочки**: прочитай [docs/agent/command-execution.md](docs/agent/command-execution.md).
 - Перед чтением или записью **любого файла с кириллическим текстом**: прочитай [docs/agent/encoding.md](docs/agent/encoding.md).
 - Перед внесением изменения, которое **добавляет, убирает или меняет видимое пользователю поведение**: прочитай [docs/agent/functional-spec-maintenance.md](docs/agent/functional-spec-maintenance.md) и сравни изменение с `docs/functional-spec/index.md`.
+- Перед записью в репозиторий **любых данных, полученных из локального окружения**, — результатов замеров, примеров, адресов, моментов времени: прочитай [docs/agent/committed-data-anonymity.md](docs/agent/committed-data-anonymity.md). Никаких пользовательских доменов и заголовков, никакого локального времени вместо UTC и никаких ссылок на данные, которых нет в репозитории.
 
 ## После завершения изменений
 
