@@ -7,6 +7,25 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-28
+
+### Added
+
+- Recordings can now be played back inside the app. The history detail panel has a play action that starts playback immediately and reveals a player with pause, a seek bar, current and total duration, and a volume control that goes up to 150% with gain above 100%. The chosen volume is remembered across records and app restarts. Selecting another record collapses the player back to the play action.
+- Several day groups in history can now stay expanded at once, today's group is expanded by default when it has records, and the header of the expanded group sticks to the top of the list while scrolling so the date you are reading stays visible.
+- A "Priority processing" switch for post-processing, available for provider and model pairs that support it and off by default. It resets when the provider or model changes and only appears once support for the new pair is confirmed.
+- A "Use fallback providers" switch for OpenRouter post-processing, shown when a specific upstream provider is selected and off by default. With it off, an error from the chosen upstream provider is returned as is instead of being silently retried on another one.
+
+### Changed
+
+- Recordings are now downmixed to mono and resampled to the sample rate the selected speech-to-text model actually works at before they are sent. The file is several times smaller and reaches the provider faster, while the model gets exactly the frequency band it uses. A microphone recording below the model's rate is sent as is and never upsampled artificially.
+- The network connection to the provider is now warmed up while you are still speaking, and all requests share a single HTTP client, so less time is spent on connection setup between the end of a dictation and the transcribed text.
+- The speech-to-text and post-processing settings tabs are now split into "Model", "Prompts", and "Configuration test" groups. The post-processing on/off switch sits above the groups, and turning post-processing off hides all of them.
+
+### Fixed
+
+- Dictated text is no longer replaced by the previous clipboard contents in slow applications. The app now waits longer before restoring the clipboard, which covers heavy Electron apps, remote desktops, and loaded systems that read the clipboard late.
+
 ## [0.2.0] - 2026-07-21
 
 ### Added
