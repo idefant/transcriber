@@ -43,7 +43,6 @@ history-transcription-required-before-post-processing = Перед постоб�
 history-post-processing-disabled = Постобработка отключена
 
 recording-no-default-input-device = Устройство ввода по умолчанию недоступно
-recording-input-device-config-read-failed = Не удалось прочитать конфигурацию устройства ввода: { $error }
 recording-unsupported-input-sample-format = Неподдерживаемый формат входных сэмплов: { $format }
 recording-start-failed = Не удалось начать запись: { $error }
 recording-read-samples-failed = Не удалось прочитать записанные аудиосэмплы

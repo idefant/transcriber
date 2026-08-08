@@ -1,3 +1,4 @@
+mod audio_capture;
 mod audio_mute;
 mod autostart;
 mod background;

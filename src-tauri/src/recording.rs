@@ -10,10 +10,6 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-    SampleFormat, Stream, StreamConfig,
-};
 use rubato::{FftFixedInOut, Resampler};
 use silero_vad_rust::{
     get_speech_timestamps,
@@ -22,6 +18,7 @@ use silero_vad_rust::{
 use tauri::Manager;
 
 use crate::{
+    audio_capture::{self, CaptureError, CaptureStream},
     debug_log,
     error::{AppError, AppResult},
     i18n,
@@ -52,18 +49,18 @@ const VAD_MINIMUM_SILENCE_DURATION_MS: u32 = 1_200;
 const VAD_SPEECH_PAD_MS: u32 = 350;
 
 /// Поток захвата с микрофона, который создаётся заранее и остаётся на паузе,
-/// чтобы диктовка могла начаться дешёвым вызовом `stream.play()` вместо
-/// дорогостоящего вызова WASAPI `build_input_stream` (сотни мс) на горячем пути.
+/// чтобы диктовка могла начаться дешёвым вызовом `stream.start()` вместо
+/// дорогостоящего открытия WASAPI-клиента (сотни мс) на горячем пути.
 ///
 /// Один и тот же подготовленный рекордер переиспользуется между сессиями:
 /// `start` заново его активирует, `stop_to_audio` / `abort` возвращают его
 /// в состояние паузы и очищают.
 pub struct PreparedRecorder {
-    stream: Stream,
+    stream: CaptureStream,
     shared: Arc<RecorderShared>,
     sample_rate: u32,
     channels: u16,
-    device_name: String,
+    device_id: String,
 }
 
 /// Состояние, общее с аудио-коллбэком. Коллбэк накапливает сэмплы только пока
@@ -83,52 +80,72 @@ pub struct RecordedAudio {
 
 /// Создаёт (но не запускает) поток захвата для текущего устройства ввода по
 /// умолчанию. Здесь выполняется вся дорогостоящая работа — перечисление
-/// устройств, согласование конфигурации и `build_input_stream` — чтобы
+/// устройств, согласование формата и инициализация клиента WASAPI — чтобы
 /// `PreparedRecorder::start` оставался быстрым.
 pub fn prepare_recorder(app: &tauri::AppHandle) -> AppResult<PreparedRecorder> {
-    let host = cpal::default_host();
-    let device = host
-        .default_input_device()
-        .ok_or_else(|| i18n::text(app, "recording-no-default-input-device"))?;
-    let device_name = device.name().unwrap_or_default();
-    let supported_config = device.default_input_config().map_err(|error| {
-        AppError::from(i18n::text_with(
-            app,
-            "recording-input-device-config-read-failed",
-            &[("error", error.to_string())],
-        ))
-    })?;
-
-    let sample_format = supported_config.sample_format();
-    let config = supported_config.config();
-    let sample_rate = config.sample_rate.0;
-    let channels = config.channels;
     let shared = Arc::new(RecorderShared {
         samples: Mutex::new(Vec::new()),
         active: AtomicBool::new(false),
         last_level_emit: Mutex::new(Instant::now() - LEVEL_EMIT_INTERVAL),
     });
+    let callback_shared = Arc::clone(&shared);
+    let app_handle = app.clone();
 
-    let stream = match sample_format {
-        SampleFormat::F32 => build_stream::<f32>(&device, &config, Arc::clone(&shared), app)?,
-        SampleFormat::I16 => build_stream::<i16>(&device, &config, Arc::clone(&shared), app)?,
-        SampleFormat::U16 => build_stream::<u16>(&device, &config, Arc::clone(&shared), app)?,
-        _ => {
-            return Err(AppError::from(i18n::text_with(
-                app,
-                "recording-unsupported-input-sample-format",
-                &[("format", format!("{sample_format:?}"))],
-            )));
+    let stream = audio_capture::open_capture_stream(move |samples: &[f32]| {
+        if !callback_shared.active.load(Ordering::Relaxed) {
+            return;
         }
-    };
+
+        if let Ok(mut target) = callback_shared.samples.lock() {
+            target.extend_from_slice(samples);
+        }
+
+        emit_levels_if_due(&app_handle, samples, &callback_shared.last_level_emit);
+    })
+    .map_err(|error| capture_error_to_app_error(app, error))?;
+
+    let format = stream.format();
+
+    debug_log::log_event(
+        app,
+        "recording.captureOpened",
+        None,
+        serde_json::json!({
+            "sampleRate": format.sample_rate,
+            "channels": format.channels,
+            "speechCategoryApplied": stream.speech_category_applied(),
+        }),
+    );
 
     Ok(PreparedRecorder {
+        device_id: stream.device_id().to_string(),
         stream,
         shared,
-        sample_rate,
-        channels,
-        device_name,
+        sample_rate: format.sample_rate,
+        channels: format.channels,
     })
+}
+
+/// Переводит отказ захвата в сообщение, которое увидит пользователь. Отдельные
+/// причины сохраняют собственные тексты: «нет устройства» и «формат не
+/// поддерживается» подсказывают, что делать, а остальное объединяется в общий
+/// отказ открыть поток.
+fn capture_error_to_app_error(app: &tauri::AppHandle, error: CaptureError) -> AppError {
+    match error {
+        CaptureError::NoDefaultDevice => {
+            AppError::from(i18n::text(app, "recording-no-default-input-device"))
+        }
+        CaptureError::UnsupportedSampleFormat(format) => AppError::from(i18n::text_with(
+            app,
+            "recording-unsupported-input-sample-format",
+            &[("format", format)],
+        )),
+        error => AppError::from(i18n::text_with(
+            app,
+            "recording-build-input-stream-failed",
+            &[("error", error.to_string())],
+        )),
+    }
 }
 
 impl PreparedRecorder {
@@ -137,12 +154,8 @@ impl PreparedRecorder {
     /// false, вызывающий код пересоздаёт рекордер, чтобы учесть смену
     /// устройства (например, подключение гарнитуры).
     pub fn is_for_current_default_device(&self) -> bool {
-        let host = cpal::default_host();
-        match host.default_input_device() {
-            Some(device) => device
-                .name()
-                .map(|name| name == self.device_name)
-                .unwrap_or(false),
+        match audio_capture::default_capture_device_id() {
+            Some(device_id) => device_id == self.device_id,
             None => false,
         }
     }
@@ -198,10 +211,10 @@ impl PreparedRecorder {
     }
 
     fn play(&self, app: &tauri::AppHandle) -> AppResult<()> {
-        // Активируем до play, чтобы записались самые первые коллбэки.
+        // Активируем до запуска, чтобы записались самые первые коллбэки.
         self.shared.active.store(true, Ordering::SeqCst);
 
-        self.stream.play().map_err(|error| {
+        self.stream.start().map_err(|error| {
             self.shared.active.store(false, Ordering::SeqCst);
             AppError::from(i18n::text_with(
                 app,
@@ -328,7 +341,7 @@ impl PreparedRecorder {
     fn pause_and_deactivate(&self) {
         // Останавливаем накопление до паузы, чтобы запоздавший коллбэк не добавил сэмплы.
         self.shared.active.store(false, Ordering::SeqCst);
-        let _ = self.stream.pause();
+        let _ = self.stream.stop();
     }
 }
 
@@ -690,54 +703,7 @@ fn record_stage(timer: Option<&RunTimer>, stage: RunStage, started_at: Instant) 
     }
 }
 
-fn build_stream<T>(
-    device: &cpal::Device,
-    config: &StreamConfig,
-    shared: Arc<RecorderShared>,
-    app: &tauri::AppHandle,
-) -> AppResult<Stream>
-where
-    T: AudioSample + cpal::SizedSample,
-{
-    let app_handle = app.clone();
-    let channels = config.channels as usize;
-
-    device
-        .build_input_stream(
-            config,
-            move |data: &[T], _| {
-                if !shared.active.load(Ordering::Relaxed) {
-                    return;
-                }
-
-                let converted: Vec<f32> = data.iter().map(AudioSample::to_f32).collect();
-
-                if let Ok(mut target) = shared.samples.lock() {
-                    target.extend_from_slice(&converted);
-                }
-
-                emit_levels_if_due(&app_handle, &converted, channels, &shared.last_level_emit);
-            },
-            move |error| {
-                eprintln!("Recording input stream error: {error}");
-            },
-            None,
-        )
-        .map_err(|error| {
-            AppError::from(i18n::text_with(
-                app,
-                "recording-build-input-stream-failed",
-                &[("error", error.to_string())],
-            ))
-        })
-}
-
-fn emit_levels_if_due(
-    app: &tauri::AppHandle,
-    samples: &[f32],
-    channels: usize,
-    last_level_emit: &Mutex<Instant>,
-) {
+fn emit_levels_if_due(app: &tauri::AppHandle, samples: &[f32], last_level_emit: &Mutex<Instant>) {
     let Ok(mut last_emit) = last_level_emit.lock() else {
         return;
     };
@@ -747,17 +713,13 @@ fn emit_levels_if_due(
     }
 
     *last_emit = Instant::now();
-    crate::overlay::emit_mic_level(app, calculate_input_level(samples, channels));
+    crate::overlay::emit_mic_level(app, calculate_input_level(samples));
 }
 
-fn calculate_input_level(samples: &[f32], channels: usize) -> f32 {
-    if samples.is_empty() || channels == 0 {
-        return 0.0;
-    }
-
-    let frame_count = samples.len() / channels;
-
-    if frame_count == 0 {
+/// Среднеквадратичный уровень блока кадров. Каналы не разделяются: индикатору
+/// нужна одна громкость, а не громкость канала.
+fn calculate_input_level(samples: &[f32]) -> f32 {
+    if samples.is_empty() {
         return 0.0;
     }
 
@@ -841,28 +803,6 @@ fn encode_wav_pcm16(
     }
 
     Ok(buffer.into_inner())
-}
-
-trait AudioSample: Send + 'static {
-    fn to_f32(&self) -> f32;
-}
-
-impl AudioSample for f32 {
-    fn to_f32(&self) -> f32 {
-        *self
-    }
-}
-
-impl AudioSample for i16 {
-    fn to_f32(&self) -> f32 {
-        *self as f32 / i16::MAX as f32
-    }
-}
-
-impl AudioSample for u16 {
-    fn to_f32(&self) -> f32 {
-        (*self as f32 - 32768.0) / 32768.0
-    }
 }
 
 #[cfg(test)]

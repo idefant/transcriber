@@ -14,7 +14,6 @@ debug = 1
 [dependencies]
 chrono = { version = "0.4", features = ["clock", "serde"] }
 base64 = "0.22"
-cpal = "0.16"
 hound = "3"
 i18n-embed = { version = "0.16", features = ["fluent-system"] }
 raw-window-handle = "0.6"
@@ -46,7 +45,11 @@ windows = { version = "0.61", features = [
     "Media_Control",
     "Win32_Media_Audio",
     "Win32_Media_Audio_Endpoints",
+    "Win32_Media_KernelStreaming",
+    "Win32_Media_Multimedia",
+    "Win32_Security",
     "Win32_System_Com",
+    "Win32_System_Threading",
     "Win32_UI_Shell",
 ] }
 windows-sys = { version = "0.61", features = [

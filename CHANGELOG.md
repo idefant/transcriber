@@ -7,6 +7,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Recordings are no longer silently gutted on laptops whose vendor microphone processing runs aggressive echo cancellation. The app now opens the microphone as a speech stream, so that processing stops mistaking dictation for echo and blanking the channel, which previously made silence removal throw away half of a recording and left the speech-to-text model transcribing fragments in the wrong language. Devices that refuse a speech stream are opened the previous way and still record.
+
 ## [0.2.1] - 2026-07-28
 
 ### Added

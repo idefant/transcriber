@@ -43,7 +43,6 @@ history-transcription-required-before-post-processing = Transcription result is 
 history-post-processing-disabled = Post-processing is disabled
 
 recording-no-default-input-device = No default input device is available
-recording-input-device-config-read-failed = Could not read input device config: { $error }
 recording-unsupported-input-sample-format = Unsupported input sample format: { $format }
 recording-start-failed = Could not start recording: { $error }
 recording-read-samples-failed = Could not read recorded audio samples
