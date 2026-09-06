@@ -11,17 +11,17 @@
   background: rgb(24 24 27 / 92%);
   border: 1px solid rgb(255 255 255 / 12%);
   border-radius: 8px;
-  box-shadow: 0 10px 26px rgb(0 0 0 / 24%);
   opacity: 0;
-  transform: translateY(8px) scale(0.98);
-  transition:
-    opacity 160ms ease,
-    transform 160ms ease;
+
+  // Тень рисует отдельное окно (src/overlay/shadow.scss), потому что это окно
+  // равно карточке. По той же причине сдвиг и масштаб при появлении обрезались
+  // бы рамкой окна, поэтому анимируется только прозрачность; её длительность
+  // должна совпадать с `.shadowBottom`.
+  transition: opacity 160ms ease;
 }
 
 .overlayVisible {
   opacity: 1;
-  transform: translateY(0) scale(1);
 }
 
 .error {

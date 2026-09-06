@@ -16,8 +16,8 @@ body,
   background: transparent;
 }
 
-// The overlay window can be larger than the card (the centered variant leaves
-// room around it), so center the card within the window.
+// Окно равно карточке, но центрирование остаётся страховкой на случай
+// расхождения размеров окна и карточки на дробных масштабах экрана.
 #root {
   display: grid;
   place-items: center;

@@ -21,20 +21,29 @@ use crate::{
 };
 
 const OVERLAY_LABEL_PREFIX: &str = "recording_overlay_";
+const OVERLAY_SHADOW_LABEL_PREFIX: &str = "recording_shadow_";
 
 /// Размеры карточки — должны совпадать с размерами `.overlay` в SCSS компонента.
+/// Окно карточки равно им один в один, поэтому карточка не ловит клики за
+/// пределами своей рамки.
 const BOTTOM_CARD_WIDTH: f64 = 180.0;
 const BOTTOM_CARD_HEIGHT: f64 = 40.0;
 const CENTER_CARD_WIDTH: f64 = 220.0;
-/// Верхняя граница высоты центральной карточки. Карточка центрируется внутри
-/// окна, поэтому точное значение должно быть только ≥ самого высокого состояния.
-const CENTER_CARD_HEIGHT: f64 = 220.0;
+/// Высота центральной карточки зафиксирована в SCSS (`height`), а не выводится
+/// из содержимого, чтобы окно совпадало с карточкой во всех состояниях.
+const CENTER_CARD_HEIGHT: f64 = 200.0;
 
-/// Прозрачный отступ вокруг карточки, достаточно большой, чтобы вместить CSS-тень
-/// карточки без обрезания её (прямоугольным) окном. Нативная тень окна
-/// отключена, поэтому этот отступ остаётся полностью прозрачным.
-const BOTTOM_SHADOW_MARGIN: f64 = 36.0;
-const CENTER_SHADOW_MARGIN: f64 = 80.0;
+/// Прозрачное поле вокруг карточки в окне тени, достаточное, чтобы вместить
+/// CSS-тень без обрезания её (прямоугольным) окном. Поле принадлежит отдельному
+/// окну с `set_ignore_cursor_events`, поэтому клики сквозь него проходят и его
+/// размер ничего не стоит.
+///
+/// Считается как `|offset| + 3σ`, где `σ = blur / 2`, по `box-shadow` из
+/// `src/overlay/shadow.scss`: `0 10px 26px` даёт 49, `0 24px 56px` даёт 108.
+/// Урезать поле нельзя — обрезанный хвост тени виден как ступенька по границе
+/// окна (на белом фоне примерно #fcfcfc против #ffffff).
+const BOTTOM_SHADOW_MARGIN: f64 = 52.0;
+const CENTER_SHADOW_MARGIN: f64 = 112.0;
 
 /// Расстояние от нижнего края экрана до нижнего края карточки варианта bottom.
 const OVERLAY_BOTTOM_OFFSET: f64 = 16.0;
@@ -73,13 +82,6 @@ impl PhysicalFrame {
             self.y + (self.height / 2) as i32,
         )
     }
-}
-
-#[derive(Clone, Copy, Debug)]
-struct OverlayWindowGeometry {
-    card_height: f64,
-    physical_width: f64,
-    physical_height: f64,
 }
 
 #[derive(Clone, Serialize)]
@@ -212,10 +214,21 @@ fn overlay_index(label: &str) -> Option<usize> {
         .and_then(|rest| rest.parse::<usize>().ok())
 }
 
+fn shadow_label(index: usize) -> String {
+    format!("{OVERLAY_SHADOW_LABEL_PREFIX}{index}")
+}
+
+fn shadow_index(label: &str) -> Option<usize> {
+    label
+        .strip_prefix(OVERLAY_SHADOW_LABEL_PREFIX)
+        .and_then(|rest| rest.parse::<usize>().ok())
+}
+
 pub fn create_recording_overlay(app: &tauri::AppHandle) -> AppResult<()> {
-    // Прогреваем один webview оверлея при запуске, чтобы первая диктовка
-    // отображалась без задержки на инициализацию webview. Дополнительные окна
-    // для каждого монитора создаются лениво.
+    // Прогреваем по одному webview каждого вида при запуске, чтобы первая
+    // диктовка отображалась без задержки на инициализацию webview.
+    // Дополнительные окна для каждого монитора создаются лениво.
+    build_shadow_window(app, &shadow_label(0))?;
     build_overlay_window(app, &overlay_label(0))?;
 
     Ok(())
@@ -367,12 +380,18 @@ fn show_overlay_state(
     }
 
     for (index, monitor) in monitors.iter().enumerate() {
-        let window = build_overlay_window(app, &overlay_label(index))?;
+        let shadow_window = build_shadow_window(app, &shadow_label(index))?;
+        let card_window = build_overlay_window(app, &overlay_label(index))?;
 
-        position_overlay(&window, monitor, &variant)?;
-        window.show()?;
-        window.set_always_on_top(true)?;
-        refresh_topmost(&window);
+        position_overlay(&card_window, &shadow_window, monitor, &variant)?;
+
+        // Порядок важен: оба окна topmost, и внутри этой группы наверху
+        // оказывается поднятое последним. Карточка должна лежать над тенью.
+        for window in [&shadow_window, &card_window] {
+            window.show()?;
+            window.set_always_on_top(true)?;
+            refresh_topmost(window);
+        }
     }
 
     // Скрываем окна оверлея для мониторов, которые больше не являются целевыми
@@ -468,10 +487,63 @@ fn build_overlay_window(app: &tauri::AppHandle, label: &str) -> AppResult<Webvie
     Ok(builder.build()?)
 }
 
+/// Окно, которое рисует только тень карточки.
+///
+/// Тень живёт в отдельном окне, потому что окно карточки равно карточке и не
+/// может нарисовать тень внутри себя, а нативная тень DWM не подчиняется
+/// CSS-анимации и потому рассинхронизируется с появлением и скрытием карточки.
+/// `set_ignore_cursor_events` снимает с прозрачного поля перехват мыши:
+/// в отличие от окна карточки, это окно не имеет интерактивных элементов.
+fn build_shadow_window(app: &tauri::AppHandle, label: &str) -> AppResult<WebviewWindow> {
+    if let Some(window) = app.get_webview_window(label) {
+        return Ok(window);
+    }
+
+    #[cfg_attr(not(all(debug_assertions, target_os = "windows")), allow(unused_mut))]
+    let mut builder = WebviewWindowBuilder::new(
+        app,
+        label,
+        WebviewUrl::App("src/overlay/shadow.html".into()),
+    )
+    .title("Recording Shadow")
+    .inner_size(
+        BOTTOM_CARD_WIDTH + BOTTOM_SHADOW_MARGIN * 2.0,
+        BOTTOM_CARD_HEIGHT + BOTTOM_SHADOW_MARGIN * 2.0,
+    )
+    .decorations(false)
+    .transparent(true)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(false)
+    .visible(false)
+    .focused(false);
+
+    // browser_extensions_enabled должен совпадать у всех окон приложения — см.
+    // комментарий в `build_overlay_window`.
+    #[cfg(all(debug_assertions, target_os = "windows"))]
+    {
+        builder = builder.browser_extensions_enabled(true);
+
+        let extensions_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/extensions");
+        if std::path::Path::new(extensions_dir).exists() {
+            builder = builder.extensions_path(extensions_dir);
+        }
+    }
+
+    let window = builder.build()?;
+    window.set_ignore_cursor_events(true)?;
+
+    Ok(window)
+}
+
+/// Все окна оверлея — и карточки, и тени.
 fn overlay_windows(app: &tauri::AppHandle) -> Vec<WebviewWindow> {
     app.webview_windows()
         .into_iter()
-        .filter_map(|(label, window)| overlay_index(&label).map(|_| window))
+        .filter_map(|(label, window)| {
+            (overlay_index(&label).is_some() || shadow_index(&label).is_some()).then_some(window)
+        })
         .collect()
 }
 
@@ -503,23 +575,27 @@ fn target_monitors(
     }
 }
 
+/// Раскладывает пару окон одного монитора: карточку и лежащее под ней окно тени.
 fn position_overlay(
-    window: &WebviewWindow,
+    card_window: &WebviewWindow,
+    shadow_window: &WebviewWindow,
     monitor: &Monitor,
     variant: &OverlayVariant,
 ) -> AppResult<()> {
     let scale = monitor.scale_factor();
-    let geometry = compute_overlay_window_geometry(variant, scale);
-
-    window.set_size(Size::Physical(PhysicalSize::new(
-        geometry.physical_width as u32,
-        geometry.physical_height as u32,
-    )))?;
-
     let anchor_area = resolve_overlay_anchor_area(monitor, variant);
-    let (x, y) = compute_overlay_position(anchor_area, variant, scale, geometry);
+    let card = compute_overlay_card_frame(anchor_area, variant, scale);
+    let shadow = compute_overlay_shadow_frame(card, variant, scale);
 
-    window.set_position(Position::Physical(PhysicalPosition::new(x, y)))?;
+    place_window(shadow_window, shadow)?;
+    place_window(card_window, card)?;
+
+    Ok(())
+}
+
+fn place_window(window: &WebviewWindow, frame: PhysicalFrame) -> AppResult<()> {
+    window.set_size(Size::Physical(PhysicalSize::new(frame.width, frame.height)))?;
+    window.set_position(Position::Physical(PhysicalPosition::new(frame.x, frame.y)))?;
 
     Ok(())
 }
@@ -531,50 +607,59 @@ fn monitor_bounds(monitor: &Monitor) -> PhysicalFrame {
     PhysicalFrame::new(position.x, position.y, size.width, size.height)
 }
 
-fn compute_overlay_window_geometry(variant: &OverlayVariant, scale: f64) -> OverlayWindowGeometry {
-    // Окно — это карточка плюс прозрачный отступ, вмещающий CSS-тень карточки
-    // (карточка центрируется внутри окна через `place-items`).
-    let (card_width, card_height, margin) = match variant {
-        OverlayVariant::Bottom => (BOTTOM_CARD_WIDTH, BOTTOM_CARD_HEIGHT, BOTTOM_SHADOW_MARGIN),
-        OverlayVariant::Center => (CENTER_CARD_WIDTH, CENTER_CARD_HEIGHT, CENTER_SHADOW_MARGIN),
-    };
-
-    OverlayWindowGeometry {
-        card_height,
-        physical_width: ((card_width + margin * 2.0) * scale).round(),
-        physical_height: ((card_height + margin * 2.0) * scale).round(),
+fn card_size(variant: &OverlayVariant) -> (f64, f64) {
+    match variant {
+        OverlayVariant::Bottom => (BOTTOM_CARD_WIDTH, BOTTOM_CARD_HEIGHT),
+        OverlayVariant::Center => (CENTER_CARD_WIDTH, CENTER_CARD_HEIGHT),
     }
 }
 
-fn compute_overlay_position(
+fn shadow_margin(variant: &OverlayVariant) -> f64 {
+    match variant {
+        OverlayVariant::Bottom => BOTTOM_SHADOW_MARGIN,
+        OverlayVariant::Center => CENTER_SHADOW_MARGIN,
+    }
+}
+
+/// Прямоугольник карточки в физических пикселях экрана. Окно карточки совпадает
+/// с ним точно, поэтому позиционирование считается один раз и переиспользуется
+/// окном тени.
+fn compute_overlay_card_frame(
     anchor_area: PhysicalFrame,
     variant: &OverlayVariant,
     scale: f64,
-    geometry: OverlayWindowGeometry,
-) -> (i32, i32) {
-    let x =
-        anchor_area.x + ((anchor_area.width as f64 - geometry.physical_width) / 2.0).round() as i32;
+) -> PhysicalFrame {
+    let (card_width, card_height) = card_size(variant);
+    let width = (card_width * scale).round();
+    let height = (card_height * scale).round();
+
+    let x = anchor_area.x + ((anchor_area.width as f64 - width) / 2.0).round() as i32;
     let y = match variant {
         OverlayVariant::Center => {
-            anchor_area.y
-                + ((anchor_area.height as f64 - geometry.physical_height) / 2.0).round() as i32
+            anchor_area.y + ((anchor_area.height as f64 - height) / 2.0).round() as i32
         }
-        OverlayVariant::Bottom => compute_bottom_overlay_top(anchor_area, scale, geometry),
+        OverlayVariant::Bottom => {
+            (anchor_area.bottom() as f64 - OVERLAY_BOTTOM_OFFSET * scale - height).round() as i32
+        }
     };
 
-    (x, y)
+    PhysicalFrame::new(x, y, width as u32, height as u32)
 }
 
-fn compute_bottom_overlay_top(
-    anchor_area: PhysicalFrame,
+/// Прямоугольник окна тени — карточка, расширенная прозрачным полем под CSS-тень.
+fn compute_overlay_shadow_frame(
+    card: PhysicalFrame,
+    variant: &OverlayVariant,
     scale: f64,
-    geometry: OverlayWindowGeometry,
-) -> i32 {
-    let card_bottom = anchor_area.bottom() as f64 - OVERLAY_BOTTOM_OFFSET * scale;
-    let window_top =
-        card_bottom - (geometry.card_height * scale) / 2.0 - geometry.physical_height / 2.0;
+) -> PhysicalFrame {
+    let margin = (shadow_margin(variant) * scale).round() as u32;
 
-    window_top.round() as i32
+    PhysicalFrame::new(
+        card.x - margin as i32,
+        card.y - margin as i32,
+        card.width + margin * 2,
+        card.height + margin * 2,
+    )
 }
 
 fn resolve_overlay_anchor_area(monitor: &Monitor, variant: &OverlayVariant) -> PhysicalFrame {
@@ -645,10 +730,10 @@ fn physical_frame_from_rect(rect: windows_sys::Win32::Foundation::RECT) -> Physi
 
 fn hide_surplus_overlays(app: &tauri::AppHandle, active_count: usize) {
     for (label, window) in app.webview_windows() {
-        if let Some(index) = overlay_index(&label) {
-            if index >= active_count {
-                let _ = window.hide();
-            }
+        let index = overlay_index(&label).or_else(|| shadow_index(&label));
+
+        if index.is_some_and(|index| index >= active_count) {
+            let _ = window.hide();
         }
     }
 }
@@ -823,62 +908,88 @@ mod tests {
     #[test]
     fn bottom_overlay_uses_work_area_bottom_offset() {
         let anchor_area = PhysicalFrame::new(0, 0, 1920, 1040);
-        let geometry = compute_overlay_window_geometry(&OverlayVariant::Bottom, 1.0);
 
-        let (x, y) = compute_overlay_position(anchor_area, &OverlayVariant::Bottom, 1.0, geometry);
+        let card = compute_overlay_card_frame(anchor_area, &OverlayVariant::Bottom, 1.0);
 
-        assert_eq!(x, 834);
-        // 1040 (низ области) − 16 (OVERLAY_BOTTOM_OFFSET) − 20 (половина карточки)
-        // − 56 (половина высоты окна с полем под тень).
-        assert_eq!(y, 948);
+        assert_eq!(card.x, 870);
+        // 1040 (низ области) − 16 (OVERLAY_BOTTOM_OFFSET) − 40 (высота карточки).
+        assert_eq!(card.y, 984);
+        assert_eq!(card.bottom(), 1040 - OVERLAY_BOTTOM_OFFSET as i32);
     }
 
     #[test]
     fn bottom_overlay_moves_with_work_area_changes() {
         let tall_area = PhysicalFrame::new(0, 0, 1920, 1080);
         let short_area = PhysicalFrame::new(0, 0, 1920, 1040);
-        let geometry = compute_overlay_window_geometry(&OverlayVariant::Bottom, 1.0);
 
-        let (_, tall_y) =
-            compute_overlay_position(tall_area, &OverlayVariant::Bottom, 1.0, geometry);
-        let (_, short_y) =
-            compute_overlay_position(short_area, &OverlayVariant::Bottom, 1.0, geometry);
+        let tall = compute_overlay_card_frame(tall_area, &OverlayVariant::Bottom, 1.0);
+        let short = compute_overlay_card_frame(short_area, &OverlayVariant::Bottom, 1.0);
 
-        assert_eq!(tall_y - short_y, 40);
+        assert_eq!(tall.y - short.y, 40);
     }
 
     #[test]
     fn bottom_overlay_centers_inside_available_area() {
         let anchor_area = PhysicalFrame::new(80, 0, 1840, 1040);
-        let geometry = compute_overlay_window_geometry(&OverlayVariant::Bottom, 1.0);
 
-        let (x, _) = compute_overlay_position(anchor_area, &OverlayVariant::Bottom, 1.0, geometry);
+        let card = compute_overlay_card_frame(anchor_area, &OverlayVariant::Bottom, 1.0);
 
-        assert_eq!(x, 874);
-    }
-
-    #[test]
-    fn bottom_overlay_keeps_card_bottom_at_offset_despite_shadow_margin() {
-        let anchor_area = PhysicalFrame::new(0, 0, 1920, 1040);
-        let geometry = compute_overlay_window_geometry(&OverlayVariant::Bottom, 1.0);
-        let top = compute_bottom_overlay_top(anchor_area, 1.0, geometry);
-        let card_bottom = top as f64 + geometry.physical_height / 2.0 + geometry.card_height / 2.0;
-
-        // Поле под тень не смещает карточку: её низ отстоит от низа области
-        // ровно на OVERLAY_BOTTOM_OFFSET.
-        assert_eq!(card_bottom, 1040.0 - OVERLAY_BOTTOM_OFFSET);
+        assert_eq!(card.x, 910);
     }
 
     #[test]
     fn bottom_overlay_position_scales_in_physical_pixels() {
         let anchor_area = PhysicalFrame::new(0, 0, 2560, 1440);
-        let geometry = compute_overlay_window_geometry(&OverlayVariant::Bottom, 1.5);
 
-        let (x, y) = compute_overlay_position(anchor_area, &OverlayVariant::Bottom, 1.5, geometry);
+        let card = compute_overlay_card_frame(anchor_area, &OverlayVariant::Bottom, 1.5);
 
-        assert_eq!(x, 1091);
+        assert_eq!(card.x, 1145);
         // Те же слагаемые, что и при масштабе 1.0, умноженные на 1.5:
-        // 1440 − 24 − 30 − 84.
-        assert_eq!(y, 1302);
+        // 1440 − 24 − 60.
+        assert_eq!(card.y, 1356);
+        assert_eq!(card.width, 270);
+        assert_eq!(card.height, 60);
+    }
+
+    #[test]
+    fn card_window_matches_card_size() {
+        let anchor_area = PhysicalFrame::new(0, 0, 1920, 1040);
+
+        let card = compute_overlay_card_frame(anchor_area, &OverlayVariant::Center, 1.0);
+
+        // Тень живёт в отдельном окне, поэтому внутри окна карточки запаса нет.
+        assert_eq!(card.width, CENTER_CARD_WIDTH as u32);
+        assert_eq!(card.height, CENTER_CARD_HEIGHT as u32);
+    }
+
+    #[test]
+    fn shadow_window_surrounds_card_evenly() {
+        let anchor_area = PhysicalFrame::new(0, 0, 1920, 1040);
+        let card = compute_overlay_card_frame(anchor_area, &OverlayVariant::Bottom, 1.0);
+
+        let shadow = compute_overlay_shadow_frame(card, &OverlayVariant::Bottom, 1.0);
+
+        let margin = BOTTOM_SHADOW_MARGIN as i32;
+        assert_eq!(card.x - shadow.x, margin);
+        assert_eq!(card.y - shadow.y, margin);
+        assert_eq!(shadow.bottom() - card.bottom(), margin);
+        assert_eq!(shadow.width - card.width, margin as u32 * 2);
+    }
+
+    #[test]
+    fn shadow_margin_scales_with_the_monitor() {
+        let anchor_area = PhysicalFrame::new(0, 0, 2560, 1440);
+        let card = compute_overlay_card_frame(anchor_area, &OverlayVariant::Center, 1.5);
+
+        let shadow = compute_overlay_shadow_frame(card, &OverlayVariant::Center, 1.5);
+
+        assert_eq!(card.x - shadow.x, (CENTER_SHADOW_MARGIN * 1.5) as i32);
+    }
+
+    #[test]
+    fn shadow_labels_do_not_collide_with_card_labels() {
+        assert_eq!(shadow_index(&shadow_label(3)), Some(3));
+        assert_eq!(overlay_index(&shadow_label(3)), None);
+        assert_eq!(shadow_index(&overlay_label(3)), None);
     }
 }

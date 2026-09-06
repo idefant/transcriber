@@ -4,24 +4,30 @@
   flex-direction: column;
   gap: 12px;
   align-items: center;
+  justify-content: center;
+
+  // Высота фиксирована, чтобы окно совпадало с карточкой во всех состояниях;
+  // значение продублировано в CENTER_CARD_HEIGHT (src-tauri/src/overlay.rs) и в
+  // `.shadowCenter` (src/overlay/shadow.scss).
   width: 220px;
+  height: 200px;
   padding: 24px 24px 20px;
   color: rgb(255 255 255);
   pointer-events: auto;
   background: rgb(24 24 27 / 92%);
   border: 1px solid rgb(255 255 255 / 12%);
   border-radius: 16px;
-  box-shadow: 0 24px 56px rgb(0 0 0 / 36%);
   opacity: 0;
-  transform: translateY(8px) scale(0.98);
-  transition:
-    opacity 200ms ease,
-    transform 200ms ease;
+
+  // Тень рисует отдельное окно (src/overlay/shadow.scss), потому что это окно
+  // равно карточке. По той же причине сдвиг и масштаб при появлении обрезались
+  // бы рамкой окна, поэтому анимируется только прозрачность; её длительность
+  // должна совпадать с `.shadowCenter`.
+  transition: opacity 200ms ease;
 }
 
 .overlayVisible {
   opacity: 1;
-  transform: translateY(0) scale(1);
 }
 
 .error {

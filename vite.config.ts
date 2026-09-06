@@ -31,6 +31,7 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('index.html', import.meta.url)),
         overlay: fileURLToPath(new URL('src/overlay/index.html', import.meta.url)),
+        overlayShadow: fileURLToPath(new URL('src/overlay/shadow.html', import.meta.url)),
       },
     },
   },
