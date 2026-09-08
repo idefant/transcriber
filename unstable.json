@@ -1,15 +1,15 @@
 {
-  "version": "0.2.2-alpha.2",
-  "notes": "",
-  "pub_date": "2026-09-06T10:51:26.376Z",
+  "version": "0.2.2",
+  "notes": "### Fixed\r\n\r\n- Recordings are no longer silently gutted on laptops whose vendor microphone processing runs aggressive echo cancellation. The app now opens the microphone as a speech stream, so that processing stops mistaking dictation for echo and blanking the channel, which previously made silence removal throw away half of a recording and left the speech-to-text model transcribing fragments in the wrong language. Devices that refuse a speech stream are opened the previous way and still record.\r\n- The recording overlay no longer swallows mouse clicks around itself. Only the panel itself catches clicks now, while its shadow and the rest of the screen stay clickable, so windows underneath the overlay can be used as usual during a dictation.",
+  "pub_date": "2026-09-08T13:31:17.797Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmlURk9YNGJZODJjb0Z0THByY3Rrdjg4YnJ6UnNncEhFTGdXMnBBTklzVUpKVjVVZWNpQ2JzSjduT1I2UEU1RkRJQTBCZWNtakJGTTZSdjF5MGFUZkFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjkxODgzCWZpbGU6VHJhbnNjcmliZXJfMC4yLjItYWxwaGEuMl94NjQtc2V0dXAuZXhlClU4N3ZxZGUwa1FscXRja05CM3QzVVlvVlBySndTT0VyUUUyT2FFREVuRGhwVGJudHloR01xZTFtNktHR0JsTTBsdDRPR1dydDhsc3BmOWRqakJQdENRPT0K",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.2.2-alpha.2/Transcriber_0.2.2-alpha.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmhnRnc1U2pRQ202ZW1xY0pCalY2SUlldlFtNlRHQ0pYd2c1RERrcDBkQ2cvSUtoMld2M1RKWktLQkluWHp6R1NtRWR1dHFqUHVZWkNWQzlNaE9TWmdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4ODc0Mjc1CWZpbGU6VHJhbnNjcmliZXJfMC4yLjJfeDY0LXNldHVwLmV4ZQpiNURBOVBpTVI3ZHUyV25UbzZHZUdkOUxWOGJWelFtQWY1bUJRTmIvSTFYUzJDTmdzaU14bHRVd2ZBdldpVEtzK3k4cXQ5OFV4SmV6ak1pOXh1cjNCdz09Cg==",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.2.2/Transcriber_0.2.2_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmlURk9YNGJZODJjb0Z0THByY3Rrdjg4YnJ6UnNncEhFTGdXMnBBTklzVUpKVjVVZWNpQ2JzSjduT1I2UEU1RkRJQTBCZWNtakJGTTZSdjF5MGFUZkFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjkxODgzCWZpbGU6VHJhbnNjcmliZXJfMC4yLjItYWxwaGEuMl94NjQtc2V0dXAuZXhlClU4N3ZxZGUwa1FscXRja05CM3QzVVlvVlBySndTT0VyUUUyT2FFREVuRGhwVGJudHloR01xZTFtNktHR0JsTTBsdDRPR1dydDhsc3BmOWRqakJQdENRPT0K",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.2.2-alpha.2/Transcriber_0.2.2-alpha.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmhnRnc1U2pRQ202ZW1xY0pCalY2SUlldlFtNlRHQ0pYd2c1RERrcDBkQ2cvSUtoMld2M1RKWktLQkluWHp6R1NtRWR1dHFqUHVZWkNWQzlNaE9TWmdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4ODc0Mjc1CWZpbGU6VHJhbnNjcmliZXJfMC4yLjJfeDY0LXNldHVwLmV4ZQpiNURBOVBpTVI3ZHUyV25UbzZHZUdkOUxWOGJWelFtQWY1bUJRTmIvSTFYUzJDTmdzaU14bHRVd2ZBdldpVEtzK3k4cXQ5OFV4SmV6ak1pOXh1cjNCdz09Cg==",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.2.2/Transcriber_0.2.2_x64-setup.exe"
     }
   }
 }
