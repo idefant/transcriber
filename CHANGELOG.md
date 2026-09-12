@@ -7,6 +7,21 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-09-12
+
+### Added
+
+- Seven more post-processing models are available through OpenRouter: GLM 5.3 Flash, GLM 5.3, DeepSeek V4.1 Flash, DeepSeek V4 Flash 0731, DeepSeek V4 Pro 0813, Gemini 3.8 Flash, and Gemini 3.7 Flash. Each one runs with reasoning switched off, or at the lowest level the model allows when it cannot be switched off at all, so a dictation is not paid for and slowed down by thinking the model never shows. GLM 5.3 is the only one of the seven marked as not recommended.
+
+### Changed
+
+- The model list for OpenRouter is now grouped by vendor - Anthropic, DeepSeek, Google, OpenAI, Qwen, Z.AI - with both the groups and the models inside them in alphabetical order. Models marked as not recommended are kept out of the vendor groups and stay together in a single "Not recommended" group at the end of the list. OpenAI and Groq keep a flat list, now also sorted by name.
+- The model table in provider settings is sorted by model name instead of the order in which models were added to the catalog.
+
+### Removed
+
+- Llama 4 Scout is no longer offered through Groq. The model stays available through OpenRouter.
+
 ## [0.2.2] - 2026-09-08
 
 ### Fixed
