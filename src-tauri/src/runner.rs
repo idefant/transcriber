@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    catalog::{model_by_key, ModelParams},
+    catalog::{model_by_key, ModelParams, ReasoningParams},
     debug_log::{self, ModelRunLogContext, ModelRunSource, ModelRunStage},
     dictionary,
     error::{AppError, AppResult},
@@ -96,7 +96,19 @@ pub struct PostProcessSettingsSnapshot {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReasoningSnapshot {
-    pub effort: String,
+    /// Уровень рассуждений или `None`, если их нужно выключить целиком.
+    ///
+    /// `None` попадает в тело запроса как `reasoning: { "enabled": false }`.
+    /// Отдельное значение нужно моделям вроде DeepSeek V4, у которых среди
+    /// поддерживаемых уровней нет `none`, а `mandatory` при этом `false`:
+    /// выключить рассуждения у них можно только флагом, но не уровнем.
+    ///
+    /// Поле читается с `serde(default)`, потому что снимок настроек лежит в
+    /// истории: у записей, созданных до появления выключаемых рассуждений,
+    /// его нет.
+    #[serde(default)]
+    pub effort: Option<String>,
+    #[serde(default)]
     pub exclude: bool,
 }
 
@@ -494,11 +506,18 @@ pub async fn run_post_process_with_snapshot(
     }
 
     if let Some(reasoning) = &snapshot.reasoning {
-        let mut r = serde_json::json!({ "effort": reasoning.effort });
-        if reasoning.exclude {
-            r["exclude"] = serde_json::json!(true);
-        }
-        body["reasoning"] = r;
+        body["reasoning"] = match &reasoning.effort {
+            // `exclude` относится только к выдаче рассуждений: когда их нет
+            // вовсе, скрывать нечего, поэтому флаг не отправляется.
+            None => serde_json::json!({ "enabled": false }),
+            Some(effort) => {
+                let mut r = serde_json::json!({ "effort": effort });
+                if reasoning.exclude {
+                    r["exclude"] = serde_json::json!(true);
+                }
+                r
+            }
+        };
     }
 
     if let Some(reasoning_effort) = &snapshot.reasoning_effort {
@@ -864,9 +883,15 @@ pub fn build_post_process_snapshot(
         reasoning: provider_entry
             .reasoning
             .as_ref()
-            .map(|reasoning| ReasoningSnapshot {
-                effort: reasoning.effort.to_string(),
-                exclude: reasoning.exclude,
+            .map(|reasoning| match reasoning {
+                ReasoningParams::Disabled => ReasoningSnapshot {
+                    effort: None,
+                    exclude: false,
+                },
+                ReasoningParams::Effort { effort, exclude } => ReasoningSnapshot {
+                    effort: Some(effort.to_string()),
+                    exclude: *exclude,
+                },
             }),
         system_prompt: post_process.effective_system_prompt(&ui_language)?,
         user_prompt_template: post_process.effective_user_template()?,

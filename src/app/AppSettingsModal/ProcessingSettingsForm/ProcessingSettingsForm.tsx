@@ -1,7 +1,7 @@
 import { type FC, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Button, Empty, Form, Select, Switch } from 'antd';
-import { sortBy } from 'lodash-es';
+import { groupBy, partition, sortBy } from 'lodash-es';
 import { useTranslation } from 'react-i18next';
 
 import SttPromptLimitAlert from '#/app/SttPromptLimitAlert';
@@ -10,6 +10,7 @@ import { routes } from '#/shared/routes';
 
 import SettingsSection from '../SettingsSection';
 
+import { getModelVendorLabel } from './helpers/getModelVendorLabel';
 import PromptField from './PromptField';
 
 import styles from './ProcessingSettingsForm.module.scss';
@@ -31,6 +32,7 @@ interface ModelOption {
 }
 
 interface RecommendedModelOption extends ModelOption {
+  apiId: string;
   isRecommended: boolean;
 }
 
@@ -104,23 +106,49 @@ const ProcessingSettingsForm: FC<ProcessingSettingsFormProps> = ({ disabled = fa
       }
 
       options.push({
+        apiId: entry.apiId,
         isRecommended: entry.isRecommended,
         label: model.label,
         value: model.key,
       });
     }
 
-    const recommended = options
-      .filter((model) => model.isRecommended)
-      .map(({ label, value }) => ({ label, value }));
-    const unrecommended = options
-      .filter((model) => !model.isRecommended)
-      .map(({ label, value }) => ({ label, value }));
+    const byLabel = (model: ModelOption) => model.label.toLocaleLowerCase();
+    const [recommendedModels, unrecommendedModels] = partition(
+      options,
+      (model) => model.isRecommended,
+    );
+    const toOption = ({ label, value }: RecommendedModelOption) => ({ label, value });
+    const unrecommended = sortBy(
+      unrecommendedModels.map((model) => toOption(model)),
+      byLabel,
+    );
+
+    // Каталог OpenRouter собран из моделей разных вендоров, и плоским списком он читается плохо.
+    // У прямых провайдеров вендор всегда один, поэтому там группировка только добавила бы уровень
+    // вложенности без пользы.
+    const recommended =
+      selectedProvider.provider === 'openrouter'
+        ? sortBy(
+            Object.entries(groupBy(recommendedModels, (model) => getModelVendorLabel(model.apiId))),
+            ([vendor]) => vendor.toLocaleLowerCase(),
+          ).map(([vendor, vendorModels]) => ({
+            label: vendor,
+            options: sortBy(
+              vendorModels.map((model) => toOption(model)),
+              byLabel,
+            ),
+          }))
+        : sortBy(
+            recommendedModels.map((model) => toOption(model)),
+            byLabel,
+          );
 
     if (unrecommended.length === 0) {
       return recommended;
     }
 
+    // Нерекомендуемые остаются одной группой в конце: их отделяет статус, а не вендор.
     return [
       ...recommended,
       {

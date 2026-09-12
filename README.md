@@ -8,17 +8,31 @@ Development setup, build commands, quality checks, and project tooling are docum
 
 ## Available Post-processing Models
 
-| Модель                | Провайдер          | Рекомендуется |
-| --------------------- | ------------------ | ------------- |
-| gpt-4o-mini           | OpenAI, OpenRouter | ❌            |
-| gpt-4.1-mini          | OpenAI, OpenRouter | ❌            |
-| gpt-5.4-mini          | OpenAI, OpenRouter | ✅            |
-| gpt-5-mini            | OpenAI, OpenRouter | ✅            |
-| Qwen 3.6 27B          | Groq, OpenRouter   | ✅            |
-| Qwen 3.6 35B A3B      | OpenRouter         | ✅            |
-| GPT OSS 120B          | Groq, OpenRouter   | ✅            |
-| Llama 4 Scout         | Groq, OpenRouter   | ❌            |
-| Gemini 2.5 Flash      | OpenRouter         | ✅            |
-| Gemini 2.5 Flash Lite | OpenRouter         | ❌            |
-| Gemini 3.1 Flash Lite | OpenRouter         | ❌            |
-| Claude Haiku 4.5      | OpenRouter         | ✅            |
+| Модель                 | Провайдер          | Рекомендуется | Балл  |
+| ---------------------- | ------------------ | ------------- | ----- |
+| ❰ OpenAI ❱             |                    |               |       |
+| GPT OSS 120B           | Groq, OpenRouter   | ✅            | 98.38 |
+| gpt-5.4-mini           | OpenAI, OpenRouter | ✅            | 97.88 |
+| gpt-5-mini             | OpenAI, OpenRouter | ✅            | 98.68 |
+| gpt-4.1-mini           | OpenAI, OpenRouter | ❌            | 93.26 |
+| gpt-4o-mini            | OpenAI, OpenRouter | ❌            | 92.71 |
+| ❰ Alibaba ❱            |                    |               |       |
+| Qwen 3.6 35B A3B       | OpenRouter         | ✅            | ???   |
+| Qwen 3.6 27B           | Groq, OpenRouter   | ✅            | 97.50 |
+| ❰ Meta ❱               |                    |               |       |
+| Llama 4 Scout          | OpenRouter         | ❌            | 84.50 |
+| ❰ Google ❱             |                    |               |       |
+| Gemini 3.8 Flash       | OpenRouter         | ✅            | 100   |
+| Gemini 3.7 Flash       | OpenRouter         | ✅            | 100   |
+| Gemini 3.1 Flash Lite  | OpenRouter         | ❌            | 92.18 |
+| Gemini 2.5 Flash       | OpenRouter         | ✅            | 97.71 |
+| Gemini 2.5 Flash Lite  | OpenRouter         | ❌            | 90.09 |
+| ❰ Claude ❱             |                    |               |       |
+| Claude Haiku 4.5       | OpenRouter         | ✅            | 92.50 |
+| ❰ Z.ai ❱               |                    |               |       |
+| GLM 5.3                | OpenRouter         | ✅            | 97.94 |
+| GLM 5.3 Flash          | OpenRouter         | ✅            | 100   |
+| ❰ DeepSeek ❱           |                    |               |       |
+| DeepSeek V4.1 Flash    | OpenRouter         | ✅            | 100   |
+| DeepSeek V4 Pro 0813   | OpenRouter         | ✅            | 100   |
+| DeepSeek V4 Flash 0731 | OpenRouter         | ✅            | 99.56 |

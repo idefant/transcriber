@@ -11,6 +11,7 @@ import {
   type TableColumnsType,
   Tag,
 } from 'antd';
+import { sortBy } from 'lodash-es';
 import { CheckCircleIcon, SparklesIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -128,24 +129,28 @@ const ProviderSettingsModal: FC<ProviderSettingsModalProps> = ({
   // Подобранные модели для выбранного типа провайдера — вычисляемое значение, состояние не нужно
   const catalogRows = useMemo<CatalogRow[]>(
     () =>
-      catalog
-        .map((model) => {
-          const providerEntry = model.providerEntries.find(
-            (entry) => entry.provider === selectedProvider,
-          );
+      sortBy(
+        catalog
+          .map((model) => {
+            const providerEntry = model.providerEntries.find(
+              (entry) => entry.provider === selectedProvider,
+            );
 
-          if (!providerEntry) {
-            return;
-          }
+            if (!providerEntry) {
+              return;
+            }
 
-          return {
-            apiId: providerEntry.apiId,
-            key: model.key,
-            label: model.label,
-            supported: null as boolean | null,
-          };
-        })
-        .filter((model): model is CatalogRow => model !== undefined),
+            return {
+              apiId: providerEntry.apiId,
+              key: model.key,
+              label: model.label,
+              supported: null as boolean | null,
+            };
+          })
+          .filter((model): model is CatalogRow => model !== undefined),
+        // Порядок каталога отражает историю его пополнения, а не алфавит
+        (row) => row.label.toLocaleLowerCase(),
+      ),
     [catalog, selectedProvider],
   );
 

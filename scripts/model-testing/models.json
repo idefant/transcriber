@@ -82,21 +82,6 @@
     }
   },
   {
-    "key": "groq-llama-4-scout",
-    "label": "Groq Llama 4 Scout",
-    "enabled": false,
-    "provider": "groq",
-    "apiId": "meta-llama/llama-4-scout-17b-16e-instruct",
-    "baseUrl": "https://api.groq.com/openai/v1",
-    "apiKeyEnv": "GROQ_API_KEY",
-    "inputPricePer1M": 0.11,
-    "outputPricePer1M": 0.34,
-    "params": {
-      "temperature": 0.2,
-      "maxCompletionTokens": 4096
-    }
-  },
-  {
     "key": "openrouter-llama-4-scout",
     "label": "OpenRouter Llama 4 Scout",
     "enabled": true,
@@ -114,23 +99,6 @@
       "order": ["groq"],
       "only": ["groq"],
       "allow_fallbacks": false
-    }
-  },
-  {
-    "key": "groq-qwen3-32b",
-    "label": "Groq Qwen3 32B",
-    "enabled": false,
-    "provider": "groq",
-    "apiId": "qwen/qwen3-32b",
-    "baseUrl": "https://api.groq.com/openai/v1",
-    "apiKeyEnv": "GROQ_API_KEY",
-    "inputPricePer1M": 0.29,
-    "outputPricePer1M": 0.59,
-    "params": {
-      "temperature": 0.2,
-      "maxCompletionTokens": 4096,
-      "disableThinking": true,
-      "reasoningFormat": "hidden"
     }
   },
   {
@@ -158,21 +126,6 @@
     }
   },
   {
-    "key": "groq-llama-3-3-70b-versatile",
-    "label": "Groq Llama 3.3 70B Versatile 128k",
-    "enabled": false,
-    "provider": "groq",
-    "apiId": "llama-3.3-70b-versatile",
-    "baseUrl": "https://api.groq.com/openai/v1",
-    "apiKeyEnv": "GROQ_API_KEY",
-    "inputPricePer1M": 0.59,
-    "outputPricePer1M": 0.79,
-    "params": {
-      "temperature": 0.2,
-      "maxCompletionTokens": 4096
-    }
-  },
-  {
     "key": "openrouter-llama-3-3-70b-instruct",
     "label": "OpenRouter Llama 3.3 70B Instruct 128k",
     "enabled": false,
@@ -190,21 +143,6 @@
       "order": ["groq"],
       "only": ["groq"],
       "allow_fallbacks": false
-    }
-  },
-  {
-    "key": "groq-llama-3-1-8b-instant",
-    "label": "Groq Llama 3.1 8B Instant 128k",
-    "enabled": false,
-    "provider": "groq",
-    "apiId": "llama-3.1-8b-instant",
-    "baseUrl": "https://api.groq.com/openai/v1",
-    "apiKeyEnv": "GROQ_API_KEY",
-    "inputPricePer1M": 0.05,
-    "outputPricePer1M": 0.08,
-    "params": {
-      "temperature": 0.2,
-      "maxCompletionTokens": 4096
     }
   },
   {
@@ -237,6 +175,24 @@
     "apiKeyEnv": "GROQ_API_KEY",
     "inputPricePer1M": 0.6,
     "outputPricePer1M": 3,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 4096,
+      "disableThinking": true,
+      "reasoningFormat": "hidden",
+      "reasoningEffort": "none"
+    }
+  },
+  {
+    "key": "groq-qwen-3-8-27b",
+    "label": "Groq Qwen 3.8 27B 131k",
+    "enabled": false,
+    "provider": "groq",
+    "apiId": "qwen/qwen3.8-27b",
+    "baseUrl": "https://api.groq.com/openai/v1",
+    "apiKeyEnv": "GROQ_API_KEY",
+    "inputPricePer1M": 0.8,
+    "outputPricePer1M": 4,
     "params": {
       "temperature": 0.2,
       "maxCompletionTokens": 4096,
@@ -281,6 +237,30 @@
       "reasoning": {
         "effort": "none"
       }
+    }
+  },
+  {
+    "key": "openrouter-qwen-3-8-27b",
+    "label": "OpenRouter Qwen 3.8 27B 262k",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "qwen/qwen3.8-27b",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.214,
+    "outputPricePer1M": 2.55,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 4096,
+      "disableThinking": true,
+      "reasoning": {
+        "enabled": false
+      }
+    },
+    "providerRouting": {
+      "order": ["reka"],
+      "only": ["reka"],
+      "allow_fallbacks": false
     }
   },
   {
@@ -509,6 +489,198 @@
     "params": {
       "temperature": 0.2,
       "maxCompletionTokens": 4096
+    }
+  },
+  {
+    "key": "openrouter-glm-5-3-flash",
+    "label": "OpenRouter GLM 5.3 Flash 1M",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "z-ai/glm-5.3-flash",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.15,
+    "outputPricePer1M": 0.5,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "effort": "low",
+        "exclude": true
+      }
+    },
+    "providerRouting": {
+      "order": ["modal/fp8"],
+      "only": ["modal/fp8"],
+      "allow_fallbacks": false
+    }
+  },
+  {
+    "key": "openrouter-deepseek-v4-flash-0731",
+    "label": "OpenRouter DeepSeek V4 Flash 0731 1M",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "deepseek/deepseek-v4-flash-0731",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.352,
+    "outputPricePer1M": 1.056,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "enabled": false
+      }
+    },
+    "providerRouting": {
+      "order": ["deepseek"],
+      "only": ["deepseek"],
+      "allow_fallbacks": false
+    }
+  },
+  {
+    "key": "openrouter-deepseek-v4-pro-0813",
+    "label": "OpenRouter DeepSeek V4 Pro 0813 1M",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "deepseek/deepseek-v4-pro-0813",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.66,
+    "outputPricePer1M": 1.98,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "enabled": false
+      }
+    },
+    "providerRouting": {
+      "order": ["deepseek"],
+      "only": ["deepseek"],
+      "allow_fallbacks": false
+    }
+  },
+  {
+    "key": "openrouter-deepseek-v4-1-flash",
+    "label": "OpenRouter DeepSeek V4.1 Flash 1M",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "deepseek/deepseek-v4.1-flash",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.15,
+    "outputPricePer1M": 0.6,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "enabled": false
+      }
+    },
+    "providerRouting": {
+      "order": ["deepseek"],
+      "only": ["deepseek"],
+      "allow_fallbacks": false
+    }
+  },
+  {
+    "key": "openrouter-glm-5-3",
+    "label": "OpenRouter GLM 5.3 1M",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "z-ai/glm-5.3",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 1.4,
+    "outputPricePer1M": 4.4,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "effort": "low",
+        "exclude": true
+      }
+    },
+    "providerRouting": {
+      "order": ["modal"],
+      "only": ["modal"],
+      "allow_fallbacks": false
+    }
+  },
+  {
+    "key": "openrouter-gemini-3-8-flash",
+    "label": "OpenRouter Gemini 3.8 Flash",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "google/gemini-3.8-flash",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.75,
+    "outputPricePer1M": 3.75,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "effort": "low",
+        "exclude": true
+      }
+    }
+  },
+  {
+    "key": "openrouter-gemini-3-7-flash",
+    "label": "OpenRouter Gemini 3.7 Flash",
+    "enabled": true,
+    "provider": "openrouter",
+    "apiId": "google/gemini-3.7-flash",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.75,
+    "outputPricePer1M": 3.75,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "effort": "low",
+        "exclude": true
+      }
+    }
+  },
+  {
+    "key": "openrouter-gemini-3-5-flash-lite",
+    "label": "OpenRouter Gemini 3.5 Flash Lite",
+    "enabled": false,
+    "provider": "openrouter",
+    "apiId": "google/gemini-3.5-flash-lite",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.3,
+    "outputPricePer1M": 2.5,
+    "params": {
+      "temperature": 0.2,
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "effort": "minimal",
+        "exclude": true
+      }
+    }
+  },
+  {
+    "key": "openrouter-gpt-5-6-luna",
+    "label": "OpenRouter GPT-5.6 Luna",
+    "enabled": false,
+    "provider": "openrouter",
+    "apiId": "openai/gpt-5.6-luna",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "inputPricePer1M": 0.2,
+    "outputPricePer1M": 1.2,
+    "params": {
+      "temperature": 1,
+      "maxCompletionTokens": 4096,
+      "reasoning": {
+        "effort": "none"
+      }
     }
   }
 ]

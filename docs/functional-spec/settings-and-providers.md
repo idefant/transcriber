@@ -191,7 +191,14 @@
 - Gemini 2.5 Flash через OpenRouter;
 - Gemini 2.5 Flash Lite через OpenRouter;
 - Gemini 3.1 Flash Lite через OpenRouter;
-- Llama 4 Scout через Groq и OpenRouter.
+- Gemini 3.7 Flash через OpenRouter;
+- Gemini 3.8 Flash через OpenRouter;
+- GLM 5.3 Flash через OpenRouter;
+- GLM 5.3 через OpenRouter;
+- DeepSeek V4.1 Flash через OpenRouter;
+- DeepSeek V4 Flash 0731 через OpenRouter;
+- DeepSeek V4 Pro 0813 через OpenRouter;
+- Llama 4 Scout через OpenRouter.
 
 Часть моделей помечена как нерекомендуемая. В настройках такие модели показываются отдельно в группе нерекомендуемых.
 

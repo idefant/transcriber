@@ -47,9 +47,19 @@ pub struct ProviderApiEntry {
     pub reasoning: Option<ReasoningParams>,
 }
 
-pub struct ReasoningParams {
-    pub effort: &'static str,
-    pub exclude: bool,
+pub enum ReasoningParams {
+    /// Отправляет `reasoning: { "enabled": false }`.
+    ///
+    /// Нужен моделям, которые умеют не рассуждать, но не принимают уровень
+    /// `none` — например семейству DeepSeek V4, где допустимы только
+    /// `max`/`high`/`low`. Для них выключение выражается флагом, а не уровнем.
+    Disabled,
+    /// Отправляет `reasoning: { "effort": ..., "exclude": ... }`.
+    ///
+    /// `exclude` убирает рассуждения из ответа, не отключая их: модель всё
+    /// равно тратит на них токены. Для моделей с `mandatory: true` это
+    /// единственный доступный способ приблизиться к «без рассуждений».
+    Effort { effort: &'static str, exclude: bool },
 }
 
 pub struct CuratedModel {
@@ -292,7 +302,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                     reasoning_effort: None,
                     reasoning_format: None,
                     include_reasoning: None,
-                    reasoning: Some(ReasoningParams {
+                    reasoning: Some(ReasoningParams::Effort {
                         effort: "minimal",
                         exclude: true,
                     }),
@@ -326,7 +336,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                     reasoning_effort: None,
                     reasoning_format: None,
                     include_reasoning: None,
-                    reasoning: Some(ReasoningParams {
+                    reasoning: Some(ReasoningParams::Effort {
                         effort: "none",
                         exclude: false,
                     }),
@@ -360,7 +370,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                     reasoning_effort: None,
                     reasoning_format: None,
                     include_reasoning: None,
-                    reasoning: Some(ReasoningParams {
+                    reasoning: Some(ReasoningParams::Effort {
                         effort: "low",
                         exclude: true,
                     }),
@@ -394,7 +404,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                     reasoning_effort: None,
                     reasoning_format: None,
                     include_reasoning: None,
-                    reasoning: Some(ReasoningParams {
+                    reasoning: Some(ReasoningParams::Effort {
                         effort: "none",
                         exclude: false,
                     }),
@@ -418,7 +428,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 reasoning_effort: None,
                 reasoning_format: None,
                 include_reasoning: None,
-                reasoning: Some(ReasoningParams {
+                reasoning: Some(ReasoningParams::Effort {
                     effort: "none",
                     exclude: false,
                 }),
@@ -441,7 +451,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 reasoning_effort: None,
                 reasoning_format: None,
                 include_reasoning: None,
-                reasoning: Some(ReasoningParams {
+                reasoning: Some(ReasoningParams::Effort {
                     effort: "none",
                     exclude: false,
                 }),
@@ -464,7 +474,7 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 reasoning_effort: None,
                 reasoning_format: None,
                 include_reasoning: None,
-                reasoning: Some(ReasoningParams {
+                reasoning: Some(ReasoningParams::Effort {
                     effort: "none",
                     exclude: false,
                 }),
@@ -487,9 +497,161 @@ pub fn curated_models() -> Vec<CuratedModel> {
                 reasoning_effort: None,
                 reasoning_format: None,
                 include_reasoning: None,
-                reasoning: Some(ReasoningParams {
+                reasoning: Some(ReasoningParams::Effort {
                     effort: "none",
                     exclude: false,
+                }),
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
+            }),
+        },
+        CuratedModel {
+            key: "glm-5-3-flash",
+            label: "GLM 5.3 Flash",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openrouter,
+                api_id: "z-ai/glm-5.3-flash",
+                is_recommended: true,
+                reasoning_effort: None,
+                reasoning_format: None,
+                include_reasoning: None,
+                reasoning: Some(ReasoningParams::Effort {
+                    effort: "low",
+                    exclude: true,
+                }),
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
+            }),
+        },
+        CuratedModel {
+            key: "glm-5-3",
+            label: "GLM 5.3",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openrouter,
+                api_id: "z-ai/glm-5.3",
+                is_recommended: false,
+                reasoning_effort: None,
+                reasoning_format: None,
+                include_reasoning: None,
+                reasoning: Some(ReasoningParams::Effort {
+                    effort: "low",
+                    exclude: true,
+                }),
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
+            }),
+        },
+        CuratedModel {
+            key: "deepseek-v4-1-flash",
+            label: "DeepSeek V4.1 Flash",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openrouter,
+                api_id: "deepseek/deepseek-v4.1-flash",
+                is_recommended: true,
+                reasoning_effort: None,
+                reasoning_format: None,
+                include_reasoning: None,
+                reasoning: Some(ReasoningParams::Disabled),
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
+            }),
+        },
+        CuratedModel {
+            key: "deepseek-v4-flash-0731",
+            label: "DeepSeek V4 Flash 0731",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openrouter,
+                api_id: "deepseek/deepseek-v4-flash-0731",
+                is_recommended: true,
+                reasoning_effort: None,
+                reasoning_format: None,
+                include_reasoning: None,
+                reasoning: Some(ReasoningParams::Disabled),
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
+            }),
+        },
+        CuratedModel {
+            key: "deepseek-v4-pro-0813",
+            label: "DeepSeek V4 Pro 0813",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openrouter,
+                api_id: "deepseek/deepseek-v4-pro-0813",
+                is_recommended: true,
+                reasoning_effort: None,
+                reasoning_format: None,
+                include_reasoning: None,
+                reasoning: Some(ReasoningParams::Disabled),
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
+            }),
+        },
+        CuratedModel {
+            key: "gemini-3-8-flash",
+            label: "Gemini 3.8 Flash",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openrouter,
+                api_id: "google/gemini-3.8-flash",
+                is_recommended: true,
+                reasoning_effort: None,
+                reasoning_format: None,
+                include_reasoning: None,
+                reasoning: Some(ReasoningParams::Effort {
+                    effort: "low",
+                    exclude: true,
+                }),
+            }],
+            params: ModelParams::PostProcess(PostProcessParams {
+                temperature: 0.2,
+                max_tokens: 4096,
+                disable_thinking_prompt: false,
+                disable_thinking_body: false,
+            }),
+        },
+        CuratedModel {
+            key: "gemini-3-7-flash",
+            label: "Gemini 3.7 Flash",
+            task: ModelTask::PostProcess,
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openrouter,
+                api_id: "google/gemini-3.7-flash",
+                is_recommended: true,
+                reasoning_effort: None,
+                reasoning_format: None,
+                include_reasoning: None,
+                reasoning: Some(ReasoningParams::Effort {
+                    effort: "low",
+                    exclude: true,
                 }),
             }],
             params: ModelParams::PostProcess(PostProcessParams {
@@ -503,26 +665,15 @@ pub fn curated_models() -> Vec<CuratedModel> {
             key: "llama-4-scout",
             label: "Llama 4 Scout",
             task: ModelTask::PostProcess,
-            entries: vec![
-                ProviderApiEntry {
-                    provider: ProviderKind::Groq,
-                    api_id: "meta-llama/llama-4-scout-17b-16e-instruct",
-                    is_recommended: false,
-                    reasoning_effort: None,
-                    reasoning_format: None,
-                    include_reasoning: None,
-                    reasoning: None,
-                },
-                ProviderApiEntry {
-                    provider: ProviderKind::Openrouter,
-                    api_id: "meta-llama/llama-4-scout",
-                    is_recommended: false,
-                    reasoning_effort: None,
-                    reasoning_format: None,
-                    include_reasoning: None,
-                    reasoning: None,
-                },
-            ],
+            entries: vec![ProviderApiEntry {
+                provider: ProviderKind::Openrouter,
+                api_id: "meta-llama/llama-4-scout",
+                is_recommended: false,
+                reasoning_effort: None,
+                reasoning_format: None,
+                include_reasoning: None,
+                reasoning: None,
+            }],
             params: ModelParams::PostProcess(PostProcessParams {
                 temperature: 0.2,
                 max_tokens: 4096,
