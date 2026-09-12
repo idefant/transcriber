@@ -1,15 +1,15 @@
 {
-  "version": "0.2.2",
-  "notes": "### Fixed\r\n\r\n- Recordings are no longer silently gutted on laptops whose vendor microphone processing runs aggressive echo cancellation. The app now opens the microphone as a speech stream, so that processing stops mistaking dictation for echo and blanking the channel, which previously made silence removal throw away half of a recording and left the speech-to-text model transcribing fragments in the wrong language. Devices that refuse a speech stream are opened the previous way and still record.\r\n- The recording overlay no longer swallows mouse clicks around itself. Only the panel itself catches clicks now, while its shadow and the rest of the screen stay clickable, so windows underneath the overlay can be used as usual during a dictation.",
-  "pub_date": "2026-09-08T13:31:17.797Z",
+  "version": "0.2.4",
+  "notes": "### Added\r\n\r\n- Seven more post-processing models are available through OpenRouter: GLM 5.3 Flash, GLM 5.3, DeepSeek V4.1 Flash, DeepSeek V4 Flash 0731, DeepSeek V4 Pro 0813, Gemini 3.8 Flash, and Gemini 3.7 Flash. Each one runs with reasoning switched off, or at the lowest level the model allows when it cannot be switched off at all, so a dictation is not paid for and slowed down by thinking the model never shows. GLM 5.3 is the only one of the seven marked as not recommended.\r\n\r\n### Changed\r\n\r\n- The model list for OpenRouter is now grouped by vendor - Anthropic, DeepSeek, Google, OpenAI, Qwen, Z.AI - with both the groups and the models inside them in alphabetical order. Models marked as not recommended are kept out of the vendor groups and stay together in a single \"Not recommended\" group at the end of the list. OpenAI and Groq keep a flat list, now also sorted by name.\r\n- The model table in provider settings is sorted by model name instead of the order in which models were added to the catalog.\r\n\r\n### Removed\r\n\r\n- Llama 4 Scout is no longer offered through Groq. The model stays available through OpenRouter.",
+  "pub_date": "2026-09-12T09:35:12.506Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmhnRnc1U2pRQ202ZW1xY0pCalY2SUlldlFtNlRHQ0pYd2c1RERrcDBkQ2cvSUtoMld2M1RKWktLQkluWHp6R1NtRWR1dHFqUHVZWkNWQzlNaE9TWmdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4ODc0Mjc1CWZpbGU6VHJhbnNjcmliZXJfMC4yLjJfeDY0LXNldHVwLmV4ZQpiNURBOVBpTVI3ZHUyV25UbzZHZUdkOUxWOGJWelFtQWY1bUJRTmIvSTFYUzJDTmdzaU14bHRVd2ZBdldpVEtzK3k4cXQ5OFV4SmV6ak1pOXh1cjNCdz09Cg==",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.2.2/Transcriber_0.2.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmtCbGJEdmZhVUU3NjFib1NDQXU1ejhyOExVRnpPdmpTMlJlVVdUTmxoaTRmMmprQVg3NUZ1V3E2L3d5QklOMCt2VVJ0VGFzcXlxR0twS08vbE1SUVFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MjA1NzA4CWZpbGU6VHJhbnNjcmliZXJfMC4yLjRfeDY0LXNldHVwLmV4ZQpzcVVPOVFsRDhkbTBLWE9ZL1pzRThUQXd0Z1VkU3JUTG90NVhMaUdMLzJFSmJFdExxMlhSdm9LSll6Z3l2S2lxYWhNSlRYS1MwQ2ZUUm85ZGRscHJBQT09Cg==",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.2.4/Transcriber_0.2.4_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmhnRnc1U2pRQ202ZW1xY0pCalY2SUlldlFtNlRHQ0pYd2c1RERrcDBkQ2cvSUtoMld2M1RKWktLQkluWHp6R1NtRWR1dHFqUHVZWkNWQzlNaE9TWmdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4ODc0Mjc1CWZpbGU6VHJhbnNjcmliZXJfMC4yLjJfeDY0LXNldHVwLmV4ZQpiNURBOVBpTVI3ZHUyV25UbzZHZUdkOUxWOGJWelFtQWY1bUJRTmIvSTFYUzJDTmdzaU14bHRVd2ZBdldpVEtzK3k4cXQ5OFV4SmV6ak1pOXh1cjNCdz09Cg==",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.2.2/Transcriber_0.2.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmtCbGJEdmZhVUU3NjFib1NDQXU1ejhyOExVRnpPdmpTMlJlVVdUTmxoaTRmMmprQVg3NUZ1V3E2L3d5QklOMCt2VVJ0VGFzcXlxR0twS08vbE1SUVFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MjA1NzA4CWZpbGU6VHJhbnNjcmliZXJfMC4yLjRfeDY0LXNldHVwLmV4ZQpzcVVPOVFsRDhkbTBLWE9ZL1pzRThUQXd0Z1VkU3JUTG90NVhMaUdMLzJFSmJFdExxMlhSdm9LSll6Z3l2S2lxYWhNSlRYS1MwQ2ZUUm85ZGRscHJBQT09Cg==",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.2.4/Transcriber_0.2.4_x64-setup.exe"
     }
   }
 }
