@@ -86,7 +86,7 @@ pub fn place_visible(label: &str) -> AppResult<()> {
         return Ok(());
     };
     let title = quote(&title(label));
-    let code = format!("local function dispatch(d) local r=hl.dispatch(d); if not r.ok then error(r.error or 'Hyprland dispatch failed') end end; for _,w in ipairs(hl.get_windows()) do if w.title=={title} then dispatch(hl.dsp.window.float({{window=w,action='set'}})); dispatch(hl.dsp.window.resize({{window=w,x={width},y={height},relative=false}})); dispatch(hl.dsp.window.move({{window=w,x={x},y={y},relative=false}})); dispatch(hl.dsp.window.alter_zorder({{window=w,mode='top'}})) end end");
+    let code = format!("local function dispatch(d) local r=hl.dispatch(d); if not r.ok then error(r.error or 'Hyprland dispatch failed') end end; for _,w in ipairs(hl.get_windows()) do if w.title=={title} then dispatch(hl.dsp.window.float({{window=w,action='enable'}})); dispatch(hl.dsp.window.pin({{window=w,action='enable'}})); dispatch(hl.dsp.window.resize({{window=w,x={width},y={height},relative=false}})); dispatch(hl.dsp.window.move({{window=w,x={x},y={y},relative=false}})); dispatch(hl.dsp.window.alter_zorder({{window=w,mode='top'}})) end end");
     linux_desktop::hyprctl(&["eval", &code])?;
     Ok(())
 }

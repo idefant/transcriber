@@ -486,7 +486,7 @@ fn build_overlay_window(app: &tauri::AppHandle, label: &str) -> AppResult<Webvie
             .shadow(false)
             .always_on_top(true)
             .skip_taskbar(true)
-            .resizable(false)
+            .resizable(cfg!(target_os = "linux"))
             .visible(false)
             .focused(false)
             .accept_first_mouse(true);
@@ -545,7 +545,7 @@ fn build_shadow_window(app: &tauri::AppHandle, label: &str) -> AppResult<Webview
     .shadow(false)
     .always_on_top(true)
     .skip_taskbar(true)
-    .resizable(false)
+    .resizable(cfg!(target_os = "linux"))
     .visible(false)
     .focused(false);
 
