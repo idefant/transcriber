@@ -371,6 +371,11 @@ fn update_app_settings_inner(
 
     settings.effective_ui_language = resolve_effective_ui_language(&settings.ui_language);
 
+    #[cfg(target_os = "linux")]
+    {
+        crate::linux_desktop::validate_settings(&settings)?;
+        crate::linux_desktop::refresh(&settings)?;
+    }
     save_app_settings(app, &settings)?;
     telemetry::set_enabled(settings.is_telemetry_enabled);
     autostart::sync_launch_at_login(settings.is_launch_at_login_enabled)?;

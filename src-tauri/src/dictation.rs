@@ -208,6 +208,9 @@ fn enqueue_dictation_job(app: &tauri::AppHandle, job: DictationJob) {
 pub fn update_dictation_shortcut(app: &tauri::AppHandle) -> AppResult<()> {
     let settings = settings::load_app_settings(app)?;
 
+    #[cfg(target_os = "linux")]
+    crate::linux_desktop::refresh(&settings)?;
+
     shortcut_hook::set_dictation_hotkey(settings.hotkey())?;
     shortcut_hook::set_copy_latest_hotkey(settings.copy_latest_hotkey())?;
     shortcut_hook::set_paste_latest_hotkey(settings.paste_latest_hotkey())?;

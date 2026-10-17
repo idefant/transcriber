@@ -1,3 +1,7 @@
+#[cfg(target_os = "linux")]
+pub use crate::keyboard_linux::{copy_text, paste_text};
+
+#[cfg(not(target_os = "linux"))]
 use crate::{
     error::{AppError, AppResult},
     i18n,
@@ -21,7 +25,7 @@ pub async fn paste_text(app: &tauri::AppHandle, text: &str) -> AppResult<()> {
     send_result
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 pub async fn paste_text(app: &tauri::AppHandle, _text: &str) -> AppResult<()> {
     Err(AppError::from(i18n::text(
         app,
@@ -35,7 +39,7 @@ pub fn copy_text(app: &tauri::AppHandle, text: &str) -> AppResult<()> {
         .map_err(|error| error.into_app_error(app))
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 pub fn copy_text(app: &tauri::AppHandle, _text: &str) -> AppResult<()> {
     Err(AppError::from(i18n::text(
         app,

@@ -1,4 +1,5 @@
-import { type FC, useEffect, useRef } from 'react';
+import { type FC, useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import * as dictationApi from '#/shared/dictationApi';
@@ -8,6 +9,7 @@ import { isHotkeyCaptureActive } from '#/shared/hotkeyCaptureLock';
 import { useSettingsStore } from '#/stores';
 
 const DictationHotkeyFallback: FC = () => {
+  const [nativeShortcutsEnabled, setNativeShortcutsEnabled] = useState(false);
   const settings = useSettingsStore((s) => s.settings);
   const isSessionActiveRef = useRef(false);
   const isRecordingRef = useRef(false);
@@ -15,6 +17,24 @@ const DictationHotkeyFallback: FC = () => {
   const nextActivationIdRef = useRef(1);
   const activeActivationIdRef = useRef<number | null>(null);
   const pressedModifierCodesRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    let disposed = false;
+    const unlisten = listen<boolean>('native-shortcuts-enabled', ({ payload }) => {
+      if (!disposed) setNativeShortcutsEnabled(payload);
+    });
+    void invoke<boolean>('native_shortcuts_enabled').then((enabled) => {
+      if (!disposed) setNativeShortcutsEnabled(enabled);
+      return null;
+    });
+    return () => {
+      disposed = true;
+      void unlisten.then((stop) => {
+        stop();
+        return null;
+      });
+    };
+  }, []);
 
   // Отслеживаем состояние сессии диктовки, чтобы управлять перехватом хоткеев отмены и паузы.
   // Отмена перехватывается только пока сессия активна, пауза — только пока идет запись;
@@ -39,6 +59,12 @@ const DictationHotkeyFallback: FC = () => {
   }, []);
 
   useEffect(() => {
+    // Hyprland доставляет события через IPC и в сфокусированном окне;
+    // DOM-путь дублировал бы нажатие и мог остановить только что начатую запись.
+    if (nativeShortcutsEnabled) {
+      return;
+    }
+
     const dictationHotkey = parseHotkey(settings.hotkey);
     const cancelHotkey =
       settings.cancelHotkey.trim().length > 0 ? parseHotkey(settings.cancelHotkey) : undefined;
@@ -191,6 +217,7 @@ const DictationHotkeyFallback: FC = () => {
       globalThis.removeEventListener('blur', handleBlur);
     };
   }, [
+    nativeShortcutsEnabled,
     settings.cancelHotkey,
     settings.copyLatestHotkey,
     settings.hotkey,

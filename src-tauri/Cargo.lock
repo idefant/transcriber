@@ -5501,6 +5501,7 @@ dependencies = [
  "clipboard-win",
  "hound",
  "i18n-embed",
+ "libc",
  "ort",
  "raw-window-handle",
  "reqwest 0.12.28",

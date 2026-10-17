@@ -37,7 +37,7 @@ export const formatHotkeyFromEvent = (
     return undefined;
   }
 
-  const parts: string[] = [];
+  let parts: string[] = [];
 
   const lCtrl = pressedModifierCodes.has('ControlLeft');
   const rCtrl = pressedModifierCodes.has('ControlRight');
@@ -66,6 +66,11 @@ export const formatHotkeyFromEvent = (
   if (lMeta && rMeta) parts.push('Win');
   else if (lMeta) parts.push('LWin');
   else if (rMeta) parts.push('RWin');
+
+  // Hyprland принимает модификатор без стороны; Windows сохраняет точный захват.
+  if (globalThis.navigator.userAgent.includes('Linux')) {
+    parts = parts.map((part) => part.replace(/^[LR](?=Ctrl|Alt|Shift|Win)/u, ''));
+  }
 
   parts.push(mainKey);
 

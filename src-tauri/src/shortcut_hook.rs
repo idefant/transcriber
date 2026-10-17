@@ -11,6 +11,14 @@ static IS_HOTKEY_CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
 #[tauri::command]
 pub fn set_hotkey_capture_active(active: bool) {
     IS_HOTKEY_CAPTURE_ACTIVE.store(active, Ordering::Relaxed);
+    #[cfg(target_os = "linux")]
+    crate::linux_desktop::capture_changed();
+}
+
+/** Состояние захвата новой комбинации в настройках. */
+#[cfg(target_os = "linux")]
+pub fn is_capture_active() -> bool {
+    IS_HOTKEY_CAPTURE_ACTIVE.load(Ordering::Relaxed)
 }
 
 #[derive(Clone, Copy)]
@@ -31,13 +39,28 @@ pub fn install_dictation_shortcut(app: tauri::AppHandle, hotkey: &str) -> AppRes
     windows_hook::install(app, hotkey)
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 pub fn install_dictation_shortcut(_app: tauri::AppHandle, _hotkey: &str) -> AppResult<()> {
     Err(AppError::from(i18n::text_for_language(
         EffectiveUiLanguage::En,
         "shortcut-windows-only",
         &[],
     )))
+}
+
+#[cfg(target_os = "linux")]
+pub fn install_dictation_shortcut(app: tauri::AppHandle, _hotkey: &str) -> AppResult<()> {
+    crate::linux_desktop::initialize(app.clone())?;
+    let config = crate::settings::load_app_settings(&app)?;
+    // Конфликт сочетания не должен препятствовать открытию настроек.
+    if let Err(error) = crate::linux_desktop::refresh(&config) {
+        let message = error.into_message();
+        eprintln!("{message}");
+        let _ = std::process::Command::new("notify-send")
+            .args(["Transcriber", &message])
+            .spawn();
+    }
+    Ok(())
 }
 
 #[cfg(target_os = "windows")]
@@ -97,6 +120,8 @@ pub fn arm_cancel_hotkey(hotkey: &str) -> AppResult<()> {
 
 #[cfg(not(target_os = "windows"))]
 pub fn arm_cancel_hotkey(_hotkey: &str) -> AppResult<()> {
+    #[cfg(target_os = "linux")]
+    crate::linux_desktop::set_cancel_armed(!_hotkey.is_empty());
     Ok(())
 }
 
@@ -106,7 +131,10 @@ pub fn disarm_cancel_hotkey() {
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn disarm_cancel_hotkey() {}
+pub fn disarm_cancel_hotkey() {
+    #[cfg(target_os = "linux")]
+    crate::linux_desktop::set_cancel_armed(false);
+}
 
 #[cfg(target_os = "windows")]
 pub fn arm_pause_hotkey(hotkey: &str) -> AppResult<()> {
@@ -115,6 +143,8 @@ pub fn arm_pause_hotkey(hotkey: &str) -> AppResult<()> {
 
 #[cfg(not(target_os = "windows"))]
 pub fn arm_pause_hotkey(_hotkey: &str) -> AppResult<()> {
+    #[cfg(target_os = "linux")]
+    crate::linux_desktop::set_pause_armed(!_hotkey.is_empty());
     Ok(())
 }
 
@@ -124,7 +154,10 @@ pub fn disarm_pause_hotkey() {
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn disarm_pause_hotkey() {}
+pub fn disarm_pause_hotkey() {
+    #[cfg(target_os = "linux")]
+    crate::linux_desktop::set_pause_armed(false);
+}
 
 #[cfg(target_os = "windows")]
 pub fn set_main_window_focused(focused: bool) {
@@ -154,6 +187,7 @@ struct Hotkey {
 #[derive(Clone, Copy)]
 struct MainKey {
     name: &'static str,
+    #[cfg_attr(target_os = "linux", allow(dead_code))]
     vk: u32,
 }
 
@@ -982,5 +1016,18 @@ mod windows_hook {
             TranslateMessage(&message);
             DispatchMessageW(&message);
         }
+    }
+}
+
+/** На Linux DOM нужен только когда compositor не обслуживает глобальные бинды. */
+#[tauri::command]
+pub fn native_shortcuts_enabled() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        crate::linux_desktop::shortcuts_enabled()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
     }
 }

@@ -12,6 +12,10 @@ mod history;
 mod http;
 mod i18n;
 mod keyboard;
+#[cfg(target_os = "linux")]
+mod keyboard_linux;
+#[cfg(target_os = "linux")]
+mod linux_desktop;
 mod maintenance;
 mod media_control;
 mod metrics;
@@ -32,6 +36,11 @@ mod updater;
 use tauri::Manager;
 
 pub fn run() {
+    let context = tauri::generate_context!();
+    #[cfg(target_os = "linux")]
+    if linux_desktop::run_control_client(&context.config().identifier) {
+        return;
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // Повторный запуск: фокусируем окно уже работающего экземпляра.
@@ -111,6 +120,7 @@ pub fn run() {
             overlay::overlay_notice_mouse_move,
             overlay::overlay_notice_mouse_leave,
             shortcut_hook::set_hotkey_capture_active,
+            shortcut_hook::native_shortcuts_enabled,
             history::get_history_groups,
             history::get_history_oldest_month,
             history::search_history_records,
@@ -126,6 +136,12 @@ pub fn run() {
             maintenance::get_startup_status,
             maintenance::reset_app_data,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Transcriber");
+        .build(context)
+        .expect("error while building Transcriber")
+        .run(|_app, event| {
+            #[cfg(target_os = "linux")]
+            if matches!(event, tauri::RunEvent::Exit) {
+                linux_desktop::shutdown();
+            }
+        });
 }

@@ -37,6 +37,8 @@ impl fmt::Display for CaptureError {
     }
 }
 
+type SampleCallback = Arc<Mutex<dyn FnMut(&[f32]) + Send>>;
+
 struct RunningCapture {
     child: Child,
     reader: JoinHandle<Result<(), String>>,
@@ -45,7 +47,7 @@ struct RunningCapture {
 /** Подготовленный захват не держит микрофон открытым. Процесс создаётся на start. */
 pub struct CaptureStream {
     device_id: String,
-    samples: Arc<Mutex<dyn FnMut(&[f32]) + Send>>,
+    samples: SampleCallback,
     running: Mutex<Option<RunningCapture>>,
 }
 
@@ -112,7 +114,9 @@ impl CaptureStream {
                 pending.extend_from_slice(&bytes[..count]);
                 let complete = pending.len() / 4 * 4;
                 let data: Vec<f32> = pending[..complete]
-                    .chunks_exact(4)
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
                     .map(|b| f32::from_ne_bytes([b[0], b[1], b[2], b[3]]))
                     .collect();
                 pending.drain(..complete);
