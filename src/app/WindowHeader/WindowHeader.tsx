@@ -1,9 +1,12 @@
 import { type FC, Fragment, useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Typography } from 'antd';
 import clsx from 'clsx';
 import { ChevronRightIcon, CopyIcon, MinusIcon, SquareIcon, XIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
+import { isLinux } from '#/shared/utils';
 
 import styles from './WindowHeader.module.scss';
 
@@ -91,7 +94,7 @@ const WindowHeader: FC<WindowHeaderProps> = ({ titlePath }) => {
   }, []);
 
   const handleToggleMaximize = async () => {
-    await appWindow.toggleMaximize();
+    await (isLinux ? invoke('toggle_main_maximize') : appWindow.toggleMaximize());
 
     setWindowState((currentState) => ({
       ...currentState,

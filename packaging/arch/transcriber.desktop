@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Transcriber
+GenericName=Voice dictation
+GenericName[ru]=Голосовая диктовка
+Comment=Transcribe speech into the active application
+Comment[ru]=Распознавание речи и вставка текста в активное приложение
+Keywords=Transcriber;Voice;Dictation;Transcription;
+Keywords[ru]=Transcriber;Voice dictation;Voice;Dictation;Transcription;голос;диктовка;расшифровка;
+Exec=transcriber
+Icon=transcriber
+Terminal=false
+Categories=AudioVideo;Audio;
+StartupNotify=true
+StartupWMClass=transcriber

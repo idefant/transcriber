@@ -39,7 +39,7 @@ pub struct ConfigError {
     pub message: String,
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct OpenSettingsPayload {
@@ -102,7 +102,7 @@ pub fn show_config_error(app: &tauri::AppHandle, error: &ConfigError) {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn show_config_error(_app: &tauri::AppHandle, _error: &ConfigError) {}
 
 #[cfg(windows)]
@@ -119,4 +119,68 @@ fn toast_app_id(app: &tauri::AppHandle) -> Cow<'static, str> {
     } else {
         Cow::Owned(app_id)
     }
+}
+
+/** Использует action уведомления, если сервер рабочего стола поддерживает действия. */
+#[cfg(target_os = "linux")]
+pub fn show_config_error(app: &tauri::AppHandle, error: &ConfigError) {
+    let language = crate::settings::get_effective_ui_language(app).unwrap_or_default();
+    let title = crate::i18n::text_for_language(language, "notification-config-error-title", &[]);
+    let body = crate::i18n::text_for_language(
+        language,
+        "notification-config-error-body",
+        &[
+            (
+                "section",
+                crate::i18n::text_for_language(language, error.section.i18n_key(), &[]),
+            ),
+            ("message", error.message.clone()),
+        ],
+    );
+    let open_action = format!(
+        "--action=open={}",
+        crate::i18n::text_for_language(language, "tray-open", &[])
+    );
+    let app = app.clone();
+    let section = error.section;
+    std::thread::spawn(move || {
+        let output = std::process::Command::new("notify-send")
+            .args([
+                "--app-name=Transcriber",
+                &open_action,
+                "--wait",
+                "--expire-time=10000",
+                &title,
+                &body,
+            ])
+            .output();
+        match output {
+            Ok(output)
+                if output.status.success()
+                    && String::from_utf8_lossy(&output.stdout).trim() == "open" =>
+            {
+                let handle = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    use tauri::Emitter;
+                    let _ = crate::background::show_main_window(&handle);
+                    if matches!(section, ConfigErrorSection::Dictionary) {
+                        let _ = handle.emit("open-dictionary", ());
+                    } else {
+                        let _ = handle.emit(
+                            "open-settings",
+                            OpenSettingsPayload {
+                                section: section.section_key(),
+                            },
+                        );
+                    }
+                });
+            }
+            Ok(output) if !output.status.success() => eprintln!(
+                "Notification failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
+            Err(error) => eprintln!("Notification failed: {error}"),
+            _ => {}
+        }
+    });
 }

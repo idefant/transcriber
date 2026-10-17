@@ -1,3 +1,5 @@
+import { isLinux } from '#/shared/utils';
+
 import { CODE_TO_KEY } from './keyMap';
 
 /** Набор значений `event.code` для всех клавиш-модификаторов (обеих сторон). */
@@ -68,7 +70,7 @@ export const formatHotkeyFromEvent = (
   else if (rMeta) parts.push('RWin');
 
   // Hyprland принимает модификатор без стороны; Windows сохраняет точный захват.
-  if (globalThis.navigator.userAgent.includes('Linux')) {
+  if (isLinux) {
     parts = parts.map((part) => part.replace(/^[LR](?=Ctrl|Alt|Shift|Win)/u, ''));
   }
 

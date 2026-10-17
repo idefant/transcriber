@@ -1,5 +1,7 @@
 #[cfg(target_os = "windows")]
-use crate::error::{AppError, AppResult};
+use crate::error::AppError;
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+use crate::error::AppResult;
 
 #[cfg(target_os = "windows")]
 use std::{
@@ -32,13 +34,13 @@ const PAUSE_POLL_INTERVAL: Duration = Duration::from_millis(25);
 /// стоят на паузе: если пользователь за время записи сам нажал play или переключил трек,
 /// перебивать его не нужно.
 pub struct MediaPauseGuard {
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     paused_ids: Vec<String>,
 }
 
 impl Drop for MediaPauseGuard {
     fn drop(&mut self) {
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
         if let Err(error) = resume_sessions(&self.paused_ids) {
             eprintln!("Failed to resume media sessions: {}", error.into_message());
         }
@@ -297,15 +299,78 @@ where
     result.map_err(|e| AppError::from(format!("System media error: {e}")))
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 pub fn playing_sessions() -> Vec<String> {
     Vec::new()
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 pub fn pause_sessions(_ids: &[String]) -> Option<MediaPauseGuard> {
     None
 }
 
 #[cfg(not(target_os = "windows"))]
 pub fn prewarm() {}
+
+#[cfg(target_os = "linux")]
+fn playerctl(player: &str, action: &str) -> Option<String> {
+    let output = std::process::Command::new("playerctl")
+        .args(["--player", player, action])
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+}
+
+/** Проверяет конкретные MPRIS instance, не отправляя слепую media play/pause клавишу. */
+#[cfg(target_os = "linux")]
+pub fn playing_sessions() -> Vec<String> {
+    let Ok(output) = std::process::Command::new("playerctl")
+        .arg("--list-all")
+        .output()
+    else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|id| playerctl(id, "status").as_deref() == Some("Playing"))
+        .map(str::to_owned)
+        .collect()
+}
+
+/** Возвращает только сессии, которые сам поставил на паузу и подтвердил. */
+#[cfg(target_os = "linux")]
+pub fn pause_sessions(ids: &[String]) -> Option<MediaPauseGuard> {
+    let paused_ids: Vec<String> = ids
+        .iter()
+        .filter(|id| {
+            playerctl(id, "status").as_deref() == Some("Playing")
+                && playerctl(id, "pause").is_some()
+        })
+        .cloned()
+        .collect();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
+    while std::time::Instant::now() < deadline
+        && paused_ids
+            .iter()
+            .any(|id| playerctl(id, "status").as_deref() == Some("Playing"))
+    {
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+    (!paused_ids.is_empty()).then_some(MediaPauseGuard { paused_ids })
+}
+
+#[cfg(target_os = "linux")]
+fn resume_sessions(ids: &[String]) -> AppResult<()> {
+    for id in ids {
+        if playerctl(id, "status").as_deref() == Some("Paused") {
+            let _ = playerctl(id, "play");
+        }
+    }
+    Ok(())
+}

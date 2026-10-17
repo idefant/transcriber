@@ -132,12 +132,66 @@ fn wide_null(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn enable_launch_at_login() -> AppResult<()> {
     Ok(())
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn disable_launch_at_login() -> AppResult<()> {
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn autostart_path() -> AppResult<std::path::PathBuf> {
+    let config = std::env::var_os("XDG_CONFIG_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".config"))
+        })
+        .ok_or_else(|| AppError::from("Could not locate the user configuration directory"))?;
+    let name = if cfg!(debug_assertions) {
+        "transcriber-dev.desktop"
+    } else {
+        "transcriber.desktop"
+    };
+    Ok(config.join("autostart").join(name))
+}
+
+#[cfg(target_os = "linux")]
+fn enable_launch_at_login() -> AppResult<()> {
+    let path = autostart_path()?;
+    let executable = std::env::var_os("APPIMAGE")
+        .map(std::path::PathBuf::from)
+        .unwrap_or(std::env::current_exe()?);
+    let executable = executable.to_string_lossy();
+    if executable.contains(['\n', '\r']) {
+        return Err(AppError::from("Executable path contains a newline"));
+    }
+    // Exec сначала проходит разбор .desktop, затем разбор quoted arguments.
+    let executable = executable
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('`', "\\`")
+        .replace('$', "\\$")
+        .replace('%', "%%")
+        .replace('\\', "\\\\");
+    let contents = format!("[Desktop Entry]\nType=Application\nName=Transcriber\nName[ru]=Transcriber\nGenericName=Voice dictation\nGenericName[ru]=Голосовая диктовка\nKeywords=Transcriber;Voice;Dictation;Transcription;\nKeywords[ru]=Transcriber;Voice dictation;Voice;Dictation;Transcription;голос;диктовка;расшифровка;\nExec=\"{executable}\" {HIDDEN_START_ARG}\nTerminal=false\nStartupNotify=false\n");
+    if std::fs::read_to_string(&path).ok().as_deref() != Some(&contents) {
+        std::fs::create_dir_all(
+            path.parent()
+                .ok_or_else(|| AppError::from("Invalid autostart path"))?,
+        )?;
+        std::fs::write(path, contents)?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn disable_launch_at_login() -> AppResult<()> {
+    match std::fs::remove_file(autostart_path()?) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
 }

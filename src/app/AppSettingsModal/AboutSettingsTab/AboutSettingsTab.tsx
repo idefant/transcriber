@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import ResetAppDataButton from '#/app/ResetAppDataButton';
 import * as settingsApi from '#/shared/settingsApi';
+import { isLinux } from '#/shared/utils';
 
 import SettingRow from '../SettingRow';
 import SettingsSection from '../SettingsSection';
@@ -38,6 +39,7 @@ const AboutSettingsTab: FC = () => {
   }, []);
 
   useEffect(() => {
+    if (isLinux) return;
     void checkForUpdates(settings.isOfferUnstableVersionsEnabled).catch((error: unknown) => {
       void messageApi.error(getErrorMessage(error));
     });
@@ -107,65 +109,74 @@ const AboutSettingsTab: FC = () => {
             </div>
           </SettingRow>
 
-          <SettingRow
-            description={t('settings.about.updateNotifications.description')}
-            title={t('settings.about.updateNotifications.title')}
-          >
-            <Switch
-              checked={settings.isUpdateNotificationsEnabled}
-              onChange={handleUpdateNotificationsChange}
-            />
-          </SettingRow>
-
-          <SettingRow
-            description={t('settings.about.offerUnstable.description')}
-            title={t('settings.about.offerUnstable.title')}
-          >
-            <Switch
-              checked={settings.isOfferUnstableVersionsEnabled}
-              onChange={handleOfferUnstableChange}
-            />
-          </SettingRow>
-
-          <div className={styles.updateRow}>
-            {!isInstalling && (
-              <Button
-                loading={isChecking}
-                icon={<RefreshCwIcon size={14} strokeWidth={2} />}
-                onClick={() => void handleCheckForUpdates()}
+          {isLinux ? (
+            <p>{t('settings.about.linuxUpdates')}</p>
+          ) : (
+            <>
+              <SettingRow
+                description={t('settings.about.updateNotifications.description')}
+                title={t('settings.about.updateNotifications.title')}
               >
-                {t('settings.about.checkForUpdates')}
-              </Button>
-            )}
+                <Switch
+                  checked={settings.isUpdateNotificationsEnabled}
+                  onChange={handleUpdateNotificationsChange}
+                />
+              </SettingRow>
 
-            {availableUpdate !== null && !isInstalling && (
-              <Button
-                color="green"
-                variant="solid"
-                icon={<DownloadIcon size={14} strokeWidth={2} />}
-                onClick={() => void handleInstall()}
+              <SettingRow
+                description={t('settings.about.offerUnstable.description')}
+                title={t('settings.about.offerUnstable.title')}
               >
-                {t('settings.about.installUpdate', { version: availableUpdate.version })}
-              </Button>
-            )}
+                <Switch
+                  checked={settings.isOfferUnstableVersionsEnabled}
+                  onChange={handleOfferUnstableChange}
+                />
+              </SettingRow>
 
-            {lastCheckedAt !== null && availableUpdate === null && !isChecking && !isInstalling && (
-              <span className={styles.noUpdate}>{t('settings.about.noUpdate')}</span>
-            )}
+              <div className={styles.updateRow}>
+                {!isInstalling && (
+                  <Button
+                    loading={isChecking}
+                    icon={<RefreshCwIcon size={14} strokeWidth={2} />}
+                    onClick={() => void handleCheckForUpdates()}
+                  >
+                    {t('settings.about.checkForUpdates')}
+                  </Button>
+                )}
 
-            {isInstalling && (
-              <div className={styles.installingBlock}>
-                <span>{t('settings.about.installing')}</span>
-                {downloadPercent !== undefined && (
-                  <Progress percent={downloadPercent} size="small" />
+                {availableUpdate !== null && !isInstalling && (
+                  <Button
+                    color="green"
+                    variant="solid"
+                    icon={<DownloadIcon size={14} strokeWidth={2} />}
+                    onClick={() => void handleInstall()}
+                  >
+                    {t('settings.about.installUpdate', { version: availableUpdate.version })}
+                  </Button>
+                )}
+
+                {lastCheckedAt !== null &&
+                  availableUpdate === null &&
+                  !isChecking &&
+                  !isInstalling && (
+                    <span className={styles.noUpdate}>{t('settings.about.noUpdate')}</span>
+                  )}
+
+                {isInstalling && (
+                  <div className={styles.installingBlock}>
+                    <span>{t('settings.about.installing')}</span>
+                    {downloadPercent !== undefined && (
+                      <Progress percent={downloadPercent} size="small" />
+                    )}
+                  </div>
+                )}
+
+                {availableUpdate !== null && releaseNotes.length > 0 && (
+                  <ReleaseNotes notes={releaseNotes} version={availableUpdate.version} />
                 )}
               </div>
-            )}
-
-            {availableUpdate !== null && releaseNotes.length > 0 && (
-              <ReleaseNotes notes={releaseNotes} version={availableUpdate.version} />
-            )}
-          </div>
+            </>
+          )}
         </SettingsSection>
 
         <SettingsSection title={t('settings.about.sections.diagnostics')}>

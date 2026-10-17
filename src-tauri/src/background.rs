@@ -381,3 +381,26 @@ fn main_window(app: &tauri::AppHandle) -> AppResult<WebviewWindow> {
     app.get_webview_window(MAIN_WINDOW_LABEL)
         .ok_or_else(|| i18n::text(app, "main-window-not-found").into())
 }
+
+/** Разворачивает главное окно через compositor в Linux, сохраняя нативный путь Windows. */
+#[tauri::command]
+pub fn toggle_main_maximize(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    let result = crate::linux_overlay::toggle_main_maximized(
+        &main_window(&app)
+            .map_err(AppError::into_message)?
+            .title()
+            .map_err(|error| error.to_string())?,
+    );
+    #[cfg(not(target_os = "linux"))]
+    let result = (|| -> AppResult<()> {
+        let window = main_window(&app)?;
+        if window.is_maximized()? {
+            window.unmaximize()?;
+        } else {
+            window.maximize()?;
+        }
+        Ok(())
+    })();
+    result.map_err(AppError::into_message)
+}

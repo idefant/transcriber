@@ -5,9 +5,20 @@ use crate::error::{AppError, AppResult};
 pub struct OutputMuteGuard {
     #[cfg(target_os = "windows")]
     previous_muted: bool,
+    #[cfg(target_os = "linux")]
+    endpoint: LinuxEndpoint,
 }
 
 impl OutputMuteGuard {
+    #[cfg(target_os = "linux")]
+    pub fn new() -> AppResult<Self> {
+        let endpoint = LinuxEndpoint::capture_default()?;
+        if !endpoint.was_muted {
+            wpctl(&["set-mute", &endpoint.id, "1"])?;
+        }
+        Ok(Self { endpoint })
+    }
+
     #[cfg(target_os = "windows")]
     pub fn new() -> AppResult<Self> {
         let previous_muted = unsafe { get_default_endpoint_mute() }?;
@@ -15,7 +26,7 @@ impl OutputMuteGuard {
         Ok(Self { previous_muted })
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     pub fn new() -> AppResult<Self> {
         Ok(Self {})
     }
@@ -23,6 +34,18 @@ impl OutputMuteGuard {
 
 impl Drop for OutputMuteGuard {
     fn drop(&mut self) {
+        #[cfg(target_os = "linux")]
+        if !self.endpoint.was_muted {
+            // Номер может быть повторно использован после отключения устройства.
+            if wpctl(&["inspect", &self.endpoint.id]).is_ok_and(|description| {
+                description.lines().any(|line| {
+                    line.trim().trim_start_matches('*').trim() == self.endpoint.identity
+                })
+            }) {
+                let _ = wpctl(&["set-mute", &self.endpoint.id, "0"]);
+            }
+        }
+
         #[cfg(target_os = "windows")]
         // Восстанавливаем звук, только если заглушили его сами.
         if !self.previous_muted {
@@ -76,4 +99,49 @@ unsafe fn get_default_endpoint_mute() -> AppResult<bool> {
 unsafe fn set_default_endpoint_mute(mute: bool) -> AppResult<()> {
     use windows::core::GUID;
     with_endpoint_volume(|vol| vol.SetMute(mute, std::ptr::null::<GUID>()))
+}
+
+#[cfg(target_os = "linux")]
+struct LinuxEndpoint {
+    id: String,
+    identity: String,
+    was_muted: bool,
+}
+
+#[cfg(target_os = "linux")]
+impl LinuxEndpoint {
+    fn capture_default() -> AppResult<Self> {
+        let description = wpctl(&["inspect", "@DEFAULT_AUDIO_SINK@"])?;
+        let id = description
+            .lines()
+            .next()
+            .and_then(|line| line.strip_prefix("id "))
+            .and_then(|line| line.split(',').next())
+            .ok_or_else(|| AppError::from("Could not identify default PipeWire output"))?
+            .to_owned();
+        let identity = description
+            .lines()
+            .map(|line| line.trim().trim_start_matches('*').trim())
+            .find(|line| line.starts_with("object.serial = "))
+            .ok_or_else(|| AppError::from("Could not identify PipeWire output serial"))?
+            .to_owned();
+        let volume = wpctl(&["get-volume", &id])?;
+        Ok(Self {
+            id,
+            identity,
+            was_muted: volume.contains("[MUTED]"),
+        })
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn wpctl(args: &[&str]) -> AppResult<String> {
+    let output = std::process::Command::new("wpctl").args(args).output()?;
+    if !output.status.success() {
+        return Err(AppError::from(format!(
+            "PipeWire volume control: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }

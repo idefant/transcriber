@@ -54,3 +54,19 @@ npm run dev:linux
 `npm run build:linux` builds Linux distribution bundles. `npm run dev:linux:debug` exposes the WebKit inspector on loopback port 9222 for local development only. Ordinary development and production builds do not enable that server.
 
 Linux capture uses the default PipeWire source and converts it to mono float32 at 48 kHz. Pausing, cancelling or stopping a recording terminates the capture client and releases the microphone. Resuming opens the source again, so Linux does not share Windows' fully prewarmed hardware stream latency.
+
+Linux hotkeys follow the application's settings and are registered at runtime through Hyprland Lua IPC (Hyprland 0.55 or newer). Existing desktop shortcuts are checked for conflicts and never replaced. DEV and installed builds use independent control sockets. Modifier sides are supported on Windows; on Linux, assign the combination again without a left/right modifier distinction.
+
+Clipboard insertion preserves every offered content MIME type, including images and HTML, with a 64 MiB / three-second snapshot limit. Protocol targets and redundant X11 text aliases are excluded. A new user copy during insertion takes priority over restoration. Clipboard contents owned by the application may disappear when it exits unless a clipboard manager has retained them. Known terminals receive Ctrl+Shift+V; other applications receive Ctrl+V. Applications with custom paste bindings require manual insertion.
+
+To create an Arch package from a committed checkout:
+
+```bash
+mkdir -p /tmp/transcriber-package
+cp packaging/arch/PKGBUILD /tmp/transcriber-package/
+git archive --format=tar.gz --prefix=transcriber/ HEAD -o /tmp/transcriber-package/transcriber-0.1.0.tar.gz
+cd /tmp/transcriber-package
+makepkg -s
+```
+
+The package is installed with `pacman -U` and updated through the package manager. The local source archive is intentionally not downloaded by PKGBUILD. Review the generated package before installing it. AppImage updates are manual; Windows keeps its existing automatic updater.

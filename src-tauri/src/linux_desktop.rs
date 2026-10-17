@@ -29,7 +29,8 @@ static ENABLED: AtomicBool = AtomicBool::new(false);
 static STOPPING: AtomicBool = AtomicBool::new(false);
 static LAST_REGISTRATION: OnceLock<Mutex<String>> = OnceLock::new();
 
-fn namespace() -> String {
+/** Пространство имён независимых профилей приложения. */
+pub(crate) fn namespace() -> String {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     INSTANCE
@@ -176,7 +177,8 @@ pub fn initialize(app: tauri::AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-fn hyprctl(args: &[&str]) -> AppResult<String> {
+/** Передаёт один аргумент IPC без shell-интерполяции и проверяет ошибки Lua. */
+pub(crate) fn hyprctl(args: &[&str]) -> AppResult<String> {
     let output = Command::new("hyprctl").args(args).output()?;
     let text = String::from_utf8_lossy(&output.stdout).trim().to_owned();
     if !output.status.success() || text.starts_with("error") || text.contains("Lua error") {
@@ -289,26 +291,44 @@ fn check_conflicts(wanted: &[Binding]) -> AppResult<()> {
                 item.combo
             )));
         }
-        if current.as_array().is_some_and(|binds| {
-            binds.iter().any(|existing| {
-                !existing["description"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .starts_with(&prefix)
+        if let Some(existing) = current.as_array() {
+            for existing in existing {
+                let description = existing["description"].as_str().unwrap_or_default();
+                let matches = !description.starts_with(&prefix)
                     && existing["modmask"].as_u64() == Some(item.mask)
                     && (existing["key"]
                         .as_str()
                         .is_some_and(|key| key.eq_ignore_ascii_case(&item.key))
-                        || existing["catch_all"].as_bool() == Some(true))
-            })
-        }) {
-            return Err(AppError::from(format!(
-                "Shortcut {} is already used by Hyprland; choose another combination",
-                item.combo
-            )));
+                        || existing["catch_all"].as_bool() == Some(true));
+                if matches && !disabled_managed_binding(existing)? {
+                    return Err(AppError::from(format!(
+                        "Shortcut {} is already used by Hyprland; choose another combination",
+                        item.combo
+                    )));
+                }
+            }
         }
     }
     Ok(())
+}
+
+// JSON binds не включает enabled; проверяем настоящий handle другого экземпляра,
+// а не доверяем произвольному описанию, похожему на название приложения.
+fn disabled_managed_binding(existing: &serde_json::Value) -> AppResult<bool> {
+    let description = existing["description"].as_str().unwrap_or_default();
+    let Some((namespace, _)) = description.split_once(':') else {
+        return Ok(false);
+    };
+    let Some(hash) = namespace.strip_prefix("transcriber_") else {
+        return Ok(false);
+    };
+    if hash.len() != 16 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Ok(false);
+    }
+    let key = existing["key"].as_str().unwrap_or_default();
+    let mask = existing["modmask"].as_u64().unwrap_or_default();
+    let code = format!("local r=_G[{}]; if type(r)=='table' and type(r.binds)=='table' then for _,b in pairs(r.binds) do if b.description=={} and b.modmask=={mask} and b.key=={} and not b:is_enabled() then return true end end end; return false", lua_string(namespace), lua_string(description), lua_string(key));
+    Ok(hyprctl(&["repl", &code])?.trim() == "true")
 }
 
 /** Проверяет конфликты до сохранения настроек, включая временно неактивные действия. */
@@ -327,10 +347,15 @@ pub fn refresh(config: &AppSettings) -> AppResult<()> {
         bindings(config, false)?
     };
     check_conflicts(&wanted)?;
+    let pid = std::process::id();
+    let starttime = fs::read_to_string("/proc/self/stat")?
+        .rsplit_once(") ")
+        .and_then(|(_, fields)| fields.split_whitespace().nth(19))
+        .unwrap_or("")
+        .to_owned();
     let mut code = format!(
-        "local r=_G.{0}; if not r then r={{binds={{}},counter=0,epoch={1}}}; _G.{0}=r end; ",
-        namespace(),
-        lua_string(&std::process::id().to_string())
+        "local r=_G.{0}; if r and r.pid~={1} then for _,b in pairs(r.binds) do b:set_enabled(false) end; r=nil end; if not r then r={{binds={{}},counter=0,epoch={2}..'-'..tostring(math.random(1000000000)),pid={1}}}; _G.{0}=r; r.watchdog=hl.timer(function() local f=io.open('/proc/{1}/stat','r'); local alive=false; if f then local stat=f:read('*a'); f:close(); local tail=stat:match('^%d+ %b() (.*)'); if tail then local n=0; for field in tail:gmatch('%S+') do n=n+1; if n==20 then alive=field=={3}; break end end end end; if not alive or _G.{0}~=r then for _,b in pairs(r.binds) do b:set_enabled(false) end; r.watchdog:set_enabled(false) end end,{{timeout=2000,type='repeat'}}) end; ",
+        namespace(), pid, lua_string(&pid.to_string()), lua_string(&starttime)
     );
     code.push_str("for _,b in pairs(r.binds) do b:set_enabled(false) end; ");
     let executable = std::env::current_exe()?;

@@ -68,7 +68,7 @@ const en = {
       },
       launchAtLogin: {
         title: 'Launch at login',
-        description: 'Start Transcriber in the background when you sign in to Windows',
+        description: 'Start Transcriber in the background when you sign in',
       },
     },
     design: {
@@ -218,6 +218,8 @@ const en = {
         title: 'Version',
         description: 'Current version of Transcriber',
       },
+      linuxUpdates:
+        'On Linux, update Transcriber with your package manager or install a newer AppImage.',
       download: 'Download',
       updateAvailable: 'Update {{version}} is available',
       checkForUpdates: 'Check for updates',
@@ -396,8 +398,8 @@ const ru: typeof en = {
         description: 'Удалять длинные паузы и не отправлять записи без достаточной речи',
       },
       launchAtLogin: {
-        title: 'Запускать при входе в Windows',
-        description: 'Запускать Transcriber в фоновом режиме после входа в Windows',
+        title: 'Запускать при входе в систему',
+        description: 'Запускать Transcriber в фоновом режиме после входа в систему',
       },
     },
     design: {
@@ -550,6 +552,8 @@ const ru: typeof en = {
         title: 'Версия',
         description: 'Текущая версия Transcriber',
       },
+      linuxUpdates:
+        'В Linux обновляйте Transcriber через менеджер пакетов или устанавливайте новую версию AppImage.',
       download: 'Скачать',
       updateAvailable: 'Доступно обновление {{version}}',
       checkForUpdates: 'Проверить обновления',

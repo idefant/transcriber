@@ -16,6 +16,8 @@ mod keyboard;
 mod keyboard_linux;
 #[cfg(target_os = "linux")]
 mod linux_desktop;
+#[cfg(target_os = "linux")]
+mod linux_overlay;
 mod maintenance;
 mod media_control;
 mod metrics;
@@ -40,6 +42,12 @@ pub fn run() {
     #[cfg(target_os = "linux")]
     if linux_desktop::run_control_client(&context.config().identifier) {
         return;
+    }
+    #[cfg(target_os = "linux")]
+    if let Some(window) = context.config().app.windows.first() {
+        if let Err(error) = linux_overlay::prepare_main(&window.title) {
+            eprintln!("Hyprland main window: {error}");
+        }
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
@@ -87,6 +95,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            background::toggle_main_maximize,
             settings::get_app_settings,
             settings::update_app_settings,
             debug_log::open_debug_logs_folder,
@@ -138,10 +147,11 @@ pub fn run() {
         ])
         .build(context)
         .expect("error while building Transcriber")
-        .run(|_app, event| {
+        .run(|_app, _event| {
             #[cfg(target_os = "linux")]
-            if matches!(event, tauri::RunEvent::Exit) {
+            if matches!(_event, tauri::RunEvent::Exit) {
                 linux_desktop::shutdown();
+                linux_overlay::shutdown();
             }
         });
 }

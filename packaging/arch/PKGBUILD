@@ -1,0 +1,30 @@
+pkgname=transcriber
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Voice dictation with configurable transcription providers'
+arch=('x86_64')
+url='https://github.com/idefant/transcriber'
+license=('custom')
+depends=('gtk3' 'webkit2gtk-4.1' 'libayatana-appindicator' 'librsvg' 'hyprland' 'pipewire-audio' 'wireplumber' 'wl-clipboard' 'wtype' 'playerctl' 'libnotify')
+makedepends=('rust' 'nodejs' 'npm' 'base-devel' 'patchelf')
+options=('!lto')
+source=("transcriber-${pkgver}.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "$srcdir/transcriber"
+  npm ci
+  npm run setup:linux
+  npm run tauri -- build --no-bundle
+}
+
+package() {
+  cd "$srcdir/transcriber"
+  install -Dm755 src-tauri/target/release/transcriber "$pkgdir/usr/bin/transcriber"
+  install -Dm644 src-tauri/resources/libonnxruntime.so "$pkgdir/usr/lib/transcriber/libonnxruntime.so"
+  install -Dm644 src-tauri/resources/silero_vad.onnx "$pkgdir/usr/lib/transcriber/silero_vad.onnx"
+  install -Dm644 THIRD_PARTY_NOTICES.md "$pkgdir/usr/lib/transcriber/THIRD_PARTY_NOTICES.md"
+  install -Dm644 packaging/arch/transcriber.desktop "$pkgdir/usr/share/applications/transcriber.desktop"
+  install -Dm644 src-tauri/icons/128x128.png "$pkgdir/usr/share/icons/hicolor/128x128/apps/transcriber.png"
+  install -Dm644 THIRD_PARTY_NOTICES.md "$pkgdir/usr/share/licenses/transcriber/THIRD_PARTY_NOTICES.md"
+}
