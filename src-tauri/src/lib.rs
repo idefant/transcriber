@@ -99,6 +99,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            background::hide_main_window,
             background::toggle_main_maximize,
             settings::get_app_settings,
             settings::update_app_settings,

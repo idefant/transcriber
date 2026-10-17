@@ -382,6 +382,13 @@ fn main_window(app: &tauri::AppHandle) -> AppResult<WebviewWindow> {
         .ok_or_else(|| i18n::text(app, "main-window-not-found").into())
 }
 
+/** Скрывает главное окно в фон без запроса сворачивания, который тайлинговый менеджер может игнорировать. */
+#[tauri::command]
+pub fn hide_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    let window = main_window(&app).map_err(AppError::into_message)?;
+    window.hide().map_err(|error| error.to_string())
+}
+
 /** Разворачивает главное окно через compositor в Linux, сохраняя нативный путь Windows. */
 #[tauri::command]
 pub fn toggle_main_maximize(app: tauri::AppHandle) -> Result<(), String> {

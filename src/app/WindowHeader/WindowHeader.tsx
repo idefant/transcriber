@@ -17,7 +17,7 @@ const closeWindow = async () => {
 };
 
 const minimizeWindow = async () => {
-  await appWindow.minimize();
+  await (isLinux ? invoke('hide_main_window') : appWindow.minimize());
 };
 
 interface WindowHeaderProps {
@@ -140,7 +140,7 @@ const WindowHeader: FC<WindowHeaderProps> = ({ titlePath }) => {
         <button
           aria-label={t('common.windowControls.minimize')}
           className={styles.controlButton}
-          disabled={!windowState.isMinimizable}
+          disabled={!isLinux && !windowState.isMinimizable}
           tabIndex={-1}
           title={t('common.windowControls.minimize')}
           type="button"
