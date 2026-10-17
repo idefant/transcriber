@@ -570,14 +570,19 @@ fn audio_duration_ms(samples: &[f32], sample_rate: u32, channels: u16) -> u64 {
 /// Явно выбирает ONNX Runtime, поставляемый вместе с приложением, чтобы VAD не
 /// подхватил одноимённую DLL из другой программы или системного пути.
 fn configure_onnx_runtime(app: &tauri::AppHandle) -> Result<(), SilenceTrimError> {
+    let runtime_name = if cfg!(target_os = "linux") {
+        "libonnxruntime.so"
+    } else {
+        "onnxruntime.dll"
+    };
     let resource_path = app
         .path()
         .resource_dir()
         .ok()
-        .map(|directory| directory.join("onnxruntime.dll"));
+        .map(|directory| directory.join(runtime_name));
     let development_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("resources")
-        .join("onnxruntime.dll");
+        .join(runtime_name);
     let runtime_path = resource_path
         .filter(|path| path.is_file())
         .or_else(|| {

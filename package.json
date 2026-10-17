@@ -31,7 +31,11 @@
     "check:ci": "npm run typecheck && npm run lint && npm run stylelint && npm run encoding:check && npm run rust:check && npm run rust:test && npm run build",
     "prepare": "husky",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "setup:linux": "node scripts/setup-linux-runtime.mjs",
+    "dev:linux": "npm run setup:linux && tauri dev --config src-tauri/tauri.dev.linux.conf.json",
+    "dev:linux:debug": "cross-env WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9222 npm run dev:linux",
+    "build:linux": "npm run setup:linux && tauri build"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",

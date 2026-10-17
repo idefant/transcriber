@@ -12,6 +12,8 @@ tauri-build = { version = "2", features = [] }
 debug = 1
 
 [dependencies]
+tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2"
 chrono = { version = "0.4", features = ["clock", "serde"] }
 base64 = "0.22"
 hound = "3"
@@ -41,6 +43,10 @@ tiktoken-rs = "0.9"
 tokio = { version = "1", features = ["time"] }
 url = "2"
 uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(windows)'.dependencies]
+clipboard-win = "5"
+tauri-winrt-notification = "0.7.3"
 windows = { version = "0.61", features = [
     "Media_Control",
     "Win32_Media_Audio",
@@ -64,9 +70,5 @@ windows-sys = { version = "0.61", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
-tauri-plugin-single-instance = "2"
-
-[target.'cfg(windows)'.dependencies]
-clipboard-win = "5"
-tauri-plugin-updater = "2"
-tauri-winrt-notification = "0.7.3"
+[target.'cfg(target_os = "linux")'.dependencies]
+wl-clipboard-rs = "0.9.4"

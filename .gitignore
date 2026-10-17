@@ -28,3 +28,6 @@ src-tauri/extensions/
 
 *storybook.log
 storybook-static
+
+# Воспроизводимо загружается командой npm run setup:linux.
+src-tauri/resources/libonnxruntime.so

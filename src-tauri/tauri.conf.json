@@ -28,10 +28,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "createUpdaterArtifacts": true,
+    "targets": ["appimage", "deb", "rpm"],
+    "createUpdaterArtifacts": false,
     "resources": {
-      "resources/onnxruntime.dll": "onnxruntime.dll",
       "resources/silero_vad.onnx": "silero_vad.onnx",
       "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
     },
