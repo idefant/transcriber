@@ -2,14 +2,17 @@
 
 use crate::error::{AppError, AppResult};
 use std::{
-    io::Read,
-    os::fd::AsRawFd,
-    process::Command,
+    io::{Read, Write},
+    os::{
+        fd::AsRawFd,
+        unix::{fs::OpenOptionsExt, process::CommandExt},
+    },
+    process::{Command, Stdio},
     sync::Mutex,
     time::{Duration, Instant},
 };
 use wl_clipboard_rs::{
-    copy::{self, MimeSource, MimeType, Options, Source},
+    copy::{self, MimeSource, MimeType, Options, PreparedCopy, Source},
     paste,
 };
 
@@ -19,9 +22,14 @@ const MAX_SNAPSHOT_BYTES: usize = 64 * 1024 * 1024;
 /** Выполняет блокирующие Wayland-операции вне асинхронного executor. */
 pub async fn paste_text(_app: &tauri::AppHandle, text: &str) -> AppResult<()> {
     let text = text.to_owned();
-    tauri::async_runtime::spawn_blocking(move || paste_blocking(&text))
-        .await
-        .map_err(|error| AppError::from(error.to_string()))?
+    tauri::async_runtime::spawn_blocking(move || {
+        let _lock = CLIPBOARD_OPERATION
+            .lock()
+            .map_err(|e| AppError::from(e.to_string()))?;
+        start_owner("paste", &text)
+    })
+    .await
+    .map_err(|error| AppError::from(error.to_string()))?
 }
 
 /** Явное копирование намеренно заменяет содержимое буфера и доступно менеджеру истории. */
@@ -29,9 +37,7 @@ pub fn copy_text(_app: &tauri::AppHandle, text: &str) -> AppResult<()> {
     let _lock = CLIPBOARD_OPERATION
         .lock()
         .map_err(|e| AppError::from(e.to_string()))?;
-    Options::new()
-        .copy(Source::Bytes(text.as_bytes().into()), MimeType::Text)
-        .map_err(clipboard_error)
+    start_owner("copy", text)
 }
 
 fn clipboard_error(error: impl std::fmt::Display) -> AppError {
@@ -50,6 +56,9 @@ fn read_snapshot() -> AppResult<Vec<MimeSource>> {
     let deadline = Instant::now() + Duration::from_secs(3);
     let has_plain_text = types.iter().any(|mime| mime.starts_with("text/plain"));
     for mime in &types {
+        if mime.starts_with("application/x-transcriber-owner-") {
+            continue;
+        }
         // XWayland синтезирует legacy-алиасы из канонического text/plain.
         if has_plain_text
             && ["UTF8_STRING", "TEXT", "STRING", "COMPOUND_TEXT"].contains(&mime.as_str())
@@ -131,7 +140,7 @@ fn read_snapshot() -> AppResult<Vec<MimeSource>> {
     Ok(snapshot)
 }
 
-fn paste_blocking(text: &str) -> AppResult<()> {
+fn paste_blocking(text: &str) -> AppResult<ClipboardOwner> {
     let _lock = CLIPBOARD_OPERATION
         .lock()
         .map_err(|e| AppError::from(e.to_string()))?;
@@ -162,7 +171,7 @@ fn paste_blocking(text: &str) -> AppResult<()> {
     ]
     .iter()
     .any(|name| class == *name || class.starts_with(&format!("{name}-")));
-    let previous = read_snapshot()?;
+    let mut previous = read_snapshot()?;
     let focused = Command::new("hyprctl")
         .args(["activewindow", "-j"])
         .output()?;
@@ -210,6 +219,8 @@ fn paste_blocking(text: &str) -> AppResult<()> {
                 )))
             }
         };
+    let mut restored = None;
+    let owner_marker = owner_marker();
     if still_ours {
         if previous.is_empty() {
             copy::clear(copy::ClipboardType::Regular, copy::Seat::All).map_err(clipboard_error)?;
@@ -218,14 +229,240 @@ fn paste_blocking(text: &str) -> AppResult<()> {
             options
                 .sensitive(true)
                 .omit_additional_text_mime_types(true);
-            options.copy_multi(previous).map_err(clipboard_error)?;
+            options.foreground(true);
+            previous.push(marker_source(&owner_marker));
+            restored = Some(
+                options
+                    .prepare_copy_multi(previous)
+                    .map_err(clipboard_error)?,
+            );
         }
     }
-    match sent {
+    let result = match sent {
         Ok(status) if status.success() => Ok(()),
         Ok(status) => Err(AppError::from(format!(
             "wtype failed ({status}); transcription remains in history"
         ))),
         Err(error) => Err(error.into()),
+    };
+    // Даже отказ синтетического ввода не должен лишить владельца восстановленных данных.
+    Ok(ClipboardOwner {
+        prepared: restored,
+        marker: owner_marker,
+        result,
+    })
+}
+
+fn acknowledge(result: &AppResult<()>) {
+    let response = match result {
+        Ok(()) => "ok\n".to_owned(),
+        Err(error) => format!("error {}\n", error.to_string().replace(['\n', '\r'], " ")),
+    };
+    let _ = std::io::stdout().write_all(response.as_bytes());
+    let _ = std::io::stdout().flush();
+}
+
+/** Обслуживает буфер независимо от GUI и завершает работу после смены владельца. */
+pub fn run_clipboard_owner() -> bool {
+    let mode = std::env::args().nth(1);
+    if mode.as_deref() != Some("--clipboard-owner") {
+        return false;
     }
+    let result = (|| -> AppResult<(ClipboardOwner, std::fs::File)> {
+        let mut input = std::io::stdin().lock();
+        let mut header = [0u8; 8];
+        input.read_exact(&mut header)?;
+        let length = u64::from_le_bytes(header);
+        if length > MAX_SNAPSHOT_BYTES as u64 {
+            return Err(clipboard_error("payload exceeds 64 MiB"));
+        }
+        let mut text = Vec::new();
+        input.take(length).read_to_end(&mut text)?;
+        if text.len() as u64 != length {
+            return Err(clipboard_error("incomplete helper payload"));
+        }
+        let text = String::from_utf8(text).map_err(clipboard_error)?;
+        let lock = transaction_lock()?;
+        let owner = if std::env::args().nth(2).as_deref() == Some("paste") {
+            paste_blocking(&text)?
+        } else {
+            let marker = owner_marker();
+            let mut options = Options::new();
+            options.foreground(true);
+            let prepared = options
+                .prepare_copy_multi(vec![
+                    MimeSource {
+                        source: Source::Bytes(text.into_bytes().into_boxed_slice()),
+                        mime_type: MimeType::Text,
+                    },
+                    marker_source(&marker),
+                ])
+                .map_err(clipboard_error)?;
+            ClipboardOwner {
+                prepared: Some(prepared),
+                marker,
+                result: Ok(()),
+            }
+        };
+        Ok((owner, lock))
+    })();
+    match result {
+        Ok((owner, lock)) => serve_owner(owner, lock),
+        Err(error) => acknowledge(&Err(error)),
+    }
+    true
+}
+
+struct ClipboardOwner {
+    prepared: Option<PreparedCopy>,
+    marker: String,
+    result: AppResult<()>,
+}
+
+fn owner_marker() -> String {
+    format!("application/x-transcriber-owner-{}", uuid::Uuid::new_v4())
+}
+
+fn marker_source(marker: &str) -> MimeSource {
+    MimeSource {
+        source: Source::Bytes(Box::new([])),
+        mime_type: MimeType::Specific(marker.to_owned()),
+    }
+}
+
+fn transaction_lock() -> AppResult<std::fs::File> {
+    let runtime = std::env::var_os("XDG_RUNTIME_DIR")
+        .ok_or_else(|| clipboard_error("XDG_RUNTIME_DIR is required"))?;
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(std::path::PathBuf::from(runtime).join("transcriber-clipboard.lock"))?;
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
+            return Ok(lock);
+        }
+        let error = std::io::Error::last_os_error();
+        if error.kind() != std::io::ErrorKind::WouldBlock {
+            return Err(error.into());
+        }
+        if Instant::now() >= deadline {
+            return Err(clipboard_error("clipboard transaction lock timed out"));
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn serve_owner(owner: ClipboardOwner, lock: std::fs::File) {
+    let Some(prepared) = owner.prepared else {
+        acknowledge(&owner.result);
+        return;
+    };
+    let (finished, receiver) = std::sync::mpsc::channel::<AppResult<()>>();
+    // PreparedCopy не Send. Главный поток обслуживает Wayland; отдельный подтверждает
+    // публикацию, прежде чем разрешить следующую транзакцию другого GUI/helper.
+    let acknowledgement = std::thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_secs(8);
+        loop {
+            if paste::get_mime_types(paste::ClipboardType::Regular, paste::Seat::Unspecified)
+                .is_ok_and(|types| types.contains(&owner.marker))
+            {
+                acknowledge(&owner.result);
+                break;
+            }
+            if let Ok(result) = receiver.try_recv() {
+                acknowledge(&result.and(owner.result));
+                break;
+            }
+            if Instant::now() >= deadline {
+                acknowledge(&Err(clipboard_error("clipboard publication timed out")));
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        drop(lock);
+    });
+    let result = prepared.serve().map_err(clipboard_error);
+    let _ = finished.send(result);
+    let _ = acknowledgement.join();
+}
+
+fn start_owner(mode: &str, text: &str) -> AppResult<()> {
+    if text.len() > MAX_SNAPSHOT_BYTES {
+        return Err(clipboard_error("payload exceeds 64 MiB"));
+    }
+    let mut child = Command::new(std::env::current_exe()?)
+        .args(["--clipboard-owner", mode])
+        .process_group(0)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let result = (|| -> AppResult<()> {
+        let deadline = Instant::now() + Duration::from_secs(8);
+        let mut input = child
+            .stdin
+            .take()
+            .ok_or_else(|| clipboard_error("missing helper stdin"))?;
+        let mut output = child
+            .stdout
+            .take()
+            .ok_or_else(|| clipboard_error("missing helper stdout"))?;
+        for fd in [input.as_raw_fd(), output.as_raw_fd()] {
+            let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+            if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0
+            {
+                return Err(std::io::Error::last_os_error().into());
+            }
+        }
+        let mut payload = Vec::with_capacity(8 + text.len());
+        payload.extend_from_slice(&(text.len() as u64).to_le_bytes());
+        payload.extend_from_slice(text.as_bytes());
+        let mut bytes = payload.as_slice();
+        while !bytes.is_empty() {
+            match input.write(bytes) {
+                Ok(0) => return Err(clipboard_error("helper input closed")),
+                Ok(count) => bytes = &bytes[count..],
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(error) => return Err(error.into()),
+            }
+            if Instant::now() >= deadline {
+                return Err(clipboard_error("helper input timed out"));
+            }
+            if !bytes.is_empty() {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+        drop(input);
+        let mut response = Vec::new();
+        loop {
+            let mut buffer = [0u8; 1024];
+            match output.read(&mut buffer) {
+                Ok(0) => return Err(clipboard_error("helper exited before acknowledgement")),
+                Ok(count) => response.extend_from_slice(&buffer[..count]),
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(error) => return Err(error.into()),
+            }
+            if response.contains(&b'\n') {
+                return if response.starts_with(b"ok\n") {
+                    Ok(())
+                } else {
+                    Err(clipboard_error(String::from_utf8_lossy(&response)))
+                };
+            }
+            if response.len() > 4096 || Instant::now() >= deadline {
+                return Err(clipboard_error("helper acknowledgement timed out"));
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    })();
+    // GUI может исчезнуть во время вставки: helper всё равно завершает восстановление.
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    result
 }

@@ -57,7 +57,7 @@ Linux capture uses the default PipeWire source and converts it to mono float32 a
 
 Linux hotkeys follow the application's settings and are registered at runtime through Hyprland Lua IPC (Hyprland 0.55 or newer). Existing desktop shortcuts are checked for conflicts and never replaced. DEV and installed builds use independent control sockets. Modifier sides are supported on Windows; on Linux, assign the combination again without a left/right modifier distinction.
 
-Clipboard insertion preserves every offered content MIME type, including images and HTML, with a 64 MiB / three-second snapshot limit. Protocol targets and redundant X11 text aliases are excluded. A new user copy during insertion takes priority over restoration. Clipboard contents owned by the application may disappear when it exits unless a clipboard manager has retained them. Known terminals receive Ctrl+Shift+V; other applications receive Ctrl+V. Applications with custom paste bindings require manual insertion.
+Clipboard insertion preserves every offered content MIME type, including images and HTML, with a 64 MiB / three-second snapshot limit. Protocol targets and redundant X11 text aliases are excluded. A new user copy during insertion takes priority over restoration. An independent clipboard owner keeps restored content and explicitly copied text available after the GUI exits, until the next clipboard change. Known terminals receive Ctrl+Shift+V; other applications receive Ctrl+V. Applications with custom paste bindings require manual insertion.
 
 To create an Arch package from a committed checkout:
 

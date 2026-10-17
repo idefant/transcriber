@@ -38,6 +38,10 @@ mod updater;
 use tauri::Manager;
 
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    if keyboard_linux::run_clipboard_owner() {
+        return;
+    }
     let context = tauri::generate_context!();
     #[cfg(target_os = "linux")]
     if linux_desktop::run_control_client(&context.config().identifier) {
