@@ -177,8 +177,9 @@ impl PreparedRecorder {
     /// Приостанавливает захват, сохраняя уже накопленные сэмплы. Индикатор
     /// микрофона ОС гаснет, как при остановке, но запись не завершается:
     /// `resume` продолжает ту же сессию, не теряя её начало.
-    pub fn pause(&self) {
-        self.pause_and_deactivate();
+    pub fn pause(&self, app: &tauri::AppHandle) -> AppResult<()> {
+        self.pause_and_deactivate()
+            .map_err(|error| capture_error_to_app_error(app, error))
     }
 
     /// Продолжает приостановленный захват. В отличие от `start`, не очищает
@@ -242,7 +243,8 @@ impl PreparedRecorder {
         let stop_started_at = Instant::now();
 
         // Сначала ставим на паузу, чтобы индикатор микрофона ОС выключился сразу.
-        self.pause_and_deactivate();
+        self.pause_and_deactivate()
+            .map_err(|error| capture_error_to_app_error(app, error))?;
 
         let mut samples = self
             .shared
@@ -332,16 +334,23 @@ impl PreparedRecorder {
     /// рекордер на паузе и пустым, чтобы его можно было переиспользовать
     /// в следующей сессии.
     pub fn abort(&self) {
-        self.pause_and_deactivate();
+        let _ = self.pause_and_deactivate();
         if let Ok(mut samples) = self.shared.samples.lock() {
             samples.clear();
         }
     }
 
-    fn pause_and_deactivate(&self) {
+    fn pause_and_deactivate(&self) -> Result<(), CaptureError> {
         // Останавливаем накопление до паузы, чтобы запоздавший коллбэк не добавил сэмплы.
         self.shared.active.store(false, Ordering::SeqCst);
-        let _ = self.stream.stop();
+        let result = self.stream.stop();
+        #[cfg(target_os = "linux")]
+        return result;
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = result;
+            Ok(())
+        }
     }
 }
 

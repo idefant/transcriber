@@ -312,64 +312,112 @@ pub fn pause_sessions(_ids: &[String]) -> Option<MediaPauseGuard> {
 #[cfg(not(target_os = "windows"))]
 pub fn prewarm() {}
 
+// Один бюджет включает перечисление, запросы статуса, команды и подтверждение.
 #[cfg(target_os = "linux")]
-fn playerctl(player: &str, action: &str) -> Option<String> {
-    let output = std::process::Command::new("playerctl")
-        .args(["--player", player, action])
-        .output()
-        .ok()?;
-    output
-        .status
-        .success()
-        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
-}
+const LINUX_MEDIA_BUDGET: std::time::Duration = std::time::Duration::from_millis(500);
 
-/** Проверяет конкретные MPRIS instance, не отправляя слепую media play/pause клавишу. */
 #[cfg(target_os = "linux")]
-pub fn playing_sessions() -> Vec<String> {
-    let Ok(output) = std::process::Command::new("playerctl")
-        .arg("--list-all")
-        .output()
-    else {
-        return Vec::new();
+fn playerctl(args: &[&str], deadline: std::time::Instant) -> Option<String> {
+    use std::{
+        io::Read,
+        os::fd::AsRawFd,
+        process::{Command, Stdio},
+        time::{Duration, Instant},
     };
-    if !output.status.success() {
-        return Vec::new();
+    if Instant::now() >= deadline {
+        return None;
     }
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter(|id| playerctl(id, "status").as_deref() == Some("Playing"))
-        .map(str::to_owned)
-        .collect()
+    let mut child = Command::new("playerctl")
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let result = (|| {
+        let mut stdout = child.stdout.take()?;
+        let fd = stdout.as_raw_fd();
+        // Неблокирующее чтение не даёт заполненной трубе остановить дочерний процесс.
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
+            return None;
+        }
+        let mut output = Vec::new();
+        let mut exited: Option<std::process::ExitStatus> = None;
+        loop {
+            let mut bytes = [0u8; 4096];
+            loop {
+                match stdout.read(&mut bytes) {
+                    Ok(0) => break,
+                    Ok(count) => {
+                        if output.len() + count > 64 * 1024 {
+                            return None;
+                        }
+                        output.extend_from_slice(&bytes[..count]);
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                    Err(_) => return None,
+                }
+                if Instant::now() >= deadline {
+                    return None;
+                }
+            }
+            if let Some(status) = exited {
+                return status
+                    .success()
+                    .then(|| String::from_utf8_lossy(&output).trim().to_owned());
+            }
+            exited = child.try_wait().ok()?;
+            if exited.is_some() {
+                continue;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return None;
+            }
+            std::thread::sleep(remaining.min(Duration::from_millis(5)));
+        }
+    })();
+    // Включая ошибки чтения и timeout: не оставляем процесс и zombie после себя.
+    let _ = child.kill();
+    let _ = child.wait();
+    result
 }
 
-/** Возвращает только сессии, которые сам поставил на паузу и подтвердил. */
+/** Ограничивает весь путь до захвата общим бюджетом, включая неотвечающий MPRIS. */
 #[cfg(target_os = "linux")]
-pub fn pause_sessions(ids: &[String]) -> Option<MediaPauseGuard> {
-    let paused_ids: Vec<String> = ids
-        .iter()
-        .filter(|id| {
-            playerctl(id, "status").as_deref() == Some("Playing")
-                && playerctl(id, "pause").is_some()
-        })
-        .cloned()
-        .collect();
-    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
-    while std::time::Instant::now() < deadline
-        && paused_ids
-            .iter()
-            .any(|id| playerctl(id, "status").as_deref() == Some("Playing"))
-    {
-        std::thread::sleep(std::time::Duration::from_millis(25));
+pub fn pause_playing_sessions() -> Option<MediaPauseGuard> {
+    let deadline = std::time::Instant::now() + LINUX_MEDIA_BUDGET;
+    let players = playerctl(&["--list-all"], deadline)?;
+    let mut paused_ids = Vec::new();
+    for id in players.lines() {
+        if playerctl(&["--player", id, "status"], deadline).as_deref() == Some("Playing")
+            && playerctl(&["--player", id, "pause"], deadline).is_some()
+        {
+            paused_ids.push(id.to_owned());
+        }
+    }
+    while std::time::Instant::now() < deadline {
+        if !paused_ids.iter().any(|id| {
+            playerctl(&["--player", id, "status"], deadline).as_deref() == Some("Playing")
+        }) {
+            break;
+        }
+        std::thread::sleep(
+            deadline
+                .saturating_duration_since(std::time::Instant::now())
+                .min(std::time::Duration::from_millis(25)),
+        );
     }
     (!paused_ids.is_empty()).then_some(MediaPauseGuard { paused_ids })
 }
 
 #[cfg(target_os = "linux")]
 fn resume_sessions(ids: &[String]) -> AppResult<()> {
+    let deadline = std::time::Instant::now() + LINUX_MEDIA_BUDGET;
     for id in ids {
-        if playerctl(id, "status").as_deref() == Some("Paused") {
-            let _ = playerctl(id, "play");
+        if playerctl(&["--player", id, "status"], deadline).as_deref() == Some("Paused") {
+            let _ = playerctl(&["--player", id, "play"], deadline);
         }
     }
     Ok(())

@@ -373,7 +373,12 @@ fn toggle_pause_inner(app: &tauri::AppHandle, expected_session_id: Option<u64>) 
     let should_pause = !*is_paused;
 
     if should_pause {
-        pause_recording(app);
+        if let Err(error) = pause_recording(app) {
+            let failed_id = *id;
+            drop(session);
+            cancel_dictation_inner(app.clone(), Some(failed_id))?;
+            return Err(error);
+        }
 
         // Звук возвращаем после освобождения микрофона, а не до, — тот же порядок,
         // что и при остановке записи. Если возвращать не просили, guard держит звук
@@ -629,7 +634,14 @@ fn acquire_media_pause(mode: &RecordingAudioMode) -> Option<MediaPauseGuard> {
         return None;
     }
 
-    media_control::pause_sessions(&media_control::playing_sessions())
+    #[cfg(target_os = "linux")]
+    {
+        media_control::pause_playing_sessions()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        media_control::pause_sessions(&media_control::playing_sessions())
+    }
 }
 
 /// Собирает переиспользуемый поток захвата ещё до первой диктовки, чтобы затраты на сборку
@@ -656,12 +668,16 @@ pub fn prewarm_recorder(app: &tauri::AppHandle) {
 /// Приостанавливает захват на время паузы, сохраняя накопленные сэмплы.
 /// Порядок блокировок session -> prepared_recorder такой же, как в
 /// `start_dictation_inner` и `cancel_dictation_inner`.
-fn pause_recording(app: &tauri::AppHandle) {
-    if let Ok(prepared) = app.state::<DictationRuntime>().prepared_recorder.lock() {
-        if let Some(recorder) = prepared.as_ref() {
-            recorder.pause();
-        }
+fn pause_recording(app: &tauri::AppHandle) -> AppResult<()> {
+    let runtime = app.state::<DictationRuntime>();
+    let prepared = runtime
+        .prepared_recorder
+        .lock()
+        .map_err(|_| AppError::from(i18n::text(app, "dictation-state-lock-failed")))?;
+    if let Some(recorder) = prepared.as_ref() {
+        recorder.pause(app)?;
     }
+    Ok(())
 }
 
 /// Продолжает приостановленный захват. Ошибка оставляет сессию на паузе, чтобы
