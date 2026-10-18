@@ -126,10 +126,10 @@ const AppThemeProvider: FC<AppThemeProviderProps> = ({ children }) => {
               itemSelectedBg: isDarkMode ? 'rgb(255 255 255 / 12%)' : '#e6f4ff',
             },
           },
-          // token: {
-          //   borderRadius: 8,
-          //   colorPrimary: '#2f766f',
-          // },
+          token: {
+            fontFamily: 'var(--app-font-sans)',
+            fontFamilyCode: 'var(--app-font-mono)',
+          },
         }}
       >
         <AppThemeTokenVariables isDarkMode={isDarkMode} />
