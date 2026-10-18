@@ -41,7 +41,7 @@ Development setup, build commands, quality checks, and project tooling are docum
 
 Windows remains supported with its existing WASAPI capture, keyboard hook, clipboard handling and NSIS packaging. Tauri automatically applies the platform configuration (`tauri.windows.conf.json` or `tauri.linux.conf.json`).
 
-On Arch Linux, install `base-devel rust nodejs npm webkit2gtk-4.1 gtk3 libayatana-appindicator librsvg patchelf pipewire-audio wireplumber wl-clipboard wtype playerctl libnotify`. The application expects a working PipeWire and Hyprland session. Then run:
+On Arch Linux, install `base-devel rust nodejs npm webkit2gtk-4.1 gtk3 libayatana-appindicator librsvg patchelf pipewire-audio wireplumber wl-clipboard wtype playerctl libnotify gst-plugins-good gtk-layer-shell`. The GStreamer good plugins provide WAV playback in WebKitGTK. The recording overlay uses gtk-layer-shell to accept mouse input without taking keyboard focus. The application expects a working PipeWire and Hyprland session. Then run:
 
 ```bash
 npm ci
@@ -51,7 +51,9 @@ npm run dev:linux
 
 `setup:linux` downloads ONNX Runtime 1.22.0 for Linux x86_64 from the upstream release and verifies pinned SHA-256 checksums. The generated shared library is excluded from Git; the VAD model and third-party notices are included on both platforms. Linux ARM64 packaging is not currently provided.
 
-`npm run build:linux` builds Linux distribution bundles. `npm run dev:linux:debug` exposes the WebKit inspector on loopback port 9222 for local development only. Ordinary development and production builds do not enable that server.
+`npm run dev:tauri` and `npm run dev:tauri:debug` also select the Linux development configuration and prepare the runtime automatically. Development uses a red icon and separate application data. `dev:linux` and `dev:linux:debug` are aliases for those commands.
+
+`npm run build:linux` builds Linux distribution bundles. `npm run dev:tauri:debug` exposes the WebKit inspector on loopback port 9222 for local development only. Ordinary development and production builds do not enable that server.
 
 Linux capture uses the default PipeWire source and converts it to mono float32 at 48 kHz. Pausing, cancelling or stopping a recording terminates the capture client and releases the microphone. Resuming opens the source again, so Linux does not share Windows' fully prewarmed hardware stream latency.
 

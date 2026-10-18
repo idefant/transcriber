@@ -9,41 +9,22 @@ import { usePlayerStore } from '#/stores';
 /** Максимальная громкость плеера: 1.5 соответствует усилению до 150%. */
 export const MAX_VOLUME = 1.5;
 
-// Один общий AudioContext на всё приложение: у браузера жёсткий лимит на число
-// живых контекстов, поэтому переиспользуем единственный вместо создания на каждый
-// плеер.
+// Переиспользуем контекст между записями, чтобы не исчерпать лимит браузера.
 let sharedAudioContext: AudioContext | undefined;
 
 const getAudioContext = (): AudioContext => {
-  sharedAudioContext ??= new AudioContext();
+  sharedAudioContext ??= new AudioContext({ latencyHint: 'interactive' });
   return sharedAudioContext;
 };
 
-// Кэш аудиографа по элементу. createMediaElementSource нельзя вызывать на одном
-// и том же элементе повторно (в том числе при двойном монтировании React
-// StrictMode), поэтому source-нода создаётся ровно один раз на элемент.
-const audioGraphs = new WeakMap<
-  HTMLAudioElement,
-  { gain: GainNode; source: MediaElementAudioSourceNode }
->();
-
-const getAudioGraph = (audio: HTMLAudioElement) => {
-  let graph = audioGraphs.get(audio);
-  if (!graph) {
-    const context = getAudioContext();
-    const source = context.createMediaElementSource(audio);
-    const gain = context.createGain();
-    source.connect(gain);
-    graph = { gain, source };
-    audioGraphs.set(audio, graph);
-  }
-  return graph;
-};
+interface PlaybackControls {
+  togglePlay: () => void;
+  seek: (time: number) => void;
+  finishSeek: () => void;
+}
 
 interface UseAudioPlayerResult {
-  /** Ref, который нужно повесить на скрытый элемент `<audio>`. */
-  audioRef: React.RefObject<HTMLAudioElement | null>;
-  /** Длительность аудио в секундах: из метаданных `<audio>`, иначе из данных записи. */
+  /** Длительность декодированного аудио в секундах, до загрузки — из данных записи. */
   duration: number;
   /** Текущая позиция воспроизведения в секундах. */
   currentTime: number;
@@ -55,34 +36,25 @@ interface UseAudioPlayerResult {
   volume: number;
   /** Переключает воспроизведение между паузой и продолжением. */
   togglePlay: () => void;
-  /** Перематывает воспроизведение на указанную позицию в секундах. Вызывается на каждом шаге перетаскивания ползунка. */
+  /** Перематывает воспроизведение в секундах, в том числе во время перетаскивания. */
   seek: (time: number) => void;
-  /** Завершает перетаскивание ползунка перемотки и возвращает синхронизацию позиции с воспроизведением. */
+  /** Возвращает синхронизацию позиции после перетаскивания ползунка. */
   finishSeek: () => void;
-  /** Меняет громкость плеера и запоминает её между записями и перезапусками. */
+  /** Меняет громкость и запоминает её между записями и перезапусками. */
   changeVolume: (volume: number) => void;
 }
 
 /**
- * Управляет встроенным аудиоплеером панели деталей истории: загружает байты
- * аудиофайла записи, отдаёт их скрытому `<audio>` через Blob URL, стартует
- * воспроизведение при монтировании и синхронизирует состояние с событиями
- * элемента. Громкость проходит через Web Audio `GainNode`, что позволяет
- * усиливать её выше 100% (нативный `audio.volume` ограничен единицей). Blob URL
- * и слушатели освобождаются при размонтировании и смене записи. При недоступном
- * или недекодируемом файле переводит плеер в состояние ошибки.
+ * Декодирует сохранённую запись и воспроизводит её через Web Audio без очереди
+ * HTMLAudioElement. Пауза останавливает источник, продолжение создаёт новый
+ * с сохранённой позиции. Смена записи и размонтирование отключают аудиограф
+ * и инвалидируют незавершённые загрузки и запросы запуска.
  */
 export const useAudioPlayer = (record: HistoryRecord): UseAudioPlayerResult => {
-  const audioRef = useRef<HTMLAudioElement>(null);
   const volume = usePlayerStore((state) => state.volume);
   const setVolume = usePlayerStore((state) => state.setVolume);
-
-  // Пока идёт перетаскивание ползунка перемотки, событие `timeupdate` не должно
-  // двигать позицию: иначе ручка дёргается между шагом перетаскивания и
-  // фактическим воспроизведением.
-  const isSeekingRef = useRef(false);
-
-  // Fallback-длительность из данных записи, пока не пришли метаданные <audio>.
+  const controlsRef = useRef<PlaybackControls | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
   const fallbackDuration = record.audio.durationMs / 1000;
   const [duration, setDuration] = useState(fallbackDuration);
   const [currentTime, setCurrentTime] = useState(0);
@@ -90,154 +62,205 @@ export const useAudioPlayer = (record: HistoryRecord): UseAudioPlayerResult => {
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    let objectUrl: string | undefined;
-    let isCancelled = false;
-    const audio = audioRef.current;
+    let cancelled = false;
+    let wantsPlay = true;
+    let pendingPlay = false;
+    let seeking = false;
+    let request = 0;
+    let offset = 0;
+    let startedAt = 0;
+    let frame: number | undefined;
+    let buffer: AudioBuffer | undefined;
+    let context: AudioContext | undefined;
+    let gain: GainNode | undefined;
+    let source: AudioBufferSourceNode | undefined;
+    const isActive = () => !cancelled;
 
-    if (!audio) {
-      return;
-    }
+    const position = () =>
+      source && context && buffer
+        ? clamp(offset + context.currentTime - startedAt, 0, buffer.duration)
+        : offset;
 
-    const context = getAudioContext();
-    const graph = getAudioGraph(audio);
-    graph.gain.connect(context.destination);
-    // Громкость регулируется через GainNode (её начальное и последующие значения
-    // выставляет отдельный эффект по `volume`), поэтому у самого элемента она
-    // остаётся максимальной.
-    audio.volume = 1;
-
-    const handleTimeUpdate = () => {
-      if (!isSeekingRef.current) {
-        setCurrentTime(audio.currentTime);
+    const stop = () => {
+      pendingPlay = false;
+      offset = position();
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      frame = undefined;
+      if (source) {
+        source.stop();
+        source.disconnect();
+        source = undefined;
       }
     };
-    const handleLoadedMetadata = () => {
-      if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        setDuration(audio.duration);
-      }
+
+    const updatePosition = () => {
+      if (!isActive() || !source) return;
+      if (!seeking) setCurrentTime(position());
+      frame = requestAnimationFrame(updatePosition);
     };
-    const handlePlay = () => {
+
+    const play = async () => {
+      const currentRequest = ++request;
+      const playbackContext = context;
+      const playbackGain = gain;
+      const playbackBuffer = buffer;
+      if (!playbackContext || !playbackGain || !playbackBuffer || source) return;
+      pendingPlay = true;
       setIsPlaying(true);
-    };
-    const handlePause = () => {
-      setIsPlaying(false);
-    };
-    const handleEnded = () => {
-      setIsPlaying(false);
-    };
-    const handleError = () => {
-      setHasError(true);
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('play', handlePlay);
-    audio.addEventListener('pause', handlePause);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('error', handleError);
-
-    const load = async () => {
       try {
-        const buffer = await getHistoryAudioData(record.id);
-        if (isCancelled) {
-          return;
-        }
-
-        const blob = new Blob([buffer], { type: 'audio/wav' });
-        objectUrl = URL.createObjectURL(blob);
-        audio.src = objectUrl;
-        // Autoplay при монтировании плеера. Контекст мог быть создан до жеста
-        // пользователя, поэтому возобновляем его перед стартом.
-        void context.resume();
-        // Игнорируем отказ политики autoplay: пользователь продолжит вручную.
-        void audio.play().catch(() => {});
+        await playbackContext.resume();
       } catch {
-        if (!isCancelled) {
+        // После отказа autoplay пользователь может повторить запуск вручную.
+        if (isActive() && currentRequest === request) {
+          pendingPlay = false;
+          wantsPlay = false;
+          setIsPlaying(false);
+        }
+        return;
+      }
+      if (!isActive() || currentRequest !== request || !wantsPlay) return;
+      pendingPlay = false;
+      if (playbackContext.state !== 'running') {
+        wantsPlay = false;
+        setIsPlaying(false);
+        return;
+      }
+
+      if (offset >= playbackBuffer.duration) offset = 0;
+      const nextSource = playbackContext.createBufferSource();
+      nextSource.buffer = playbackBuffer;
+      nextSource.connect(playbackGain);
+      nextSource.addEventListener(
+        'ended',
+        () => {
+          if (!isActive() || source !== nextSource) return;
+          nextSource.disconnect();
+          source = undefined;
+          wantsPlay = false;
+          offset = playbackBuffer.duration;
+          if (frame !== undefined) cancelAnimationFrame(frame);
+          frame = undefined;
+          setCurrentTime(offset);
+          setIsPlaying(false);
+        },
+        { once: true },
+      );
+      try {
+        startedAt = playbackContext.currentTime;
+        nextSource.start(0, offset);
+        source = nextSource;
+        setIsPlaying(true);
+        if (!seeking) setCurrentTime(offset);
+        updatePosition();
+      } catch {
+        nextSource.disconnect();
+        if (isActive()) {
+          wantsPlay = false;
+          setIsPlaying(false);
           setHasError(true);
         }
       }
     };
 
+    const controls: PlaybackControls = {
+      togglePlay: () => {
+        if (source || pendingPlay) {
+          wantsPlay = false;
+          ++request;
+          stop();
+          setCurrentTime(offset);
+          setIsPlaying(false);
+        } else {
+          wantsPlay = true;
+          void play();
+        }
+      },
+      seek: (time) => {
+        seeking = true;
+        ++request;
+        stop();
+        setIsPlaying(false);
+        offset = clamp(time, 0, buffer?.duration ?? fallbackDuration);
+        setCurrentTime(offset);
+        if (buffer && offset >= buffer.duration) {
+          wantsPlay = false;
+          setIsPlaying(false);
+        } else if (wantsPlay) {
+          void play();
+        }
+      },
+      finishSeek: () => {
+        seeking = false;
+        setCurrentTime(position());
+      },
+    };
+    controlsRef.current = controls;
+
+    const load = async () => {
+      try {
+        context = getAudioContext();
+        gain = context.createGain();
+        gain.gain.value = clamp(usePlayerStore.getState().volume, 0, MAX_VOLUME);
+        gain.connect(context.destination);
+        gainRef.current = gain;
+        const bytes = await getHistoryAudioData(record.id);
+        if (!isActive()) return;
+        setCurrentTime(0);
+        setDuration(fallbackDuration);
+        setIsPlaying(false);
+        setHasError(false);
+        const decoded = await context.decodeAudioData(bytes);
+        if (!isActive()) return;
+        if (!Number.isFinite(decoded.duration) || decoded.duration <= 0) {
+          throw new Error('Invalid audio duration');
+        }
+        buffer = decoded;
+        offset = clamp(offset, 0, decoded.duration);
+        setDuration(decoded.duration);
+        setCurrentTime(offset);
+        if (wantsPlay) await play();
+      } catch {
+        if (isActive()) {
+          wantsPlay = false;
+          stop();
+          setIsPlaying(false);
+          setHasError(true);
+        }
+      }
+    };
     void load();
 
     return () => {
-      isCancelled = true;
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('pause', handlePause);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('error', handleError);
-      audio.pause();
-      audio.removeAttribute('src');
-      audio.load();
-      // Отключаем усилитель от вывода; source-нода остаётся привязанной к
-      // элементу и переиспользуется, если этот же элемент смонтируется снова.
-      graph.gain.disconnect();
-
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
+      cancelled = true;
+      ++request;
+      stop();
+      gain?.disconnect();
+      if (gainRef.current === gain) gainRef.current = null;
+      if (controlsRef.current === controls) controlsRef.current = null;
     };
-  }, [record.id]);
+  }, [record.id, fallbackDuration]);
 
-  // Применяем сохранённую громкость к усилителю при каждом её изменении.
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) {
-      return;
-    }
-
-    const graph = audioGraphs.get(audio);
-    if (graph) {
-      graph.gain.gain.value = clamp(volume, 0, MAX_VOLUME);
-    }
+    if (gainRef.current) gainRef.current.gain.value = clamp(volume, 0, MAX_VOLUME);
   }, [volume]);
 
-  const togglePlay = () => {
-    const audio = audioRef.current;
-    if (!audio || hasError) {
-      return;
-    }
-
-    if (audio.paused) {
-      void getAudioContext().resume();
-      void audio.play().catch(() => {});
-    } else {
-      audio.pause();
-    }
-  };
-
-  const seek = (time: number) => {
-    const audio = audioRef.current;
-    if (!audio || hasError) {
-      return;
-    }
-
-    isSeekingRef.current = true;
-    const nextTime = clamp(time, 0, duration);
-    audio.currentTime = nextTime;
-    setCurrentTime(nextTime);
-  };
-
-  const finishSeek = () => {
-    isSeekingRef.current = false;
-  };
-
-  const changeVolume = (nextVolume: number) => {
-    setVolume(clamp(nextVolume, 0, MAX_VOLUME));
-  };
-
   return {
-    audioRef,
     duration,
     currentTime,
     isPlaying,
     hasError,
     volume,
-    togglePlay,
-    seek,
-    finishSeek,
-    changeVolume,
+    togglePlay: () => {
+      if (!hasError) controlsRef.current?.togglePlay();
+    },
+    seek: (time) => {
+      if (!hasError) controlsRef.current?.seek(time);
+    },
+    finishSeek: () => {
+      controlsRef.current?.finishSeek();
+    },
+    changeVolume: (nextVolume) => {
+      setVolume(clamp(nextVolume, 0, MAX_VOLUME));
+    },
   };
 };

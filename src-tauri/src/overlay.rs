@@ -1,5 +1,5 @@
 #[cfg(not(target_os = "linux"))]
-use tauri::{PhysicalPosition, Position};
+use tauri::{PhysicalPosition, PhysicalSize, Position, Size};
 
 use std::{
     collections::HashSet,
@@ -12,9 +12,7 @@ use std::{
 };
 
 use serde::Serialize;
-use tauri::{
-    Emitter, Manager, Monitor, PhysicalSize, Size, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-};
+use tauri::{Emitter, Manager, Monitor, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::{
     error::{AppError, AppResult},
@@ -388,27 +386,14 @@ fn show_overlay_state(
 
         position_overlay(&card_window, &shadow_window, monitor, &variant)?;
 
-        // Порядок важен: оба окна topmost, и внутри этой группы наверху
-        // оказывается поднятое последним. Карточка должна лежать над тенью.
+        // Тень показывается перед карточкой; в Linux их порядок также задан
+        // слоями Top и Overlay, в Windows — порядком поднятия topmost-окон.
         for window in [&shadow_window, &card_window] {
             window.show()?;
-            #[cfg(target_os = "linux")]
-            if shadow_index(window.label()).is_some() {
-                // GTK создаёт GdkWindow при show. Ранний запрос panic внутри tao.
-                window.set_ignore_cursor_events(true)?;
-            }
-            window.set_always_on_top(true)?;
-            refresh_topmost(window);
-            #[cfg(target_os = "linux")]
+            #[cfg(not(target_os = "linux"))]
             {
-                let label = window.label().to_owned();
-                std::thread::spawn(move || {
-                    // Map асинхронен; повторная адресная геометрия нужна при смене варианта.
-                    for _ in 0..3 {
-                        std::thread::sleep(Duration::from_millis(30));
-                        let _ = crate::linux_overlay::place_visible(&label);
-                    }
-                });
+                window.set_always_on_top(true)?;
+                refresh_topmost(window);
             }
         }
     }
@@ -470,9 +455,6 @@ fn build_overlay_window(app: &tauri::AppHandle, label: &str) -> AppResult<Webvie
         return Ok(window);
     }
 
-    #[cfg(target_os = "linux")]
-    crate::linux_overlay::prepare(label)?;
-
     #[cfg_attr(not(all(debug_assertions, target_os = "windows")), allow(unused_mut))]
     let mut builder =
         WebviewWindowBuilder::new(app, label, WebviewUrl::App("src/overlay/index.html".into()))
@@ -511,7 +493,10 @@ fn build_overlay_window(app: &tauri::AppHandle, label: &str) -> AppResult<Webvie
         builder = builder.title(crate::linux_overlay::title(label));
     }
 
-    Ok(builder.build()?)
+    let window = builder.build()?;
+    #[cfg(target_os = "linux")]
+    crate::linux_overlay::initialize(&window, false)?;
+    Ok(window)
 }
 
 /// Окно, которое рисует только тень карточки.
@@ -525,9 +510,6 @@ fn build_shadow_window(app: &tauri::AppHandle, label: &str) -> AppResult<Webview
     if let Some(window) = app.get_webview_window(label) {
         return Ok(window);
     }
-
-    #[cfg(target_os = "linux")]
-    crate::linux_overlay::prepare(label)?;
 
     #[cfg_attr(not(all(debug_assertions, target_os = "windows")), allow(unused_mut))]
     let mut builder = WebviewWindowBuilder::new(
@@ -567,6 +549,8 @@ fn build_shadow_window(app: &tauri::AppHandle, label: &str) -> AppResult<Webview
     }
 
     let window = builder.build()?;
+    #[cfg(target_os = "linux")]
+    crate::linux_overlay::initialize(&window, true)?;
     #[cfg(not(target_os = "linux"))]
     window.set_ignore_cursor_events(true)?;
 
@@ -627,20 +611,24 @@ fn position_overlay(
     for (window, frame) in [(shadow_window, shadow), (card_window, card)] {
         let origin = monitor.position();
         crate::linux_overlay::position(
-            window.label(),
-            monitor.name().map(String::as_str),
+            window,
+            monitor,
             ((frame.x - origin.x) as f64 / scale).round() as i32,
             ((frame.y - origin.y) as f64 / scale).round() as i32,
             (frame.width as f64 / scale).round() as u32,
             (frame.height as f64 / scale).round() as u32,
         )?;
     }
-    place_window(shadow_window, shadow)?;
-    place_window(card_window, card)?;
+    #[cfg(not(target_os = "linux"))]
+    {
+        place_window(shadow_window, shadow)?;
+        place_window(card_window, card)?;
+    }
 
     Ok(())
 }
 
+#[cfg(not(target_os = "linux"))]
 fn place_window(window: &WebviewWindow, frame: PhysicalFrame) -> AppResult<()> {
     window.set_size(Size::Physical(PhysicalSize::new(frame.width, frame.height)))?;
     #[cfg(not(target_os = "linux"))]
@@ -815,7 +803,7 @@ fn refresh_topmost(window: &WebviewWindow) {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn refresh_topmost(_window: &WebviewWindow) {}
 
 #[cfg(test)]

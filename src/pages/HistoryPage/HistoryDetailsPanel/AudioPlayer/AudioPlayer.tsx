@@ -25,7 +25,6 @@ const formatTime = (seconds: number): string => {
 const AudioPlayer: FC<AudioPlayerProps> = ({ record }) => {
   const { t } = useTranslation();
   const {
-    audioRef,
     changeVolume,
     currentTime,
     duration,
@@ -69,10 +68,6 @@ const AudioPlayer: FC<AudioPlayerProps> = ({ record }) => {
 
   return (
     <div className={styles.player}>
-      {/* Скрытый элемент воспроизведения. Субтитры к пользовательским аудиозаписям не предусмотрены. */}
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <audio ref={audioRef} />
-
       {hasError ? (
         <span className={styles.unavailable}>{t('history.details.audioUnavailable')}</span>
       ) : (

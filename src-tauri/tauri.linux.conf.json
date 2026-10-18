@@ -9,6 +9,8 @@
     "linux": {
       "deb": {
         "depends": [
+          "gstreamer1.0-plugins-good",
+          "libgtk-layer-shell0",
           "pipewire-bin",
           "wireplumber",
           "wl-clipboard",
@@ -19,6 +21,8 @@
       },
       "rpm": {
         "depends": [
+          "gstreamer1-plugins-good",
+          "gtk-layer-shell",
           "pipewire-utils",
           "wireplumber",
           "wl-clipboard",

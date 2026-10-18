@@ -1,105 +1,118 @@
-//! Hyprland управляет геометрией Wayland-окон вместо запрещённого set_position.
+//! Layer-shell сохраняет клавиатурный фокус приложения за интерактивной карточкой.
 
-use std::{
-    collections::HashMap,
-    sync::{Mutex, OnceLock},
+use gtk::prelude::*;
+use gtk_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
+use tauri::WebviewWindow;
+
+use crate::{
+    error::{AppError, AppResult},
+    linux_desktop,
 };
-
-use crate::{error::AppResult, linux_desktop};
-
-type Geometry = (i32, i32, u32, u32);
-static GEOMETRY: OnceLock<Mutex<HashMap<String, Geometry>>> = OnceLock::new();
 
 fn quote(value: &str) -> String {
     serde_json::to_string(value).expect("string is serializable")
 }
 
-/** Уникальный initial title позволяет правилам затрагивать только собственное окно. */
+/** Уникальный заголовок отличает собственные окна при диагностике. */
 pub fn title(label: &str) -> String {
     format!("{}_{label}", linux_desktop::namespace())
 }
 
-/** Регистрируется до построения GTK-окна, чтобы оно не захватило фокус при первом map. */
-pub fn prepare(label: &str) -> AppResult<()> {
-    apply(label, "")
+// GTK-объекты создаются и используются только в главном потоке; через канал
+// передаётся результат, но никогда сам ApplicationWindow или GdkMonitor.
+fn with_native(
+    window: &WebviewWindow,
+    action: impl FnOnce(&gtk::ApplicationWindow) -> AppResult<()> + Send + 'static,
+) -> AppResult<()> {
+    if gtk::is_initialized_main_thread() {
+        return action(&window.gtk_window()?);
+    }
+    let handle = window.clone();
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    window.run_on_main_thread(move || {
+        let result = handle
+            .gtk_window()
+            .map_err(AppError::from)
+            .and_then(|native| action(&native));
+        let _ = sender.send(result);
+    })?;
+    receiver
+        .recv()
+        .map_err(|error| AppError::from(error.to_string()))?
 }
 
-fn apply(label: &str, geometry: &str) -> AppResult<()> {
-    let registry = format!("{}_overlays", linux_desktop::namespace());
-    let id = quote(label);
-    let spec = format!("{{name={},match={{title={}}},float=true,pin=true,no_initial_focus=true,no_focus=true,no_follow_mouse=true,focus_on_activate=false,no_anim=true,no_blur=true,no_shadow=true,decorate=false,border_size=0,rounding=0,{geometry}}}", quote(&title(label)), quote(&format!("^{}$", title(label))));
-    let code = format!("local r=_G.{registry}; if not r then r={{}}; _G.{registry}=r end; if not r[{id}] or r[{id}].spec~={} then if r[{id}] then r[{id}].rule:set_enabled(false) end; r[{id}]={{spec={},rule=hl.window_rule({spec})}} end; r[{id}].rule:set_enabled(true)", quote(&spec), quote(&spec));
-    linux_desktop::hyprctl(&["eval", &code])?;
-    Ok(())
+/** Назначает Wayland-роль скрытому окну до первого realize и показа. */
+pub fn initialize(window: &WebviewWindow, shadow: bool) -> AppResult<()> {
+    with_native(window, move |native| {
+        if native.is_realized() {
+            return Err(AppError::from(
+                "Overlay GTK window was realized before layer-shell initialization",
+            ));
+        }
+        if !gtk_layer_shell::is_supported() {
+            return Err(AppError::from(
+                "Wayland compositor does not support layer-shell",
+            ));
+        }
+        native.init_layer_shell();
+        native.set_namespace(&format!("{}_overlay", linux_desktop::namespace()));
+        native.set_layer(if shadow { Layer::Top } else { Layer::Overlay });
+        native.set_keyboard_mode(KeyboardMode::None);
+        native.set_exclusive_zone(-1);
+        native.set_anchor(Edge::Top, true);
+        native.set_anchor(Edge::Left, true);
+        if shadow {
+            // GtkWidget сохраняет форму и восстанавливает её при map/resize.
+            // Одноразовую форму GdkWindow GTK перезаписывает своей сохранённой.
+            native.input_shape_combine_region(Some(&gtk::cairo::Region::create()));
+        }
+        Ok(())
+    })
 }
 
-/** Геометрия задана в логических координатах относительно указанного монитора. */
+/** Позиция и размер заданы в логических координатах относительно полного монитора. */
 pub fn position(
-    label: &str,
-    monitor: Option<&str>,
+    window: &WebviewWindow,
+    monitor: &tauri::Monitor,
     x: i32,
     y: i32,
     width: u32,
     height: u32,
 ) -> AppResult<()> {
-    let origin = linux_desktop::hyprctl(&["monitors", "-j"])
-        .ok()
-        .and_then(|data| serde_json::from_str::<serde_json::Value>(&data).ok())
-        .and_then(|data| {
-            data.as_array().and_then(|monitors| {
-                monitors
-                    .iter()
-                    .find(|entry| entry["name"].as_str() == monitor)
-                    .cloned()
+    let scale = monitor.scale_factor();
+    let origin = monitor.position();
+    let monitor_x = (f64::from(origin.x) / scale).round() as i32;
+    let monitor_y = (f64::from(origin.y) / scale).round() as i32;
+    let monitor_width = (f64::from(monitor.size().width) / scale).round() as i32;
+    let monitor_height = (f64::from(monitor.size().height) / scale).round() as i32;
+    with_native(window, move |native| {
+        let display = native.display();
+        let monitor = (0..display.n_monitors())
+            .filter_map(|index| display.monitor(index))
+            .find(|monitor| {
+                let rect = monitor.geometry();
+                rect.x() == monitor_x
+                    && rect.y() == monitor_y
+                    && rect.width() == monitor_width
+                    && rect.height() == monitor_height
             })
-        })
-        .map(|entry| {
-            (
-                entry["x"].as_i64().unwrap_or(0) as i32,
-                entry["y"].as_i64().unwrap_or(0) as i32,
-            )
-        })
-        .unwrap_or((0, 0));
-    if let Ok(mut positions) = GEOMETRY.get_or_init(|| Mutex::new(HashMap::new())).lock() {
-        positions.insert(
-            label.to_owned(),
-            (origin.0 + x, origin.1 + y, width, height),
-        );
-    }
-    let monitor = monitor
-        .map(|name| format!("monitor={},", quote(name)))
-        .unwrap_or_default();
-    apply(
-        label,
-        &format!("{monitor}move={{{x},{y}}},size={{{width},{height}}},"),
-    )
+            .ok_or_else(|| AppError::from("Overlay target GDK monitor not found"))?;
+        native.set_monitor(&monitor);
+        native.set_layer_shell_margin(Edge::Left, x);
+        native.set_layer_shell_margin(Edge::Top, y);
+        native.set_size_request(width as i32, height as i32);
+        native.resize(width as i32, height as i32);
+        Ok(())
+    })
 }
 
-/** Обновляет уже отображённое окно адресно, не меняя фокус целевого приложения. */
-pub fn place_visible(label: &str) -> AppResult<()> {
-    let position = GEOMETRY
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .ok()
-        .and_then(|positions| positions.get(label).copied());
-    let Some((x, y, width, height)) = position else {
-        return Ok(());
-    };
-    let title = quote(&title(label));
-    let code = format!("local function dispatch(d) local r=hl.dispatch(d); if not r.ok then error(r.error or 'Hyprland dispatch failed') end end; for _,w in ipairs(hl.get_windows()) do if w.title=={title} then dispatch(hl.dsp.window.float({{window=w,action='enable'}})); dispatch(hl.dsp.window.pin({{window=w,action='enable'}})); dispatch(hl.dsp.window.resize({{window=w,x={width},y={height},relative=false}})); dispatch(hl.dsp.window.move({{window=w,x={x},y={y},relative=false}})); dispatch(hl.dsp.window.alter_zorder({{window=w,mode='top'}})) end end");
-    linux_desktop::hyprctl(&["eval", &code])?;
-    Ok(())
-}
-
-/** Отключает свои runtime-правила при штатном завершении приложения. */
+/** Отключает своё runtime-правило главного окна при штатном завершении. */
 pub fn shutdown() {
     let main = format!("{}_main_window", linux_desktop::namespace());
     let _ = linux_desktop::hyprctl(&[
         "eval",
         &format!("if _G.{main} then _G.{main}:set_enabled(false) end"),
     ]);
-    let registry = format!("{}_overlays", linux_desktop::namespace());
-    let _ = linux_desktop::hyprctl(&["eval", &format!("local r=_G.{registry}; if r then for _,v in pairs(r) do v.rule:set_enabled(false) end end")]);
 }
 
 /** Главное окно получает минимально поддерживаемую раскладкой ширину вне tiling. */
