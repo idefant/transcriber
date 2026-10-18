@@ -70,6 +70,12 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
 
+            #[cfg(target_os = "linux")]
+            if let Some(window) = app_handle.get_webview_window("main") {
+                // GTK должен принять размер тайла, иначе поверхность и координаты кликов расходятся.
+                window.set_min_size(None::<tauri::Size>)?;
+            }
+
             telemetry::initialize(&app_handle)?;
 
             // База истории открывается до миграций: миграция схемы v3
