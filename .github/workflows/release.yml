@@ -10,15 +10,48 @@ on:
         description: 'Tag to release (e.g. v1.2.3)'
         required: true
 
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Validate release tag
+        id: version
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          const tag = process.env.RELEASE_TAG;
+          const identifier = '(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)';
+          const semver = new RegExp(`^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-${identifier}(?:\\.${identifier})*)?$`);
+          if (!semver.test(tag)) throw new Error('Expected a version tag such as v0.3.0-alpha.2');
+          appendFileSync(process.env.GITHUB_OUTPUT, `tag=${tag}\nversion=${tag.slice(1)}\nprerelease=${tag.includes('-')}\n`);
+          JS
+
   check:
-    runs-on: windows-latest
+    needs: metadata
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: refs/tags/${{ needs.metadata.outputs.tag }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -31,6 +64,10 @@ jobs:
         with:
           components: clippy, rustfmt
 
+      - name: Install Linux development dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libgtk-layer-shell-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
       - name: Cache Rust build artifacts
         uses: swatinem/rust-cache@v2
         with:
@@ -39,12 +76,56 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Prepare ONNX Runtime
+        if: runner.os == 'Linux'
+        run: npm run setup:linux
+
       - name: Run all checks
         run: npm run check:ci
 
+  prepare-release:
+    needs: [metadata, check]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      release-id: ${{ steps.release.outputs.id }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ needs.metadata.outputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Create or reuse draft release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+          PRERELEASE: ${{ needs.metadata.outputs.prerelease }}
+        run: |
+          node scripts/extract-changelog.mjs "$RELEASE_VERSION" > "$RUNNER_TEMP/release-notes.md"
+          if gh release view "$RELEASE_TAG" --json isDraft > "$RUNNER_TEMP/release.json"; then
+            node --input-type=module -e "import fs from 'node:fs'; if (!JSON.parse(fs.readFileSync(process.argv[1])).isDraft) throw new Error('Release is already public');" "$RUNNER_TEMP/release.json"
+            gh release edit "$RELEASE_TAG" --title "Transcriber v$RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" --prerelease="$PRERELEASE"
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "Transcriber v$RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" --prerelease="$PRERELEASE"
+          fi
+          RELEASE_ID=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq .id)
+          echo "id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+
   release:
-    needs: check
-    runs-on: windows-latest
+    needs: [metadata, prepare-release]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: write
 
@@ -52,8 +133,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: refs/tags/${{ needs.metadata.outputs.tag }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -64,49 +144,44 @@ jobs:
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Linux development dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libgtk-layer-shell-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
       - name: Cache Rust build artifacts
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
-      - name: Determine version and prerelease flag
-        id: version
-        shell: bash
-        run: |
-          REF="${{ github.ref_name }}"
-          # Support workflow_dispatch with manual tag input
-          if [ -z "$REF" ] || [ "$REF" = "main" ]; then
-            REF="${{ github.event.inputs.tag }}"
-          fi
-          VERSION="${REF#v}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if echo "$VERSION" | grep -qE '[-]'; then
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
-          echo "tag=$REF" >> "$GITHUB_OUTPUT"
-
       - name: Sync version into manifests
         shell: bash
-        run: node scripts/set-version.mjs "${{ steps.version.outputs.version }}"
+        run: node scripts/set-version.mjs "${{ needs.metadata.outputs.version }}"
 
       - name: Extract release notes from CHANGELOG
         id: changelog
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
         run: |
-          NOTES=$(node scripts/extract-changelog.mjs "${{ steps.version.outputs.version }}")
-          # GitHub Actions multiline output
-          echo "notes<<CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
-          echo "$NOTES" >> "$GITHUB_OUTPUT"
-          echo "CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+          NOTES=$(node scripts/extract-changelog.mjs "$RELEASE_VERSION")
+          DELIMITER="CHANGELOG_$(node -e 'console.log(crypto.randomUUID())')"
+          {
+            echo "notes<<$DELIMITER"
+            echo "$NOTES"
+            echo "$DELIMITER"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Prepare ONNX Runtime
+        if: runner.os == 'Linux'
+        run: npm run setup:linux
+
       - name: Build and publish Tauri release
         uses: tauri-apps/tauri-action@v0
         env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -115,26 +190,27 @@ jobs:
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT_REACT: ${{ vars.SENTRY_PROJECT_REACT }}
           SENTRY_PROJECT_RUST: ${{ vars.SENTRY_PROJECT_RUST }}
-          SENTRY_RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          SENTRY_RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
-          VITE_APP_CHANNEL: ${{ steps.version.outputs.prerelease == 'true' && 'canary' || 'stable' }}
+          VITE_APP_CHANNEL: ${{ needs.metadata.outputs.prerelease == 'true' && 'canary' || 'stable' }}
         with:
-          tagName: ${{ steps.version.outputs.tag }}
-          releaseName: 'Transcriber v__VERSION__'
+          tagName: ${{ needs.metadata.outputs.tag }}
+          releaseId: ${{ needs.prepare-release.outputs.release-id }}
           releaseBody: ${{ steps.changelog.outputs.notes }}
           releaseDraft: true
-          prerelease: ${{ steps.version.outputs.prerelease }}
-          includeUpdaterJson: true
-          args: ${{ steps.version.outputs.prerelease == 'true' && '--config src-tauri/tauri.canary.conf.json' || '' }}
+          prerelease: ${{ needs.metadata.outputs.prerelease }}
+          includeUpdaterJson: ${{ runner.os == 'Windows' }}
+          args: ${{ needs.metadata.outputs.prerelease == 'true' && '--config src-tauri/tauri.canary.conf.json' || '' }}
 
       - name: Upload Rust debug files to Sentry
+        if: runner.os == 'Windows'
         shell: bash
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN_RUST }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT_RUST }}
-          SENTRY_RELEASE: transcriber@${{ steps.version.outputs.version }}
+          SENTRY_RELEASE: transcriber@${{ needs.metadata.outputs.version }}
         run: |
           if [ -z "$SENTRY_AUTH_TOKEN" ] || [ -z "$SENTRY_DSN" ] || [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_PROJECT" ]; then
             echo "Sentry Rust debug files upload is skipped: configuration is incomplete."
@@ -147,20 +223,72 @@ jobs:
           test -f "$PDB"
           npx sentry-cli debug-files upload --include-sources "$PDB"
 
-      - name: Publish GitHub release
+      - name: Verify AppImage layer-shell library
+        if: runner.os == 'Linux'
         shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "${{ steps.version.outputs.tag }}" --draft=false
+        run: |
+          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)
+          test -n "$APPIMAGE"
+          APPIMAGE=$(realpath "$APPIMAGE")
+          mkdir -p "$RUNNER_TEMP/appimage-verification"
+          cd "$RUNNER_TEMP/appimage-verification"
+          "$APPIMAGE" --appimage-extract >/dev/null
+          test -n "$(find squashfs-root -name 'libgtk-layer-shell.so*' -print -quit)"
+
+  publish:
+    needs: [metadata, prepare-release, release]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ needs.metadata.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
 
       - name: Download update manifest
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download "${{ steps.version.outputs.tag }}" \
+          gh release download "${{ needs.metadata.outputs.tag }}" \
             --pattern "latest.json" \
             --dir /tmp/updater-manifest
+
+      - name: Verify update manifest and publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('/tmp/updater-manifest/latest.json', 'utf8'));
+          if (manifest.version !== process.env.RELEASE_VERSION) throw new Error('Updater version mismatch');
+          for (const platform of ['windows-x86_64']) {
+            const artifact = manifest.platforms?.[platform];
+            if (!artifact?.signature?.trim() || !artifact?.url?.includes(`/download/${process.env.RELEASE_TAG}/`)) {
+              throw new Error(`Missing or invalid updater artifact for ${platform}`);
+            }
+          }
+          JS
+          gh release view "$RELEASE_TAG" --json assets > "$RUNNER_TEMP/release-assets.json"
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const { assets } = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/release-assets.json`, 'utf8'));
+          for (const extension of ['.AppImage', '.deb', '.rpm', '.exe']) {
+            if (!assets.some(({ name, size }) => name.includes(process.env.RELEASE_VERSION) && name.endsWith(extension) && size > 0)) {
+              throw new Error(`Missing release asset: ${extension}`);
+            }
+          }
+          JS
+          gh release edit "$RELEASE_TAG" --draft=false
 
       - name: Publish channel manifests to GitHub Pages
         shell: bash
@@ -169,12 +297,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           PAGES_DIR=/tmp/pages-site
 
-          # The version-sync and build steps leave the working tree dirty
-          # (package.json, Cargo.toml, Cargo.lock, tauri.conf.json). Discard those
-          # changes so switching to the gh-pages branch does not abort.
-          git reset --hard HEAD
-
-          # Fetch or create gh-pages branch
+          # Получаем ветку каналов обновлений или создаём её при первом релизе.
           git fetch origin gh-pages 2>/dev/null || true
           if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
             git checkout gh-pages
@@ -183,11 +306,11 @@ jobs:
             git rm -rf .
           fi
 
-          # unstable channel always gets the latest build
+          # Нестабильный канал получает каждый опубликованный релиз.
           cp /tmp/updater-manifest/latest.json unstable.json
 
-          # stable channel only gets non-prerelease builds
-          if [ "${{ steps.version.outputs.prerelease }}" = "false" ]; then
+          # Стабильный канал получает только стабильные релизы.
+          if [ "${{ needs.metadata.outputs.prerelease }}" = "false" ]; then
             cp /tmp/updater-manifest/latest.json stable.json
           fi
 
@@ -200,8 +323,8 @@ jobs:
           touch "$PAGES_DIR/.nojekyll"
 
           git add unstable.json
-          git add stable.json 2>/dev/null || true  # stable.json may not exist yet for first prerelease
-          git diff --cached --quiet || git commit -m "Update channel manifests for ${{ steps.version.outputs.tag }}"
+          git add stable.json 2>/dev/null || true  # При первом pre-release stable.json ещё может отсутствовать.
+          git diff --cached --quiet || git commit -m "Update channel manifests for ${{ needs.metadata.outputs.tag }}"
           git push origin gh-pages
 
       - name: Upload Pages artifact
@@ -210,7 +333,7 @@ jobs:
           path: /tmp/pages-site
 
   deploy-pages:
-    needs: release
+    needs: publish
     runs-on: ubuntu-latest
     permissions:
       pages: write
