@@ -9,10 +9,16 @@ use crate::{
 
 #[cfg(target_os = "windows")]
 pub async fn paste_text(app: &tauri::AppHandle, text: &str) -> AppResult<()> {
+    let _operation = PASTE_OPERATION.lock().await;
+    let shortcut = crate::settings::load_app_settings(app)?
+        .paste_shortcut()
+        .to_owned();
+    let keys = crate::shortcut_hook::paste_virtual_keys(&shortcut)?;
+    let _insertion = SyntheticPasteGuard::begin(app).await?;
     let previous = read_clipboard_snapshot();
     write_clipboard(&[text_entry(text)], ClipboardHistoryMode::Hidden)
         .map_err(|error| error.into_app_error(app))?;
-    let send_result = send_ctrl_v(app);
+    let send_result = send_paste_shortcut(app, &keys);
     // Даём целевому приложению время обработать вставку, прежде чем буфер
     // обмена будет восстановлен. SendInput асинхронен с точки зрения
     // получателя, поэтому требуется небольшая пауза. Медленный получатель
@@ -343,17 +349,18 @@ fn set_empty_format(format: u32) {
 }
 
 #[cfg(target_os = "windows")]
-fn send_ctrl_v(app: &tauri::AppHandle) -> AppResult<()> {
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-        SendInput, INPUT, KEYEVENTF_KEYUP, VK_CONTROL, VK_V,
-    };
+fn send_paste_shortcut(app: &tauri::AppHandle, keys: &[u16]) -> AppResult<()> {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, KEYEVENTF_KEYUP};
 
-    let mut inputs = [
-        keyboard_input(VK_CONTROL, 0),
-        keyboard_input(VK_V, 0),
-        keyboard_input(VK_V, KEYEVENTF_KEYUP),
-        keyboard_input(VK_CONTROL, KEYEVENTF_KEYUP),
-    ];
+    let mut inputs: Vec<INPUT> = keys
+        .iter()
+        .map(|&key| keyboard_input(key, 0))
+        .chain(
+            keys.iter()
+                .rev()
+                .map(|&key| keyboard_input(key, KEYEVENTF_KEYUP)),
+        )
+        .collect();
 
     let sent = unsafe {
         SendInput(
@@ -366,7 +373,7 @@ fn send_ctrl_v(app: &tauri::AppHandle) -> AppResult<()> {
     if sent != inputs.len() as u32 {
         return Err(AppError::from(i18n::text(
             app,
-            "clipboard-send-ctrl-v-failed",
+            "clipboard-send-paste-shortcut-failed",
         )));
     }
 
@@ -385,10 +392,138 @@ fn keyboard_input(key: u16, flags: u32) -> windows_sys::Win32::UI::Input::Keyboa
             ki: KEYBDINPUT {
                 wVk: key,
                 wScan: 0,
-                dwFlags: flags,
+                dwFlags: flags
+                    | if matches!(key, 0x21..=0x28 | 0x2D | 0x2E | 0x5B | 0x5C | 0xA3 | 0xA5) {
+                        windows_sys::Win32::UI::Input::KeyboardAndMouse::KEYEVENTF_EXTENDEDKEY
+                    } else {
+                        0
+                    },
                 time: 0,
-                dwExtraInfo: 0,
+                dwExtraInfo: crate::shortcut_hook::PASTE_INPUT_MARKER,
             },
         },
+    }
+}
+
+#[cfg(target_os = "windows")]
+static PASTE_OPERATION: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+static NEXT_PASTE_OPERATION_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+static PENDING_PASTE_ACK: std::sync::Mutex<Option<(u64, tokio::sync::oneshot::Sender<()>)>> =
+    std::sync::Mutex::new(None);
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+struct SyntheticPasteEvent {
+    operation_id: u64,
+    active: bool,
+}
+
+/// Подтверждает блокировку DOM-хоткеев только из главного окна и для ожидаемой операции.
+#[tauri::command]
+pub fn acknowledge_synthetic_paste(window: tauri::WebviewWindow, operation_id: u64) {
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    if window.label() == "main" {
+        if let Ok(mut pending) = PENDING_PASTE_ACK.lock() {
+            if pending.as_ref().is_some_and(|(id, _)| *id == operation_id) {
+                if let Some((_, sender)) = pending.take() {
+                    let _ = sender.send(());
+                }
+            }
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    let _ = (window, operation_id);
+}
+
+/// Подавляет пользовательские действия на время собственного синтетического ввода.
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+pub struct SyntheticPasteGuard {
+    app: tauri::AppHandle,
+    operation_id: u64,
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+static SYNTHETIC_PASTE_ACTIVE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Используется регистрацией глобальных сочетаний, чтобы пропускать собственную вставку.
+#[cfg(target_os = "linux")]
+pub fn is_synthetic_paste_active() -> bool {
+    SYNTHETIC_PASTE_ACTIVE.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+impl SyntheticPasteGuard {
+    fn prepare(app: &tauri::AppHandle) -> Self {
+        SYNTHETIC_PASTE_ACTIVE.store(true, std::sync::atomic::Ordering::SeqCst);
+        Self {
+            app: app.clone(),
+            operation_id: NEXT_PASTE_OPERATION_ID
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+        }
+    }
+
+    fn notify(&self, active: bool) -> crate::error::AppResult<()> {
+        use tauri::Emitter;
+        self.app.emit_to(
+            "main",
+            "synthetic-paste-active",
+            SyntheticPasteEvent {
+                operation_id: self.operation_id,
+                active,
+            },
+        )?;
+        Ok(())
+    }
+
+    /// Windows ждёт готовности DOM до изменения буфера, даже если окно сейчас скрыто.
+    #[cfg(target_os = "windows")]
+    pub async fn begin(app: &tauri::AppHandle) -> crate::error::AppResult<Self> {
+        let guard = Self::prepare(app);
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        *PENDING_PASTE_ACK
+            .lock()
+            .map_err(|error| AppError::from(error.to_string()))? =
+            Some((guard.operation_id, sender));
+        guard.notify(true)?;
+        match tokio::time::timeout(std::time::Duration::from_secs(2), receiver).await {
+            Ok(Ok(())) => Ok(guard),
+            _ => Err(AppError::from(i18n::text(
+                app,
+                "clipboard-paste-prepare-timeout",
+            ))),
+        }
+    }
+
+    /// Linux блокирует нативные бинды до запуска helper; DOM fallback остаётся отключённым.
+    #[cfg(target_os = "linux")]
+    pub fn new(app: &tauri::AppHandle) -> crate::error::AppResult<Self> {
+        let guard = Self::prepare(app);
+        guard.notify(true)?;
+        crate::linux_desktop::refresh(&crate::settings::load_app_settings(app)?)?;
+        Ok(guard)
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+impl Drop for SyntheticPasteGuard {
+    fn drop(&mut self) {
+        if let Ok(mut pending) = PENDING_PASTE_ACK.lock() {
+            if pending
+                .as_ref()
+                .is_some_and(|(id, _)| *id == self.operation_id)
+            {
+                pending.take();
+            }
+        }
+        SYNTHETIC_PASTE_ACTIVE.store(false, std::sync::atomic::Ordering::SeqCst);
+        #[cfg(target_os = "linux")]
+        crate::linux_desktop::capture_changed();
+        let _ = self.notify(false);
     }
 }

@@ -66,6 +66,11 @@ const en = {
         title: 'Trim silence before transcription',
         description: 'Remove long pauses and skip recordings without enough speech',
       },
+      pasteShortcut: {
+        title: 'Paste shortcut',
+        description:
+          'The app presses this shortcut to paste text into the active window. You can enter the shortcut manually if the system intercepts it.',
+      },
       launchAtLogin: {
         title: 'Launch at login',
         description: 'Start Transcriber in the background when you sign in',
@@ -129,6 +134,8 @@ const en = {
         description:
           'Keyboard shortcut that repeats processing for the latest history record and pastes the result',
       },
+      manualHint:
+        'Type the shortcut and press Enter or leave the field to save. Escape cancels editing.',
       record: 'Record shortcut',
       recording: 'Press keys…',
       reset: 'Reset shortcut',
@@ -397,6 +404,11 @@ const ru: typeof en = {
         title: 'Удалять тишину перед распознаванием',
         description: 'Удалять длинные паузы и не отправлять записи без достаточной речи',
       },
+      pasteShortcut: {
+        title: 'Сочетание для вставки',
+        description:
+          'Приложение нажимает это сочетание, чтобы вставить текст в активное окно. Можно ввести сочетание вручную, если его перехватывает система.',
+      },
       launchAtLogin: {
         title: 'Запускать при входе в систему',
         description: 'Запускать Transcriber в фоновом режиме после входа в систему',
@@ -461,6 +473,8 @@ const ru: typeof en = {
         description:
           'Комбинация клавиш, повторяющая обработку последней записи истории и вставляющая результат',
       },
+      manualHint:
+        'Введите сочетание и нажмите Enter или покиньте поле для сохранения. Escape отменяет ввод.',
       record: 'Записать комбинацию',
       recording: 'Нажмите клавиши…',
       reset: 'Сбросить хоткей',

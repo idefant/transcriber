@@ -11,6 +11,7 @@ import { useSettingsStore } from '#/stores';
 const DictationHotkeyFallback: FC = () => {
   const [nativeShortcutsEnabled, setNativeShortcutsEnabled] = useState(false);
   const settings = useSettingsStore((s) => s.settings);
+  const syntheticPasteOperationIdRef = useRef<number | null>(null);
   const isSessionActiveRef = useRef(false);
   const isRecordingRef = useRef(false);
   const currentSessionIdRef = useRef<number | null>(null);
@@ -29,6 +30,28 @@ const DictationHotkeyFallback: FC = () => {
     });
     return () => {
       disposed = true;
+      void unlisten.then((stop) => {
+        stop();
+        return null;
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    const unlisten = listen<dictationApi.SyntheticPasteEvent>(
+      'synthetic-paste-active',
+      ({ payload }) => {
+        if (payload.active) {
+          syntheticPasteOperationIdRef.current = payload.operationId;
+          pressedModifierCodesRef.current.clear();
+          void dictationApi.acknowledgeSyntheticPaste(payload.operationId);
+        } else if (syntheticPasteOperationIdRef.current === payload.operationId) {
+          syntheticPasteOperationIdRef.current = null;
+          pressedModifierCodesRef.current.clear();
+        }
+      },
+    );
+    return () => {
       void unlisten.then((stop) => {
         stop();
         return null;
@@ -100,7 +123,7 @@ const DictationHotkeyFallback: FC = () => {
         return;
       }
 
-      if (isHotkeyCaptureActive()) {
+      if (isHotkeyCaptureActive() || syntheticPasteOperationIdRef.current !== null) {
         return;
       }
 
@@ -179,6 +202,10 @@ const DictationHotkeyFallback: FC = () => {
       // Обновляем отслеживание нажатых модификаторов.
       if (MODIFIER_CODES.has(event.code)) {
         pressedModifierCodes.delete(event.code);
+        return;
+      }
+
+      if (syntheticPasteOperationIdRef.current !== null) {
         return;
       }
 

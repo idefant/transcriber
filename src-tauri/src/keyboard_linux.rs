@@ -20,13 +20,18 @@ static CLIPBOARD_OPERATION: Mutex<()> = Mutex::new(());
 const MAX_SNAPSHOT_BYTES: usize = 64 * 1024 * 1024;
 
 /** Выполняет блокирующие Wayland-операции вне асинхронного executor. */
-pub async fn paste_text(_app: &tauri::AppHandle, text: &str) -> AppResult<()> {
+pub async fn paste_text(app: &tauri::AppHandle, text: &str) -> AppResult<()> {
+    let shortcut = crate::settings::load_app_settings(app)?
+        .paste_shortcut()
+        .to_owned();
+    let app = app.clone();
     let text = text.to_owned();
     tauri::async_runtime::spawn_blocking(move || {
         let _lock = CLIPBOARD_OPERATION
             .lock()
             .map_err(|e| AppError::from(e.to_string()))?;
-        start_owner("paste", &text)
+        let _insertion = crate::keyboard::SyntheticPasteGuard::new(&app)?;
+        start_owner("paste", &text, Some(&shortcut))
     })
     .await
     .map_err(|error| AppError::from(error.to_string()))?
@@ -37,7 +42,7 @@ pub fn copy_text(_app: &tauri::AppHandle, text: &str) -> AppResult<()> {
     let _lock = CLIPBOARD_OPERATION
         .lock()
         .map_err(|e| AppError::from(e.to_string()))?;
-    start_owner("copy", text)
+    start_owner("copy", text, None)
 }
 
 fn clipboard_error(error: impl std::fmt::Display) -> AppError {
@@ -140,7 +145,7 @@ fn read_snapshot() -> AppResult<Vec<MimeSource>> {
     Ok(snapshot)
 }
 
-fn paste_blocking(text: &str) -> AppResult<ClipboardOwner> {
+fn paste_blocking(text: &str, shortcut: &str) -> AppResult<ClipboardOwner> {
     let _lock = CLIPBOARD_OPERATION
         .lock()
         .map_err(|e| AppError::from(e.to_string()))?;
@@ -159,18 +164,8 @@ fn paste_blocking(text: &str) -> AppResult<ClipboardOwner> {
     if class.is_empty() {
         return Err(AppError::from("No active window to paste into"));
     }
-    let terminal = [
-        "alacritty",
-        "kitty",
-        "foot",
-        "ghostty",
-        "wezterm",
-        "org.wezfurlong.wezterm",
-        "org.gnome.terminal",
-        "konsole",
-    ]
-    .iter()
-    .any(|name| class == *name || class.starts_with(&format!("{name}-")));
+    let (modifiers, keycode) = crate::shortcut_hook::paste_linux_keys(shortcut)?;
+    let keyboard = crate::virtual_keyboard_linux::VirtualKeyboard::new()?;
     let mut previous = read_snapshot()?;
     let focused = Command::new("hyprctl")
         .args(["activewindow", "-j"])
@@ -199,14 +194,7 @@ fn paste_blocking(text: &str) -> AppResult<ClipboardOwner> {
             },
         ])
         .map_err(clipboard_error)?;
-    let args: &[&str] = if terminal {
-        &[
-            "-M", "ctrl", "-M", "shift", "-k", "v", "-m", "shift", "-m", "ctrl",
-        ]
-    } else {
-        &["-M", "ctrl", "-k", "v", "-m", "ctrl"]
-    };
-    let sent = Command::new("wtype").args(args).status();
+    let sent = keyboard.send(modifiers, keycode);
     std::thread::sleep(Duration::from_millis(500));
     // Не затираем новое пользовательское копирование во время вставки.
     let still_ours =
@@ -238,18 +226,11 @@ fn paste_blocking(text: &str) -> AppResult<ClipboardOwner> {
             );
         }
     }
-    let result = match sent {
-        Ok(status) if status.success() => Ok(()),
-        Ok(status) => Err(AppError::from(format!(
-            "wtype failed ({status}); transcription remains in history"
-        ))),
-        Err(error) => Err(error.into()),
-    };
     // Даже отказ синтетического ввода не должен лишить владельца восстановленных данных.
     Ok(ClipboardOwner {
         prepared: restored,
         marker: owner_marker,
-        result,
+        result: sent,
     })
 }
 
@@ -284,7 +265,10 @@ pub fn run_clipboard_owner() -> bool {
         let text = String::from_utf8(text).map_err(clipboard_error)?;
         let lock = transaction_lock()?;
         let owner = if std::env::args().nth(2).as_deref() == Some("paste") {
-            paste_blocking(&text)?
+            let shortcut = std::env::args()
+                .nth(3)
+                .ok_or_else(|| clipboard_error("missing paste shortcut"))?;
+            paste_blocking(&text, &shortcut)?
         } else {
             let marker = owner_marker();
             let mut options = Options::new();
@@ -391,12 +375,13 @@ fn serve_owner(owner: ClipboardOwner, lock: std::fs::File) {
     let _ = acknowledgement.join();
 }
 
-fn start_owner(mode: &str, text: &str) -> AppResult<()> {
+fn start_owner(mode: &str, text: &str, shortcut: Option<&str>) -> AppResult<()> {
     if text.len() > MAX_SNAPSHOT_BYTES {
         return Err(clipboard_error("payload exceeds 64 MiB"));
     }
     let mut child = Command::new(std::env::current_exe()?)
         .args(["--clipboard-owner", mode])
+        .args(shortcut)
         .process_group(0)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

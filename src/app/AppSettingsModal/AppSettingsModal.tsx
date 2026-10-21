@@ -188,6 +188,10 @@ const AppSettingsModal: FC = () => {
             isLaunchAtLoginEnabled={settings.isLaunchAtLoginEnabled}
             isRestoreAudioWhilePausedEnabled={settings.isRestoreAudioWhilePausedEnabled}
             isSilenceTrimmingEnabled={settings.isSilenceTrimmingEnabled}
+            pasteShortcut={settings.pasteShortcut}
+            onPasteShortcutChange={(pasteShortcut) => {
+              void handleSettingsChange({ pasteShortcut });
+            }}
             recordingAudioMode={settings.recordingAudioMode}
             triggerMode={settings.triggerMode}
             onLaunchAtLoginEnabledChange={(isLaunchAtLoginEnabled) => {

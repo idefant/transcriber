@@ -34,6 +34,8 @@ mod storage;
 mod stt_prompt;
 mod telemetry;
 mod updater;
+#[cfg(target_os = "linux")]
+mod virtual_keyboard_linux;
 
 use tauri::Manager;
 
@@ -140,6 +142,8 @@ pub fn run() {
             overlay::overlay_notice_mouse_move,
             overlay::overlay_notice_mouse_leave,
             shortcut_hook::set_hotkey_capture_active,
+            shortcut_hook::normalize_hotkey,
+            keyboard::acknowledge_synthetic_paste,
             shortcut_hook::native_shortcuts_enabled,
             history::get_history_groups,
             history::get_history_oldest_month,

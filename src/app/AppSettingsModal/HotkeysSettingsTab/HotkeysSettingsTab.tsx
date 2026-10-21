@@ -1,9 +1,8 @@
 import { type FC } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import HotkeyInput from '../HotkeyInput';
 import SettingRow from '../SettingRow';
-
-import HotkeyInput from './HotkeyInput';
 
 import styles from './HotkeysSettingsTab.module.scss';
 

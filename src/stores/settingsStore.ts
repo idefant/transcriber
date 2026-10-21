@@ -20,6 +20,7 @@ const defaultAppSettings: AppSettings = {
   overlayVariant: 'center',
   pauseHotkey: '',
   pasteLatestHotkey: '',
+  pasteShortcut: 'Ctrl+V',
   recordingAudioMode: 'mute',
   repeatLatestHotkey: '',
   themePreference: 'light',

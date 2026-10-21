@@ -69,7 +69,8 @@ clipboard-paste-windows-only = Вставка текста диктовки в �
 clipboard-copy-windows-only = Копирование в буфер обмена в этой версии реализовано только для Windows
 clipboard-open-failed = Не удалось открыть буфер обмена Windows
 clipboard-set-data-failed = Не удалось записать данные в буфер обмена Windows
-clipboard-send-ctrl-v-failed = Не удалось отправить сочетание Ctrl+V
+clipboard-paste-prepare-timeout = Не удалось подготовить вставку: интерфейс не подтвердил блокировку горячих клавиш. Повторите попытку.
+clipboard-send-paste-shortcut-failed = Не удалось отправить сочетание для вставки
 
 dictation-state-lock-failed = Не удалось заблокировать состояние диктовки
 dictation-active-hold-shortcut-state-lock-failed = Не удалось заблокировать состояние активной удерживаемой горячей клавиши

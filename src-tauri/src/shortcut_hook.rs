@@ -27,11 +27,103 @@ pub enum ShortcutState {
     Released,
 }
 
+/// Проверяет введённое вручную сочетание, не сохраняя настройки и не регистрируя хоткей.
+#[tauri::command]
+pub fn normalize_hotkey(app: tauri::AppHandle, value: String) -> Result<String, String> {
+    let language =
+        crate::settings::get_effective_ui_language(&app).map_err(AppError::into_message)?;
+    normalize_hotkey_for_language(language, &value).map_err(AppError::into_message)
+}
+
 pub fn normalize_hotkey_for_language(
     language: EffectiveUiLanguage,
     value: &str,
 ) -> AppResult<String> {
     Hotkey::parse(language, value).map(|hotkey| hotkey.to_normalized_string())
+}
+
+/// Отличает собственный синтетический ввод от нажатий пользователя в Windows hook.
+#[cfg(target_os = "windows")]
+pub const PASTE_INPUT_MARKER: usize = 0x54525053;
+
+/// Возвращает виртуальные клавиши в порядке нажатия; отпускать их нужно в обратном порядке.
+#[cfg(target_os = "windows")]
+pub fn paste_virtual_keys(value: &str) -> AppResult<Vec<u16>> {
+    let hotkey = Hotkey::parse(EffectiveUiLanguage::En, value)?;
+    let mut keys = Vec::new();
+    for (side, left, right) in [
+        (hotkey.ctrl, 0xA2, 0xA3),
+        (hotkey.alt, 0xA4, 0xA5),
+        (hotkey.shift, 0xA0, 0xA1),
+        (hotkey.win, 0x5B, 0x5C),
+    ] {
+        match side {
+            ModifierSide::None => {}
+            ModifierSide::Either | ModifierSide::Left => keys.push(left),
+            ModifierSide::Right => keys.push(right),
+        }
+    }
+    keys.push(hotkey.main_key.vk as u16);
+    Ok(keys)
+}
+
+/// Возвращает маску XKB-модификаторов и стандартный evdev-код основной клавиши.
+#[cfg(target_os = "linux")]
+pub fn paste_linux_keys(value: &str) -> AppResult<(u32, u32)> {
+    let hotkey = Hotkey::parse(EffectiveUiLanguage::En, value)?;
+    let mut modifiers = 0;
+    for (side, mask) in [
+        (hotkey.ctrl, 4),
+        (hotkey.alt, 8),
+        (hotkey.shift, 1),
+        (hotkey.win, 64),
+    ] {
+        if !matches!(side, ModifierSide::None) {
+            modifiers |= mask;
+        }
+    }
+    let name = hotkey.main_key.name;
+    let keycode = match name {
+        "Escape" => 1,
+        "Backspace" => 14,
+        "Tab" => 15,
+        "Enter" => 28,
+        "Space" => 57,
+        "Home" => 102,
+        "ArrowUp" => 103,
+        "PageUp" => 104,
+        "ArrowLeft" => 105,
+        "ArrowRight" => 106,
+        "End" => 107,
+        "ArrowDown" => 108,
+        "PageDown" => 109,
+        "Insert" => 110,
+        "Delete" => 111,
+        _ => {
+            let rows = [
+                ("1234567890", 2),
+                ("QWERTYUIOP", 16),
+                ("ASDFGHJKL", 30),
+                ("ZXCVBNM", 44),
+            ];
+            let physical = rows
+                .iter()
+                .find_map(|(row, start)| row.find(name).map(|index| start + index as u32));
+            let function = name
+                .strip_prefix('F')
+                .and_then(|number| number.parse::<u32>().ok())
+                .map(|number| match number {
+                    1..=10 => 58 + number,
+                    11..=12 => 76 + number,
+                    13..=24 => 170 + number,
+                    _ => unreachable!("диапазон F-клавиш проверен парсером"),
+                });
+            physical
+                .or(function)
+                .ok_or_else(|| AppError::from("Unsupported evdev paste key"))?
+        }
+    };
+    Ok((modifiers, keycode))
 }
 
 #[cfg(target_os = "windows")]
@@ -683,6 +775,9 @@ mod windows_hook {
         }
 
         let event = *(l_param as *const KBDLLHOOKSTRUCT);
+        if event.dwExtraInfo == super::PASTE_INPUT_MARKER {
+            return CallNextHookEx(ptr::null_mut::<HHOOK>() as HHOOK, code, w_param, l_param);
+        }
         let is_key_down = w_param as u32 == WM_KEYDOWN || w_param as u32 == WM_SYSKEYDOWN;
         let is_key_up = w_param as u32 == WM_KEYUP || w_param as u32 == WM_SYSKEYUP;
 

@@ -105,6 +105,8 @@ pub struct AppSettings {
     copy_latest_hotkey: String,
     #[serde(default)]
     paste_latest_hotkey: String,
+    #[serde(default = "default_paste_shortcut")]
+    paste_shortcut: String,
     #[serde(default)]
     repeat_latest_hotkey: String,
     #[serde(default)]
@@ -135,6 +137,7 @@ impl Default for AppSettings {
             pause_hotkey: String::new(),
             copy_latest_hotkey: String::new(),
             paste_latest_hotkey: String::new(),
+            paste_shortcut: default_paste_shortcut(),
             repeat_latest_hotkey: String::new(),
             trigger_mode: TriggerMode::default(),
             overlay_variant: OverlayVariant::default(),
@@ -171,6 +174,11 @@ impl AppSettings {
 
     pub fn pause_hotkey(&self) -> &str {
         &self.pause_hotkey
+    }
+
+    /// Сочетание для синтетической вставки; не регистрируется как глобальный хоткей.
+    pub fn paste_shortcut(&self) -> &str {
+        &self.paste_shortcut
     }
 
     pub fn paste_latest_hotkey(&self) -> &str {
@@ -215,6 +223,7 @@ pub struct AppSettingsInput {
     pause_hotkey: Option<String>,
     copy_latest_hotkey: Option<String>,
     paste_latest_hotkey: Option<String>,
+    paste_shortcut: Option<String>,
     repeat_latest_hotkey: Option<String>,
     trigger_mode: Option<TriggerMode>,
     overlay_variant: Option<OverlayVariant>,
@@ -244,6 +253,10 @@ fn default_telemetry_enabled() -> bool {
 
 fn default_hotkey() -> String {
     "Ctrl+Space".to_string()
+}
+
+fn default_paste_shortcut() -> String {
+    "Ctrl+V".to_string()
 }
 
 fn default_cancel_hotkey() -> String {
@@ -311,6 +324,11 @@ fn update_app_settings_inner(
 
     if let Some(hotkey) = input.hotkey {
         settings.hotkey = shortcut_hook::normalize_hotkey_for_language(current_language, &hotkey)?;
+    }
+
+    if let Some(paste_shortcut) = input.paste_shortcut {
+        settings.paste_shortcut =
+            shortcut_hook::normalize_hotkey_for_language(current_language, &paste_shortcut)?;
     }
 
     if let Some(cancel_hotkey) = input.cancel_hotkey {
@@ -402,6 +420,9 @@ pub fn load_app_settings(app: &tauri::AppHandle) -> AppResult<AppSettings> {
 
     settings.hotkey =
         shortcut_hook::normalize_hotkey_for_language(current_language, &settings.hotkey)?;
+
+    settings.paste_shortcut =
+        shortcut_hook::normalize_hotkey_for_language(current_language, &settings.paste_shortcut)?;
 
     if !settings.cancel_hotkey.trim().is_empty() {
         settings.cancel_hotkey = shortcut_hook::normalize_hotkey_for_language(

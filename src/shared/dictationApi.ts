@@ -32,3 +32,18 @@ export const pasteLatestHistoryText = async (): Promise<void> => {
 export const repeatLatestHistoryRecord = async (): Promise<void> => {
   await invoke('repeat_latest_history_record');
 };
+
+/** Идентифицирует одну вставку, чтобы запоздалое завершение не разблокировало следующую. */
+export interface SyntheticPasteEvent {
+  operationId: number;
+  active: boolean;
+}
+
+/** Вызывается после синхронной блокировки DOM-хоткеев, до разрешения синтетического ввода. */
+export const acknowledgeSyntheticPaste = async (operationId: number): Promise<void> => {
+  await invoke('acknowledge_synthetic_paste', { operationId });
+};
+
+/** Проверяет ручной ввод общим парсером backend, не меняя сохранённые настройки. */
+export const normalizeHotkey = async (value: string): Promise<string> =>
+  invoke<string>('normalize_hotkey', { value });

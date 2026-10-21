@@ -69,7 +69,8 @@ clipboard-paste-windows-only = Dictation paste is only implemented on Windows in
 clipboard-copy-windows-only = Clipboard copy is only implemented on Windows in this version
 clipboard-open-failed = Could not open Windows clipboard
 clipboard-set-data-failed = Could not set Windows clipboard data
-clipboard-send-ctrl-v-failed = Could not send Ctrl+V input
+clipboard-paste-prepare-timeout = Could not prepare paste: the interface did not confirm shortcut suppression. Please try again.
+clipboard-send-paste-shortcut-failed = Could not send the paste shortcut
 
 dictation-state-lock-failed = Could not lock dictation state
 dictation-active-hold-shortcut-state-lock-failed = Could not lock active hold shortcut state

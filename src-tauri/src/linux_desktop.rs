@@ -341,11 +341,12 @@ pub fn refresh(config: &AppSettings) -> AppResult<()> {
     let _lock = REGISTRATION
         .lock()
         .map_err(|e| AppError::from(e.to_string()))?;
-    let wanted = if shortcut_hook::is_capture_active() {
-        Vec::new()
-    } else {
-        bindings(config, false)?
-    };
+    let wanted =
+        if shortcut_hook::is_capture_active() || crate::keyboard::is_synthetic_paste_active() {
+            Vec::new()
+        } else {
+            bindings(config, false)?
+        };
     check_conflicts(&wanted)?;
     let pid = std::process::id();
     let starttime = fs::read_to_string("/proc/self/stat")?
@@ -401,7 +402,9 @@ pub fn refresh(config: &AppSettings) -> AppResult<()> {
     }
     hyprctl(&["eval", &code])?;
     *previous = signature;
-    let enabled = !wanted.is_empty();
+    // Во время собственной вставки DOM fallback тоже должен оставаться отключённым.
+    let enabled = !wanted.is_empty()
+        || (crate::keyboard::is_synthetic_paste_active() && ENABLED.load(Ordering::Relaxed));
     if ENABLED.swap(enabled, Ordering::Relaxed) != enabled {
         if let Some(app) = APP.get() {
             use tauri::Emitter;

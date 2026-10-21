@@ -32,6 +32,8 @@ export interface AppSettings {
   overlayVariant: OverlayVariant;
   pauseHotkey: string;
   pasteLatestHotkey: string;
+  /** Сочетание, которое приложение отправляет активному окну для вставки текста. */
+  pasteShortcut: string;
   recordingAudioMode: RecordingAudioMode;
   repeatLatestHotkey: string;
   themePreference: ThemePreference;

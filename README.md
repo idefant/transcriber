@@ -41,7 +41,7 @@ Development setup, build commands, quality checks, and project tooling are docum
 
 Windows remains supported with its existing WASAPI capture, keyboard hook, clipboard handling and NSIS packaging. Tauri automatically applies the platform configuration (`tauri.windows.conf.json` or `tauri.linux.conf.json`).
 
-On Arch Linux, install `base-devel rust nodejs npm webkit2gtk-4.1 gtk3 libayatana-appindicator librsvg patchelf pipewire-audio wireplumber wl-clipboard wtype playerctl libnotify gst-plugins-good gtk-layer-shell`. The GStreamer good plugins provide WAV playback in WebKitGTK. The recording overlay uses gtk-layer-shell to accept mouse input without taking keyboard focus. The application expects a working PipeWire and Hyprland session. Then run:
+On Arch Linux, install `base-devel rust nodejs npm webkit2gtk-4.1 gtk3 libayatana-appindicator librsvg patchelf pipewire-audio wireplumber wl-clipboard playerctl libnotify gst-plugins-good gtk-layer-shell`. The GStreamer good plugins provide WAV playback in WebKitGTK. The recording overlay uses gtk-layer-shell to accept mouse input without taking keyboard focus. The application expects a working PipeWire and Hyprland session. Then run:
 
 ```bash
 npm ci

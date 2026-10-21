@@ -2,6 +2,7 @@ import { type FC } from 'react';
 import { Segmented, Select, Switch } from 'antd';
 import { useTranslation } from 'react-i18next';
 
+import HotkeyInput from '../HotkeyInput';
 import SettingRow from '../SettingRow';
 
 import styles from './GeneralSettingsTab.module.scss';
@@ -16,6 +17,8 @@ interface GeneralSettingsTabProps {
   onRecordingAudioModeChange: (value: RecordingAudioMode) => void;
   onRestoreAudioWhilePausedEnabledChange: (value: boolean) => void;
   onSilenceTrimmingEnabledChange: (value: boolean) => void;
+  pasteShortcut: string;
+  onPasteShortcutChange: (value: string) => void;
   recordingAudioMode: RecordingAudioMode;
   triggerMode: TriggerMode;
   onTriggerModeChange: (value: TriggerMode) => void;
@@ -29,6 +32,8 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
   onRecordingAudioModeChange,
   onRestoreAudioWhilePausedEnabledChange,
   onSilenceTrimmingEnabledChange,
+  pasteShortcut,
+  onPasteShortcutChange,
   recordingAudioMode,
   triggerMode,
   onTriggerModeChange,
@@ -107,6 +112,20 @@ const GeneralSettingsTab: FC<GeneralSettingsTabProps> = ({
         title={t('settings.general.silenceTrimming.title')}
       >
         <Switch checked={isSilenceTrimmingEnabled} onChange={onSilenceTrimmingEnabledChange} />
+      </SettingRow>
+
+      <SettingRow
+        description={t('settings.general.pasteShortcut.description')}
+        title={t('settings.general.pasteShortcut.title')}
+      >
+        <HotkeyInput
+          allowEmpty={false}
+          defaultValue="Ctrl+V"
+          emptyPlaceholder={t('settings.hotkeys.unused')}
+          resetLabel={t('settings.hotkeys.reset')}
+          value={pasteShortcut}
+          onChange={onPasteShortcutChange}
+        />
       </SettingRow>
 
       <SettingRow
