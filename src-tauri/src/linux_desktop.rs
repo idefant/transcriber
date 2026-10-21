@@ -8,7 +8,7 @@ use crate::{
     shortcut_hook::{self, ShortcutState},
 };
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs,
     os::unix::{fs::PermissionsExt, net::UnixDatagram},
     path::PathBuf,
@@ -195,6 +195,7 @@ struct Binding {
     id: String,
     combo: String,
     key: String,
+    keycode: Option<u64>,
     mask: u64,
     action: &'static str,
     release: bool,
@@ -243,10 +244,16 @@ fn binding(id: &str, value: &str, action: &'static str, release: bool) -> AppRes
         return Err(AppError::from("Hyprland shortcut requires a main key"));
     }
     parts.push(key.clone());
+    let keycode = key
+        .strip_prefix('F')
+        .and_then(|number| number.parse::<u64>().ok())
+        .filter(|number| (13..=24).contains(number))
+        .map(|number| 178 + number);
     Ok(Binding {
         id: id.to_owned(),
         combo: parts.join(" + "),
         key,
+        keycode,
         mask,
         action,
         release,
@@ -280,8 +287,58 @@ fn bindings(config: &AppSettings, include_inactive: bool) -> AppResult<Vec<Bindi
     Ok(result)
 }
 
+// Стандартная evdev-карта назначает дополнительным F-клавишам мультимедийные
+// символы. Учитываем их консервативно, даже если раскладка вернула обычный F-символ.
+fn physical_key_symbols(keycode: u64) -> &'static [&'static str] {
+    match keycode {
+        191 => &["XF86Tools"],
+        192 => &["XF86Launch5"],
+        193 => &["XF86Launch6"],
+        194 => &["XF86Launch7"],
+        195 => &["XF86Launch8"],
+        196 => &["XF86Launch9"],
+        198 => &["XF86AudioMicMute"],
+        199 => &["XF86TouchpadToggle"],
+        200 => &["XF86TouchpadOn"],
+        201 => &["XF86TouchpadOff", "XF86Assistant"],
+        202 => &["XF86TouchpadToggle"],
+        _ => &[],
+    }
+}
+
+fn physical_keycode(value: &str) -> Option<u64> {
+    value
+        .rsplit('+')
+        .next()?
+        .trim()
+        .strip_prefix("code:")?
+        .parse()
+        .ok()
+}
+
 fn check_conflicts(wanted: &[Binding]) -> AppResult<()> {
     let current: serde_json::Value = serde_json::from_str(&hyprctl(&["binds", "-j"])?)?;
+    // В Hyprland 0.56 только текстовый вывод сохраняет display_key Lua-бинда.
+    let plain = if wanted.iter().any(|item| item.keycode.is_some())
+        && current.as_array().is_some_and(|bindings| {
+            bindings.iter().any(|binding| {
+                binding["key"].as_str() == Some("") && binding["keycode"].as_u64() == Some(0)
+            })
+        }) {
+        hyprctl(&["binds"])?
+    } else {
+        String::new()
+    };
+    let display_bindings: Vec<HashMap<&str, &str>> = plain
+        .split("\n\n")
+        .map(|block| {
+            block
+                .lines()
+                .filter_map(|line| line.trim().split_once(':'))
+                .map(|(name, value)| (name.trim(), value.trim()))
+                .collect()
+        })
+        .collect();
     let prefix = format!("{}:", namespace());
     let mut unique = HashSet::new();
     for item in wanted {
@@ -294,13 +351,45 @@ fn check_conflicts(wanted: &[Binding]) -> AppResult<()> {
         if let Some(existing) = current.as_array() {
             for existing in existing {
                 let description = existing["description"].as_str().unwrap_or_default();
+                let key = existing["key"].as_str().unwrap_or_default();
+                let keycode = existing["keycode"].as_u64().unwrap_or_default();
+                let mut display_codes = display_bindings
+                    .iter()
+                    .filter(|display| {
+                        ["dispatcher", "arg", "description", "submap"]
+                            .iter()
+                            .all(|field| {
+                                display.get(field).copied()
+                                    == Some(existing[*field].as_str().unwrap_or_default())
+                            })
+                            && display
+                                .get("modmask")
+                                .and_then(|mask| mask.parse::<u64>().ok())
+                                == existing["modmask"].as_u64()
+                    })
+                    .map(|display| display.get("key").and_then(|key| physical_keycode(key)));
+                let display_code = display_codes.next().flatten().filter(|code| {
+                    // При изменении биндов между снимками неоднозначность не
+                    // должна становиться доказательством отсутствия конфликта.
+                    display_codes.all(|other| other == Some(*code))
+                });
                 let matches = !description.starts_with(&prefix)
                     && existing["modmask"].as_u64() == Some(item.mask)
-                    && (existing["key"]
-                        .as_str()
-                        .is_some_and(|key| key.eq_ignore_ascii_case(&item.key))
-                        || existing["catch_all"].as_bool() == Some(true));
-                if matches && !disabled_managed_binding(existing)? {
+                    && (existing["key"].as_str().is_some_and(|key| {
+                        key.eq_ignore_ascii_case(&item.key)
+                            || item.keycode.is_some_and(|code| {
+                                physical_key_symbols(code)
+                                    .iter()
+                                    .any(|symbol| key.eq_ignore_ascii_case(symbol))
+                            })
+                    }) || item.keycode.is_some_and(|code| {
+                        keycode == code
+                            || physical_keycode(key) == Some(code)
+                            || (key.is_empty()
+                                && keycode == 0
+                                && display_code.is_none_or(|other| other == code))
+                    }) || existing["catch_all"].as_bool() == Some(true));
+                if matches && !available_managed_binding(existing, item)? {
                     return Err(AppError::from(format!(
                         "Shortcut {} is already used by Hyprland; choose another combination",
                         item.combo
@@ -312,9 +401,9 @@ fn check_conflicts(wanted: &[Binding]) -> AppResult<()> {
     Ok(())
 }
 
-// JSON binds не включает enabled; проверяем настоящий handle другого экземпляра,
-// а не доверяем произвольному описанию, похожему на название приложения.
-fn disabled_managed_binding(existing: &serde_json::Value) -> AppResult<bool> {
+// JSON binds не включает enabled и может скрывать физическую клавишу Lua-бинда.
+// Проверяем точный handle другого экземпляра по description, mask, dispatcher и arg.
+fn available_managed_binding(existing: &serde_json::Value, wanted: &Binding) -> AppResult<bool> {
     let description = existing["description"].as_str().unwrap_or_default();
     let Some((namespace, _)) = description.split_once(':') else {
         return Ok(false);
@@ -325,9 +414,18 @@ fn disabled_managed_binding(existing: &serde_json::Value) -> AppResult<bool> {
     if hash.len() != 16 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Ok(false);
     }
-    let key = existing["key"].as_str().unwrap_or_default();
     let mask = existing["modmask"].as_u64().unwrap_or_default();
-    let code = format!("local r=_G[{}]; if type(r)=='table' and type(r.binds)=='table' then for _,b in pairs(r.binds) do if b.description=={} and b.modmask=={mask} and b.key=={} and not b:is_enabled() then return true end end end; return false", lua_string(namespace), lua_string(description), lua_string(key));
+    let key = existing["key"].as_str().unwrap_or_default();
+    let keycode = existing["keycode"].as_u64().unwrap_or_default();
+    let dispatcher = existing["dispatcher"].as_str().unwrap_or_default();
+    let arg = existing["arg"].as_str().unwrap_or_default();
+    if dispatcher != "__lua" || arg.is_empty() {
+        return Ok(false);
+    }
+    let different_key = wanted.keycode.map_or("false".to_owned(), |code| {
+        format!("(function() local k=(b.display_key or ''):match('([^+]+)$') or ''; local c=tonumber(k:match('^%s*code:(%d+)%s*$')); return c~=nil and c~={code} end)()")
+    });
+    let code = format!("local found=false; local r=_G[{}]; if type(r)=='table' and type(r.binds)=='table' then for _,b in pairs(r.binds) do if b.description=={} and b.modmask=={mask} and b.handler=={} and b.arg=={} and b.key=={} and b.keycode=={keycode} then found=true; if b:is_enabled() and not {different_key} then return false end end end end; return found", lua_string(namespace), lua_string(description), lua_string(dispatcher), lua_string(arg), lua_string(key));
     Ok(hyprctl(&["repl", &code])?.trim() == "true")
 }
 
@@ -375,10 +473,15 @@ pub fn refresh(config: &AppSettings) -> AppResult<()> {
         } else {
             vec![("action", item.action, item.release, false)]
         } {
-            let key = if ignore_mods {
-                item.key.clone()
-            } else {
-                item.combo.clone()
+            // Hyprland сопоставляет code: с XKB-кодом (evdev + 8), независимо
+            // от XF86-символа дополнительной F-клавиши в текущей раскладке.
+            let key = item.keycode.map(|code| format!("code:{code}"));
+            let key = match (ignore_mods, key) {
+                (true, key) => key.unwrap_or_else(|| item.key.clone()),
+                (false, Some(key)) => {
+                    item.combo.strip_suffix(&item.key).unwrap_or("").to_owned() + &key
+                }
+                (false, None) => item.combo.clone(),
             };
             let id = lua_string(&format!("{}:{}:{}", item.id, item.combo, suffix));
             let description = lua_string(&format!("{}:{}", namespace(), item.id));
