@@ -7,6 +7,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-alpha.4] - 2026-10-22
+
+### Changed
+
+- Anonymous crash reports now retain safe technical error categories and failure locations to help diagnose unhandled frontend errors and Rust panics. Arbitrary error messages, dictation text, credentials, provider responses, and local machine identifiers remain excluded.
+
 ## [0.2.4] - 2026-09-12
 
 ### Added

@@ -1,5 +1,7 @@
 import * as Sentry from '@sentry/react';
 
+import { sanitizeTelemetryEvent } from './utils';
+
 const isTelemetryAvailable = !import.meta.env.DEV && Boolean(import.meta.env.VITE_SENTRY_DSN);
 let isTelemetryInitialized = false;
 const capturedErrors = new WeakSet<Error>();
@@ -11,24 +13,6 @@ const isValidDsn = (dsn: string): boolean => {
   } catch {
     return false;
   }
-};
-
-const sanitizeEvent = (event: Sentry.ErrorEvent): Sentry.ErrorEvent => {
-  event.breadcrumbs = [];
-  event.contexts = {};
-  event.extra = {};
-  event.fingerprint = undefined;
-  event.message = undefined;
-  event.request = undefined;
-  event.tags = {};
-  event.transaction = undefined;
-  event.user = undefined;
-
-  for (const exception of event.exception?.values ?? []) {
-    exception.value = 'Unhandled application error';
-  }
-
-  return event;
 };
 
 /** Включает или выключает передачу строго обезличенных ошибок в Sentry. */
@@ -54,7 +38,8 @@ export const configureTelemetry = (isEnabled: boolean): void => {
 
   try {
     Sentry.init({
-      beforeSend: sanitizeEvent,
+      beforeSend: sanitizeTelemetryEvent,
+      defaultIntegrations: false,
       dsn,
       enableLogs: false,
       enableMetrics: false,
