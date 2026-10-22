@@ -1,15 +1,15 @@
 {
-  "version": "0.3.0-alpha.3",
-  "notes": "",
-  "pub_date": "2026-10-22T15:49:55.614Z",
+  "version": "0.3.0-alpha.4",
+  "notes": "### Changed\r\n\r\n- Anonymous crash reports now retain safe technical error categories and failure locations to help diagnose unhandled frontend errors and Rust panics. Arbitrary error messages, dictation text, credentials, provider responses, and local machine identifiers remain excluded.",
+  "pub_date": "2026-10-22T16:36:44.029Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmpkMC9kRkJNTENsVXRNTDhIYnJsQUNrZnlyVVE2blJnN1pJS1hKNmJXK3g4UjdUMnltY3RLSEpYK3RIb1JCT3ViNnI1YVVvRGdnZU5LRTNMMENKK2drPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNjg0MTkzCWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuM194NjQtc2V0dXAuZXhlCjAzeTlTU1QrYTJJY0NKcGtiNURJekhCeWNjeXBaZjczRURYNmRTajc5NUc1WXRsNUF1OWtpcURyS3pYMG1oNDNEekVVNUtybVkrRnhaSkRLWklQZkJRPT0K",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.3/Transcriber_0.3.0-alpha.3_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MnFYMkpRS3R2NC9zOUI5dzBNeXZ4NThNOWtKWTZnYnNtUDlwTEdjR1B0VHZjWTMvSUVmc2NUcE9lVGg3aEhNLytudHBYbW9XekZHQ2E5LzR1NmRMc3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNjg3MDAwCWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuNF94NjQtc2V0dXAuZXhlCmh0ZmJSWjU1QkFMTlptLzRpdTFnYTBFanliaWV2OGlCb3FLZkZXSkJHOU5ib3BBckVmUkU5b1k5R1BIWjZDTnBybDgycGJJeTV4MS85enZSVm94RERRPT0K",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.4/Transcriber_0.3.0-alpha.4_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmpkMC9kRkJNTENsVXRNTDhIYnJsQUNrZnlyVVE2blJnN1pJS1hKNmJXK3g4UjdUMnltY3RLSEpYK3RIb1JCT3ViNnI1YVVvRGdnZU5LRTNMMENKK2drPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNjg0MTkzCWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuM194NjQtc2V0dXAuZXhlCjAzeTlTU1QrYTJJY0NKcGtiNURJekhCeWNjeXBaZjczRURYNmRTajc5NUc1WXRsNUF1OWtpcURyS3pYMG1oNDNEekVVNUtybVkrRnhaSkRLWklQZkJRPT0K",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.3/Transcriber_0.3.0-alpha.3_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MnFYMkpRS3R2NC9zOUI5dzBNeXZ4NThNOWtKWTZnYnNtUDlwTEdjR1B0VHZjWTMvSUVmc2NUcE9lVGg3aEhNLytudHBYbW9XekZHQ2E5LzR1NmRMc3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyNjg3MDAwCWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuNF94NjQtc2V0dXAuZXhlCmh0ZmJSWjU1QkFMTlptLzRpdTFnYTBFanliaWV2OGlCb3FLZkZXSkJHOU5ib3BBckVmUkU5b1k5R1BIWjZDTnBybDgycGJJeTV4MS85enZSVm94RERRPT0K",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.4/Transcriber_0.3.0-alpha.4_x64-setup.exe"
     }
   }
 }
