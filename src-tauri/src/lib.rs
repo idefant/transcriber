@@ -112,6 +112,7 @@ pub fn run() {
             settings::get_app_settings,
             settings::update_app_settings,
             debug_log::open_debug_logs_folder,
+            debug_log::log_player_event,
             dictionary::get_dictionary_words,
             dictionary::add_dictionary_word,
             dictionary::delete_dictionary_word,

@@ -7,6 +7,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-alpha.5] - 2026-10-25
+
+### Fixed
+
+- The history audio player now releases its audio output when paused, finished, closed, or replaced. Resuming creates a fresh output from the saved position, preventing an idle playback pipeline from remaining active between listens.
+- Hiding the main window in the tray stops history playback. Showing the window does not resume it, and rapid play/pause actions cancel pending starts.
+
+### Added
+
+- Local audio-player lifecycle diagnostics record playback commands and audio-context states to help investigate delayed or unexpected sound. These events exclude audio, transcripts, file paths, and history record identifiers and use the existing bounded log retention.
+
 ## [0.3.0-alpha.4] - 2026-10-22
 
 ### Changed

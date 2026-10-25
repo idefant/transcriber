@@ -6,7 +6,7 @@ use std::sync::{
 use tauri::{
     menu::{MenuBuilder, MenuItem, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, WebviewWindow, WindowEvent, Wry,
+    Emitter, Manager, WebviewWindow, WindowEvent, Wry,
 };
 
 use crate::{
@@ -66,10 +66,7 @@ fn setup_main_window_event_handlers(app: &tauri::AppHandle) -> AppResult<()> {
             }
 
             api.prevent_close();
-            let _ = main_window(&app_handle).and_then(|window| {
-                window.hide()?;
-                Ok(())
-            });
+            let _ = hide_main_window_inner(&app_handle);
         }
         WindowEvent::Focused(focused) => {
             shortcut_hook::set_main_window_focused(*focused);
@@ -272,7 +269,7 @@ fn toggle_main_window(app: &tauri::AppHandle) -> AppResult<()> {
     // Скрытые значки в трее могут снять фокус ещё до WM_LBUTTONDOWN, поэтому фокус здесь ненадёжен.
     // Always-on-top окна намеренно не учитываются: они не должны менять переключение обычного окна.
     if is_main_window_frontmost(&window).unwrap_or(false) {
-        window.hide()?;
+        hide_main_window_inner(app)?;
     } else {
         show_main_window(app)?;
     }
@@ -385,8 +382,17 @@ fn main_window(app: &tauri::AppHandle) -> AppResult<WebviewWindow> {
 /** Скрывает главное окно в фон без запроса сворачивания, который тайлинговый менеджер может игнорировать. */
 #[tauri::command]
 pub fn hide_main_window(app: tauri::AppHandle) -> Result<(), String> {
-    let window = main_window(&app).map_err(AppError::into_message)?;
-    window.hide().map_err(|error| error.to_string())
+    hide_main_window_inner(&app).map_err(AppError::into_message)
+}
+
+// Все пути скрытия главного окна уведомляют плеер явно: GTK не гарантирует
+// visibilitychange при hide. Событие не затрагивает запись с микрофона.
+fn hide_main_window_inner(app: &tauri::AppHandle) -> AppResult<()> {
+    let window = main_window(app)?;
+    let _ = window.emit("main-window-hidden", ());
+    crate::debug_log::log_critical_event(app, "player.windowHidden", None, serde_json::json!({}));
+    window.hide()?;
+    Ok(())
 }
 
 /** Разворачивает главное окно через compositor в Linux, сохраняя нативный путь Windows. */
