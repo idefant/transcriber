@@ -7,6 +7,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-alpha.6] - 2026-10-26
+
+### Changed
+
+- Release checks and installer builds now share one runner per operating system, avoiding repeated environment setup while preserving all checks and installer formats.
+- Linux CI downloads development packages from the official Ubuntu mirrors with bounded download times and a fallback to the runner's original mirrors.
+- Release builds now share a Rust dependency cache with CI on the default branch, which prepares both debug and release dependencies for subsequent releases.
+
 ## [0.3.0-alpha.5] - 2026-10-25
 
 ### Fixed
