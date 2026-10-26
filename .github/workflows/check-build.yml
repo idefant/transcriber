@@ -1,0 +1,188 @@
+name: Check and build
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        default: ''
+      release-tag:
+        type: string
+        default: ''
+      version:
+        type: string
+        default: ''
+      prerelease:
+        type: boolean
+        default: false
+      release-id:
+        type: string
+        default: ''
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY:
+        required: false
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
+        required: false
+      SENTRY_AUTH_TOKEN:
+        required: false
+      SENTRY_DSN_RUST:
+        required: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    # Права выдаёт вызывающий workflow: CI только читает, релиз загружает в черновик.
+    steps:
+      # CI-скрипт берём из commit workflow, даже если приложение собирается из старого тега.
+      - name: Checkout Linux CI tooling
+        if: runner.os == 'Linux'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .transcriber-ci-tooling
+          sparse-checkout: scripts/install-linux-ci-deps.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Stage Linux CI tooling outside the application
+        if: runner.os == 'Linux'
+        shell: bash
+        run: cp .transcriber-ci-tooling/scripts/install-linux-ci-deps.sh "$RUNNER_TEMP/transcriber-install-linux-ci-deps.sh"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          clean: true
+          sparse-checkout: ''
+
+      - name: Verify complete application checkout
+        shell: bash
+        run: |
+          test -f package-lock.json
+          test -f src-tauri/Cargo.lock
+          test ! -f .git/info/sparse-checkout
+          if [ "$(git config --bool --get core.sparseCheckout || true)" = true ]; then
+            echo 'Application checkout must not use sparse checkout' >&2
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Install Linux development dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash "$RUNNER_TEMP/transcriber-install-linux-ci-deps.sh"
+
+      - name: Cache Rust build artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          shared-key: transcriber-build-v1
+          save-if: ${{ inputs.release-tag == '' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+      - name: Sync version into manifests
+        if: inputs.release-tag != ''
+        shell: bash
+        run: node scripts/set-version.mjs "${{ inputs.version }}"
+
+      - name: Extract release notes from CHANGELOG
+        if: inputs.release-tag != ''
+        id: changelog
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          NOTES=$(node scripts/extract-changelog.mjs "$RELEASE_VERSION")
+          DELIMITER="CHANGELOG_$(node -e 'console.log(crypto.randomUUID())')"
+          {
+            echo "notes<<$DELIMITER"
+            echo "$NOTES"
+            echo "$DELIMITER"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Prepare ONNX Runtime
+        if: runner.os == 'Linux'
+        run: npm run setup:linux
+
+      - name: Run all checks
+        run: npm run check:ci
+
+      - name: Warm release dependencies on the default branch
+        if: inputs.release-tag == '' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        shell: bash
+        run: cargo build --manifest-path src-tauri/Cargo.toml --release --locked
+
+      - name: Build and publish Tauri release
+        if: inputs.release-tag != ''
+        uses: tauri-apps/tauri-action@v0
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_RUST }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT_REACT: ${{ vars.SENTRY_PROJECT_REACT }}
+          SENTRY_PROJECT_RUST: ${{ vars.SENTRY_PROJECT_RUST }}
+          SENTRY_RELEASE_VERSION: ${{ inputs.version }}
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          VITE_APP_CHANNEL: ${{ inputs.prerelease && 'canary' || 'stable' }}
+        with:
+          tagName: ${{ inputs.release-tag }}
+          releaseId: ${{ inputs.release-id }}
+          releaseBody: ${{ steps.changelog.outputs.notes }}
+          releaseDraft: true
+          prerelease: ${{ inputs.prerelease }}
+          includeUpdaterJson: ${{ runner.os == 'Windows' }}
+          args: ${{ inputs.prerelease && '--config src-tauri/tauri.canary.conf.json' || '' }}
+
+      - name: Upload Rust debug files to Sentry
+        if: inputs.release-tag != '' && runner.os == 'Windows'
+        shell: bash
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_RUST }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT_RUST }}
+          SENTRY_RELEASE: transcriber@${{ inputs.version }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ] || [ -z "$SENTRY_DSN" ] || [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_PROJECT" ]; then
+            echo "Sentry Rust debug files upload is skipped: configuration is incomplete."
+            exit 0
+          fi
+
+          npx sentry-cli releases -o "$SENTRY_ORG" new -p "$SENTRY_PROJECT" "$SENTRY_RELEASE"
+
+          PDB=src-tauri/target/release/transcriber.pdb
+          test -f "$PDB"
+          npx sentry-cli debug-files upload --include-sources "$PDB"
+
+      - name: Verify AppImage layer-shell library
+        if: inputs.release-tag != '' && runner.os == 'Linux'
+        shell: bash
+        run: |
+          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)
+          test -n "$APPIMAGE"
+          APPIMAGE=$(realpath "$APPIMAGE")
+          mkdir -p "$RUNNER_TEMP/appimage-verification"
+          cd "$RUNNER_TEMP/appimage-verification"
+          "$APPIMAGE" --appimage-extract >/dev/null
+          test -n "$(find squashfs-root -name 'libgtk-layer-shell.so*' -print -quit)"
