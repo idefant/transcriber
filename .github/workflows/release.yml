@@ -60,52 +60,8 @@ jobs:
             exit 1
           fi
 
-  check:
-    needs: metadata
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, windows-latest]
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: refs/tags/${{ needs.metadata.outputs.tag }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-
-      - name: Install Linux development dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libgtk-layer-shell-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
-
-      - name: Cache Rust build artifacts
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Prepare ONNX Runtime
-        if: runner.os == 'Linux'
-        run: npm run setup:linux
-
-      - name: Run all checks
-        run: npm run check:ci
-
   prepare-release:
-    needs: [metadata, check]
+    needs: metadata
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -147,119 +103,20 @@ jobs:
 
   release:
     needs: [metadata, prepare-release]
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, windows-latest]
-    runs-on: ${{ matrix.os }}
     permissions:
       contents: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: refs/tags/${{ needs.metadata.outputs.tag }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux development dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libgtk-layer-shell-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
-
-      - name: Cache Rust build artifacts
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Sync version into manifests
-        shell: bash
-        run: node scripts/set-version.mjs "${{ needs.metadata.outputs.version }}"
-
-      - name: Extract release notes from CHANGELOG
-        id: changelog
-        shell: bash
-        env:
-          RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-        run: |
-          NOTES=$(node scripts/extract-changelog.mjs "$RELEASE_VERSION")
-          DELIMITER="CHANGELOG_$(node -e 'console.log(crypto.randomUUID())')"
-          {
-            echo "notes<<$DELIMITER"
-            echo "$NOTES"
-            echo "$DELIMITER"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Prepare ONNX Runtime
-        if: runner.os == 'Linux'
-        run: npm run setup:linux
-
-      - name: Build and publish Tauri release
-        uses: tauri-apps/tauri-action@v0
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: 1
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN_RUST }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          SENTRY_PROJECT_REACT: ${{ vars.SENTRY_PROJECT_REACT }}
-          SENTRY_PROJECT_RUST: ${{ vars.SENTRY_PROJECT_RUST }}
-          SENTRY_RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
-          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
-          VITE_APP_CHANNEL: ${{ needs.metadata.outputs.prerelease == 'true' && 'canary' || 'stable' }}
-        with:
-          tagName: ${{ needs.metadata.outputs.tag }}
-          releaseId: ${{ needs.prepare-release.outputs.release-id }}
-          releaseBody: ${{ steps.changelog.outputs.notes }}
-          releaseDraft: true
-          prerelease: ${{ needs.metadata.outputs.prerelease }}
-          includeUpdaterJson: ${{ runner.os == 'Windows' }}
-          args: ${{ needs.metadata.outputs.prerelease == 'true' && '--config src-tauri/tauri.canary.conf.json' || '' }}
-
-      - name: Upload Rust debug files to Sentry
-        if: runner.os == 'Windows'
-        shell: bash
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN_RUST }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT_RUST }}
-          SENTRY_RELEASE: transcriber@${{ needs.metadata.outputs.version }}
-        run: |
-          if [ -z "$SENTRY_AUTH_TOKEN" ] || [ -z "$SENTRY_DSN" ] || [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_PROJECT" ]; then
-            echo "Sentry Rust debug files upload is skipped: configuration is incomplete."
-            exit 0
-          fi
-
-          npx sentry-cli releases -o "$SENTRY_ORG" new -p "$SENTRY_PROJECT" "$SENTRY_RELEASE"
-
-          PDB=src-tauri/target/release/transcriber.pdb
-          test -f "$PDB"
-          npx sentry-cli debug-files upload --include-sources "$PDB"
-
-      - name: Verify AppImage layer-shell library
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -name '*.AppImage' -print -quit)
-          test -n "$APPIMAGE"
-          APPIMAGE=$(realpath "$APPIMAGE")
-          mkdir -p "$RUNNER_TEMP/appimage-verification"
-          cd "$RUNNER_TEMP/appimage-verification"
-          "$APPIMAGE" --appimage-extract >/dev/null
-          test -n "$(find squashfs-root -name 'libgtk-layer-shell.so*' -print -quit)"
+    uses: ./.github/workflows/check-build.yml
+    with:
+      ref: refs/tags/${{ needs.metadata.outputs.tag }}
+      release-tag: ${{ needs.metadata.outputs.tag }}
+      version: ${{ needs.metadata.outputs.version }}
+      prerelease: ${{ needs.metadata.outputs.prerelease == 'true' }}
+      release-id: ${{ needs.prepare-release.outputs.release-id }}
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_DSN_RUST: ${{ secrets.SENTRY_DSN_RUST }}
 
   publish:
     needs: [metadata, prepare-release, release]
