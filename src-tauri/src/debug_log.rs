@@ -81,6 +81,82 @@ struct DebugLogEvent<'a> {
     payload: serde_json::Value,
 }
 
+/// Только разрешённые технические события плеера, без пользовательских строк.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PlayerEvent {
+    Control,
+    Load,
+    Start,
+    Stop,
+    End,
+    ContextCreated,
+    ContextState,
+    ContextClosed,
+    Failure,
+    Hide,
+    Cleanup,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PlayerReason {
+    Play,
+    Pause,
+    Seek,
+    Hidden,
+    Ended,
+    Cleanup,
+    Load,
+    Context,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PlayerContextState {
+    Running,
+    Suspended,
+    Interrupted,
+    Closed,
+}
+
+/// Граница IPC исключает произвольные payload, пути и идентификаторы записей.
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PlayerLogMetadata {
+    event: PlayerEvent,
+    reason: PlayerReason,
+    generation: u32,
+    request: u32,
+    position_ms: u32,
+    duration_ms: u32,
+    context_state: Option<PlayerContextState>,
+    sample_rate: Option<u32>,
+    base_latency_ms: Option<f64>,
+}
+
+/// Пишет ограниченные метаданные независимо от расширенного логирования.
+#[tauri::command]
+pub fn log_player_event(app: tauri::AppHandle, metadata: PlayerLogMetadata) -> Result<(), String> {
+    // Длительности ограничены сутками, частота — диапазоном Web Audio;
+    // недопустимые значения отбрасываются до записи в локальный журнал.
+    if metadata.position_ms > 86_400_000
+        || metadata.duration_ms > 86_400_000
+        || metadata
+            .sample_rate
+            .is_some_and(|rate| !(8_000..=384_000).contains(&rate))
+        || metadata
+            .base_latency_ms
+            .is_some_and(|latency| !latency.is_finite() || !(0.0..=60_000.0).contains(&latency))
+    {
+        return Err("Invalid player log metadata".to_string());
+    }
+    if let Ok(payload) = serde_json::to_value(metadata) {
+        log_critical_event(&app, "player.lifecycle", None, payload);
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn open_debug_logs_folder(app: tauri::AppHandle) -> Result<(), String> {
     open_debug_logs_folder_inner(&app).map_err(AppError::into_message)

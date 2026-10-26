@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { clamp } from 'lodash-es';
 
 import { getHistoryAudioData } from '#/shared/historyApi';
@@ -9,13 +11,24 @@ import { usePlayerStore } from '#/stores';
 /** Максимальная громкость плеера: 1.5 соответствует усилению до 150%. */
 export const MAX_VOLUME = 1.5;
 
-// Переиспользуем контекст между записями, чтобы не исчерпать лимит браузера.
-let sharedAudioContext: AudioContext | undefined;
+// Барьер общий для поколений hook: новая запись ждёт закрытия старого pipeline.
+// Ошибка close оставляет барьер отклонённым, запрещая накопление живых контекстов.
+let contextRelease: Promise<void> = Promise.resolve();
+let playerGeneration = 0;
 
-const getAudioContext = (): AudioContext => {
-  sharedAudioContext ??= new AudioContext({ latencyHint: 'interactive' });
-  return sharedAudioContext;
-};
+type PlayerEvent =
+  | 'control'
+  | 'load'
+  | 'start'
+  | 'stop'
+  | 'end'
+  | 'contextCreated'
+  | 'contextState'
+  | 'contextClosed'
+  | 'failure'
+  | 'hide'
+  | 'cleanup';
+type PlayerReason = 'play' | 'pause' | 'seek' | 'hidden' | 'ended' | 'cleanup' | 'load' | 'context';
 
 interface PlaybackControls {
   togglePlay: () => void;
@@ -28,7 +41,7 @@ interface UseAudioPlayerResult {
   duration: number;
   /** Текущая позиция воспроизведения в секундах. */
   currentTime: number;
-  /** Идёт ли воспроизведение прямо сейчас. */
+  /** Идёт ли воспроизведение прямо сейчас, включая ожидающий запуск. */
   isPlaying: boolean;
   /** Не удалось загрузить, прочитать или декодировать аудиофайл — плеер недоступен. */
   hasError: boolean;
@@ -45,10 +58,9 @@ interface UseAudioPlayerResult {
 }
 
 /**
- * Декодирует сохранённую запись и воспроизводит её через Web Audio без очереди
- * HTMLAudioElement. Пауза останавливает источник, продолжение создаёт новый
- * с сохранённой позиции. Смена записи и размонтирование отключают аудиограф
- * и инвалидируют незавершённые загрузки и запросы запуска.
+ * Держит выходной pipeline только во время прослушивания. Пауза, завершение и
+ * скрытие окна закрывают контекст; продолжение использует сохранённый буфер
+ * и позицию. Токен запроса отменяет устаревшие загрузки, resume и перемотки.
  */
 export const useAudioPlayer = (record: HistoryRecord): UseAudioPlayerResult => {
   const volume = usePlayerStore((state) => state.volume);
@@ -62,132 +74,244 @@ export const useAudioPlayer = (record: HistoryRecord): UseAudioPlayerResult => {
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    const generation = ++playerGeneration;
+    const appWindow = getCurrentWindow();
     let cancelled = false;
-    let wantsPlay = true;
+    let wantsPlay = false;
     let pendingPlay = false;
     let seeking = false;
     let request = 0;
     let offset = 0;
     let startedAt = 0;
     let frame: number | undefined;
+    let endTimer: ReturnType<typeof setTimeout> | undefined;
     let buffer: AudioBuffer | undefined;
     let context: AudioContext | undefined;
     let gain: GainNode | undefined;
     let source: AudioBufferSourceNode | undefined;
-    const isActive = () => !cancelled;
+    let unlisten: (() => void) | undefined;
+    let bytes: Promise<ArrayBuffer> | undefined;
+    const isCurrent = (token: number) => !cancelled && token === request && wantsPlay;
+
+    const log = (event: PlayerEvent, reason: PlayerReason, playbackContext = context) => {
+      const state = playbackContext?.state;
+      void invoke('log_player_event', {
+        metadata: {
+          event,
+          reason,
+          generation,
+          request,
+          positionMs: Math.round(offset * 1000),
+          durationMs: Math.round((buffer?.duration ?? fallbackDuration) * 1000),
+          contextState: ['running', 'suspended', 'interrupted', 'closed'].includes(state ?? '')
+            ? state
+            : null,
+          sampleRate: playbackContext?.sampleRate ?? null,
+          baseLatencyMs: playbackContext ? playbackContext.baseLatency * 1000 : null,
+        },
+      }).catch(() => {
+        // Диагностика никогда не должна менять воспроизведение.
+      });
+    };
 
     const position = () =>
       source && context && buffer
         ? clamp(offset + context.currentTime - startedAt, 0, buffer.duration)
         : offset;
 
-    const stop = () => {
+    const releaseContext = (reason: PlayerReason) => {
+      const oldContext = context;
+      const oldGain = gain;
+      context = undefined;
+      gain = undefined;
+      if (gainRef.current === oldGain) gainRef.current = null;
+      oldGain?.disconnect();
+      if (!oldContext) return;
+      // close вызывается немедленно, даже если resume ещё не разрешился.
+      // Барьер не включает resume: иначе зависшее возобновление удержит pipeline.
+      const closing = oldContext.close();
+      contextRelease = Promise.all([contextRelease, closing]).then(() => {
+        log('contextClosed', reason, oldContext);
+        return;
+      });
+      void contextRelease.catch(() => {
+        log('failure', 'context', oldContext);
+      });
+    };
+
+    const stop = (reason: PlayerReason) => {
+      ++request;
+      if (endTimer !== undefined) clearTimeout(endTimer);
+      endTimer = undefined;
       pendingPlay = false;
       offset = position();
       if (frame !== undefined) cancelAnimationFrame(frame);
       frame = undefined;
-      if (source) {
-        source.stop();
-        source.disconnect();
-        source = undefined;
+      if (gain && context) gain.gain.setValueAtTime(0, context.currentTime);
+      const oldSource = source;
+      source = undefined;
+      if (oldSource) {
+        oldSource.stop();
+        oldSource.disconnect();
+      }
+      log('stop', reason);
+      releaseContext(reason);
+    };
+
+    const pause = (reason: PlayerReason) => {
+      wantsPlay = false;
+      stop(reason);
+      if (!cancelled) {
+        setCurrentTime(offset);
+        setIsPlaying(false);
       }
     };
 
+    const hidden = () => {
+      log('hide', 'hidden');
+      pause('hidden');
+    };
+    const visibilityChanged = () => {
+      if (document.hidden) hidden();
+    };
+
     const updatePosition = () => {
-      if (!isActive() || !source) return;
+      if (cancelled || !source) return;
       if (!seeking) setCurrentTime(position());
       frame = requestAnimationFrame(updatePosition);
     };
 
     const play = async () => {
-      const currentRequest = ++request;
-      const playbackContext = context;
-      const playbackGain = gain;
-      const playbackBuffer = buffer;
-      if (!playbackContext || !playbackGain || !playbackBuffer || source) return;
+      const token = ++request;
       pendingPlay = true;
-      setIsPlaying(true);
       try {
-        await playbackContext.resume();
-      } catch {
-        // После отказа autoplay пользователь может повторить запуск вручную.
-        if (isActive() && currentRequest === request) {
-          pendingPlay = false;
-          wantsPlay = false;
-          setIsPlaying(false);
+        // Подписка готова до первой проверки видимости и до любой загрузки.
+        await listening;
+        if (!isCurrent(token)) return;
+        if (token === 1) {
+          setCurrentTime(0);
+          setDuration(fallbackDuration);
+          setHasError(false);
         }
-        return;
-      }
-      if (!isActive() || currentRequest !== request || !wantsPlay) return;
-      pendingPlay = false;
-      if (playbackContext.state !== 'running') {
-        wantsPlay = false;
-        setIsPlaying(false);
-        return;
-      }
-
-      if (offset >= playbackBuffer.duration) offset = 0;
-      const nextSource = playbackContext.createBufferSource();
-      nextSource.buffer = playbackBuffer;
-      nextSource.connect(playbackGain);
-      nextSource.addEventListener(
-        'ended',
-        () => {
-          if (!isActive() || source !== nextSource) return;
-          nextSource.disconnect();
-          source = undefined;
-          wantsPlay = false;
-          offset = playbackBuffer.duration;
-          if (frame !== undefined) cancelAnimationFrame(frame);
-          frame = undefined;
+        setIsPlaying(true);
+        if (!(await appWindow.isVisible())) {
+          if (isCurrent(token)) hidden();
+          return;
+        }
+        if (!isCurrent(token)) return;
+        let audioBytes: ArrayBuffer | undefined;
+        if (!buffer) {
+          bytes ??= getHistoryAudioData(record.id);
+          audioBytes = await bytes;
+          if (!isCurrent(token)) return;
+        }
+        await contextRelease;
+        if (!isCurrent(token)) return;
+        const playbackContext = new AudioContext({ latencyHint: 'interactive' });
+        context = playbackContext;
+        log('contextCreated', 'play');
+        playbackContext.addEventListener('statechange', () => {
+          log('contextState', 'context', playbackContext);
+        });
+        if (!buffer) {
+          log('load', 'load');
+          // decodeAudioData забирает ArrayBuffer; для отменённой загрузки сохраняем оригинал.
+          if (!audioBytes) throw new Error('Audio data unavailable');
+          // ArrayBuffer не итерируемый: slice копирует байты без передачи оригинала декодеру.
+          // eslint-disable-next-line unicorn/prefer-spread
+          const decoded = await playbackContext.decodeAudioData(audioBytes.slice(0));
+          if (!isCurrent(token)) return;
+          if (!Number.isFinite(decoded.duration) || decoded.duration <= 0) {
+            throw new Error('Invalid audio duration');
+          }
+          buffer = decoded;
+          offset = clamp(offset, 0, decoded.duration);
+          setDuration(decoded.duration);
           setCurrentTime(offset);
-          setIsPlaying(false);
-        },
-        { once: true },
-      );
-      try {
+        }
+        const playbackBuffer = buffer;
+        await playbackContext.resume();
+        if (!isCurrent(token)) return;
+        const visible = await appWindow.isVisible();
+        if (!isCurrent(token)) return;
+        if (!visible) {
+          hidden();
+          return;
+        }
+        if (playbackContext.state !== 'running') throw new Error('Audio context is not running');
+        const playbackGain = playbackContext.createGain();
+        playbackGain.gain.value = clamp(usePlayerStore.getState().volume, 0, MAX_VOLUME);
+        playbackGain.connect(playbackContext.destination);
+        gain = playbackGain;
+        gainRef.current = playbackGain;
+        if (offset >= playbackBuffer.duration) offset = 0;
+        const nextSource = playbackContext.createBufferSource();
+        nextSource.buffer = playbackBuffer;
+        nextSource.connect(playbackGain);
+        nextSource.addEventListener(
+          'ended',
+          () => {
+            if (cancelled || source !== nextSource) return;
+            nextSource.disconnect();
+            source = undefined;
+            wantsPlay = false;
+            offset = playbackBuffer.duration;
+            if (frame !== undefined) cancelAnimationFrame(frame);
+            frame = undefined;
+            setCurrentTime(offset);
+            setIsPlaying(false);
+            log('end', 'ended');
+            // ended приходит после рендеринга, до выхода последних сэмплов.
+            // Только естественному концу даём ограниченное время на drain.
+            const outputLatency = playbackContext.outputLatency || 0;
+            const drainMs = clamp(
+              (playbackContext.baseLatency + outputLatency) * 1000 + 250,
+              250,
+              2000,
+            );
+            endTimer = setTimeout(() => {
+              endTimer = undefined;
+              releaseContext('ended');
+            }, drainMs);
+          },
+          { once: true },
+        );
         startedAt = playbackContext.currentTime;
         nextSource.start(0, offset);
         source = nextSource;
-        setIsPlaying(true);
+        pendingPlay = false;
+        log('start', 'play');
         if (!seeking) setCurrentTime(offset);
         updatePosition();
       } catch {
-        nextSource.disconnect();
-        if (isActive()) {
-          wantsPlay = false;
-          setIsPlaying(false);
-          setHasError(true);
-        }
+        if (!isCurrent(token)) return;
+        log('failure', buffer ? 'context' : 'load');
+        pause(buffer ? 'context' : 'load');
+        if (!buffer) setHasError(true);
       }
     };
 
     const controls: PlaybackControls = {
       togglePlay: () => {
+        log('control', source || pendingPlay ? 'pause' : 'play');
         if (source || pendingPlay) {
-          wantsPlay = false;
-          ++request;
-          stop();
-          setCurrentTime(offset);
-          setIsPlaying(false);
+          pause('pause');
         } else {
+          // Повторный запуск до конца drain сначала закрывает прежний pipeline.
+          stop('play');
           wantsPlay = true;
           void play();
         }
       },
       seek: (time) => {
+        log('control', 'seek');
         seeking = true;
-        ++request;
-        stop();
+        stop('seek');
         setIsPlaying(false);
         offset = clamp(time, 0, buffer?.duration ?? fallbackDuration);
         setCurrentTime(offset);
-        if (buffer && offset >= buffer.duration) {
-          wantsPlay = false;
-          setIsPlaying(false);
-        } else if (wantsPlay) {
-          void play();
-        }
+        if (buffer && offset >= buffer.duration) wantsPlay = false;
+        if (wantsPlay) void play();
       },
       finishSeek: () => {
         seeking = false;
@@ -195,47 +319,22 @@ export const useAudioPlayer = (record: HistoryRecord): UseAudioPlayerResult => {
       },
     };
     controlsRef.current = controls;
-
-    const load = async () => {
-      try {
-        context = getAudioContext();
-        gain = context.createGain();
-        gain.gain.value = clamp(usePlayerStore.getState().volume, 0, MAX_VOLUME);
-        gain.connect(context.destination);
-        gainRef.current = gain;
-        const bytes = await getHistoryAudioData(record.id);
-        if (!isActive()) return;
-        setCurrentTime(0);
-        setDuration(fallbackDuration);
-        setIsPlaying(false);
-        setHasError(false);
-        const decoded = await context.decodeAudioData(bytes);
-        if (!isActive()) return;
-        if (!Number.isFinite(decoded.duration) || decoded.duration <= 0) {
-          throw new Error('Invalid audio duration');
-        }
-        buffer = decoded;
-        offset = clamp(offset, 0, decoded.duration);
-        setDuration(decoded.duration);
-        setCurrentTime(offset);
-        if (wantsPlay) await play();
-      } catch {
-        if (isActive()) {
-          wantsPlay = false;
-          stop();
-          setIsPlaying(false);
-          setHasError(true);
-        }
-      }
-    };
-    void load();
+    document.addEventListener('visibilitychange', visibilityChanged);
+    const listening = appWindow.listen('main-window-hidden', hidden).then((remove) => {
+      if (cancelled) remove();
+      else unlisten = remove;
+      return;
+    });
+    wantsPlay = true;
+    void play();
 
     return () => {
+      log('cleanup', 'cleanup');
       cancelled = true;
-      ++request;
-      stop();
-      gain?.disconnect();
-      if (gainRef.current === gain) gainRef.current = null;
+      wantsPlay = false;
+      stop('cleanup');
+      unlisten?.();
+      document.removeEventListener('visibilitychange', visibilityChanged);
       if (controlsRef.current === controls) controlsRef.current = null;
     };
   }, [record.id, fallbackDuration]);

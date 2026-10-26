@@ -7,6 +7,31 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-alpha.7] - 2026-10-26
+
+### Fixed
+
+- Linux release builds now isolate CI tooling from the application checkout, preserving complete application sources and lockfiles when both use the same commit.
+
+## [0.3.0-alpha.6] - 2026-10-26
+
+### Changed
+
+- Release checks and installer builds now share one runner per operating system, avoiding repeated environment setup while preserving all checks and installer formats.
+- Linux CI downloads development packages from the official Ubuntu mirrors with bounded download times and a fallback to the runner's original mirrors.
+- Release builds now share a Rust dependency cache with CI on the default branch, which prepares both debug and release dependencies for subsequent releases.
+
+## [0.3.0-alpha.5] - 2026-10-25
+
+### Fixed
+
+- The history audio player now releases its audio output when paused, finished, closed, or replaced. Resuming creates a fresh output from the saved position, preventing an idle playback pipeline from remaining active between listens.
+- Hiding the main window in the tray stops history playback. Showing the window does not resume it, and rapid play/pause actions cancel pending starts.
+
+### Added
+
+- Local audio-player lifecycle diagnostics record playback commands and audio-context states to help investigate delayed or unexpected sound. These events exclude audio, transcripts, file paths, and history record identifiers and use the existing bounded log retention.
+
 ## [0.3.0-alpha.4] - 2026-10-22
 
 ### Changed
