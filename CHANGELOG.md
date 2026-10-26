@@ -7,6 +7,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-alpha.7] - 2026-10-26
+
+### Fixed
+
+- Linux release builds now isolate CI tooling from the application checkout, preserving complete application sources and lockfiles when both use the same commit.
+
 ## [0.3.0-alpha.6] - 2026-10-26
 
 ### Changed

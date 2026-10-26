@@ -43,6 +43,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.workflow_sha }}
+          path: .transcriber-ci-tooling
           sparse-checkout: scripts/install-linux-ci-deps.sh
           sparse-checkout-cone-mode: false
           persist-credentials: false
@@ -50,7 +51,7 @@ jobs:
       - name: Stage Linux CI tooling outside the application
         if: runner.os == 'Linux'
         shell: bash
-        run: cp scripts/install-linux-ci-deps.sh "$RUNNER_TEMP/transcriber-install-linux-ci-deps.sh"
+        run: cp .transcriber-ci-tooling/scripts/install-linux-ci-deps.sh "$RUNNER_TEMP/transcriber-install-linux-ci-deps.sh"
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -58,6 +59,17 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
           clean: true
           sparse-checkout: ''
+
+      - name: Verify complete application checkout
+        shell: bash
+        run: |
+          test -f package-lock.json
+          test -f src-tauri/Cargo.lock
+          test ! -f .git/info/sparse-checkout
+          if [ "$(git config --bool --get core.sparseCheckout || true)" = true ]; then
+            echo 'Application checkout must not use sparse checkout' >&2
+            exit 1
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
