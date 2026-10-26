@@ -1,15 +1,15 @@
 {
-  "version": "0.3.0-alpha.5",
-  "notes": "### Fixed\r\n\r\n- The history audio player now releases its audio output when paused, finished, closed, or replaced. Resuming creates a fresh output from the saved position, preventing an idle playback pipeline from remaining active between listens.\r\n- Hiding the main window in the tray stops history playback. Showing the window does not resume it, and rapid play/pause actions cancel pending starts.\r\n\r\n### Added\r\n\r\n- Local audio-player lifecycle diagnostics record playback commands and audio-context states to help investigate delayed or unexpected sound. These events exclude audio, transcripts, file paths, and history record identifiers and use the existing bounded log retention.",
-  "pub_date": "2026-10-25T16:33:19.954Z",
+  "version": "0.3.0-alpha.7",
+  "notes": "### Fixed\r\n\r\n- Linux release builds now isolate CI tooling from the application checkout, preserving complete application sources and lockfiles when both use the same commit.",
+  "pub_date": "2026-10-26T04:31:32.577Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MnRHVVBWTzBoWWlNT0t6Y05Td1BoRHNGb09RRVE3K0ZwNFZqaC9VUWo1VkZ3QUFaWW9XUnpud3Uzekh0Qlk0VmlWdWxzZ1FGMXZtN2NBNVIrTXdIdWdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTQ1OTk3CWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuNV94NjQtc2V0dXAuZXhlCmp2V3VXalllTjZPZ2JaeFdNMGNwSXdDck1XanpQZm02OC90bmtUQzVteCswLzY3dEN1aUsyZWl2c1dhQjUrQzJlR0l1aklIelRnR3lacXl5TEg1bkFBPT0K",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.5/Transcriber_0.3.0-alpha.5_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmdPcUxvV05LblVVTXpOUWt0T1lKWCtsaDMxcitleHdZVGV6QS92cFl3amp1NzVVdk5wREZQK01KK0RuVTRJWnBlWjFMZGNpclVtdnVWQmR0Y0RaaXcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTg5MDg5CWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuN194NjQtc2V0dXAuZXhlCnEzZ1JlSFhLU3M4SWNvTFhzZmp6OEpTRUZBVVFkTnU5Ymk5b1pQSE56cGIzcFBNU1NBSXJKVDd3VDh0dlVLSTh6WEZrRHNzWXh1YUJkeTMzWjUxTkRBPT0K",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.7/Transcriber_0.3.0-alpha.7_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MnRHVVBWTzBoWWlNT0t6Y05Td1BoRHNGb09RRVE3K0ZwNFZqaC9VUWo1VkZ3QUFaWW9XUnpud3Uzekh0Qlk0VmlWdWxzZ1FGMXZtN2NBNVIrTXdIdWdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTQ1OTk3CWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuNV94NjQtc2V0dXAuZXhlCmp2V3VXalllTjZPZ2JaeFdNMGNwSXdDck1XanpQZm02OC90bmtUQzVteCswLzY3dEN1aUsyZWl2c1dhQjUrQzJlR0l1aklIelRnR3lacXl5TEg1bkFBPT0K",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.5/Transcriber_0.3.0-alpha.5_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmdPcUxvV05LblVVTXpOUWt0T1lKWCtsaDMxcitleHdZVGV6QS92cFl3amp1NzVVdk5wREZQK01KK0RuVTRJWnBlWjFMZGNpclVtdnVWQmR0Y0RaaXcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTg5MDg5CWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuN194NjQtc2V0dXAuZXhlCnEzZ1JlSFhLU3M4SWNvTFhzZmp6OEpTRUZBVVFkTnU5Ymk5b1pQSE56cGIzcFBNU1NBSXJKVDd3VDh0dlVLSTh6WEZrRHNzWXh1YUJkeTMzWjUxTkRBPT0K",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.7/Transcriber_0.3.0-alpha.7_x64-setup.exe"
     }
   }
 }
