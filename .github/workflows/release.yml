@@ -105,7 +105,7 @@ jobs:
     needs: [metadata, prepare-release]
     permissions:
       contents: write
-    uses: ./.github/workflows/check-build.yml
+    uses: ./.github/workflows/release-build.yml
     with:
       ref: refs/tags/${{ needs.metadata.outputs.tag }}
       release-tag: ${{ needs.metadata.outputs.tag }}

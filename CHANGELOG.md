@@ -7,6 +7,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-alpha.9] - 2026-10-27
+
+### Fixed
+
+- Windows release checks no longer fail on an unused tray-menu import.
+
+### Changed
+
+- GitHub Actions now runs checks only as part of a release. The separate Check workflow and its cache-warming build have been removed.
+
 ## [0.3.0-alpha.8] - 2026-10-27
 
 ### Added

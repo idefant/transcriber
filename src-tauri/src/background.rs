@@ -5,7 +5,7 @@ use std::sync::{
 
 #[cfg(not(target_os = "linux"))]
 use tauri::{
-    menu::{MenuBuilder, MenuItem, MenuItemBuilder},
+    menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 use tauri::{Emitter, Manager, WebviewWindow, WindowEvent};
