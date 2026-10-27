@@ -42,6 +42,11 @@ mod virtual_keyboard_linux;
 use tauri::Manager;
 
 pub fn run() {
+    // Стартовый GTK-хук AppImage принудительно задаёт x11. Восстанавливаем Wayland
+    // до инициализации GTK и запуска потоков: оверлеям необходим layer-shell.
+    #[cfg(target_os = "linux")]
+    std::env::set_var("GDK_BACKEND", "wayland");
+
     #[cfg(target_os = "linux")]
     if keyboard_linux::run_clipboard_owner() {
         return;

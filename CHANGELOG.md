@@ -7,6 +7,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-alpha.10] - 2026-10-27
+
+### Fixed
+
+- Linux AppImage now restores the Wayland backend before GTK initializes, preventing its bundled startup hook from forcing X11 and aborting startup when the recording overlay requires layer-shell.
+
 ## [0.3.0-alpha.9] - 2026-10-27
 
 ### Fixed

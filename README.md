@@ -71,4 +71,4 @@ cd /tmp/transcriber-package
 makepkg -s
 ```
 
-The package is installed with `pacman -U` and updated through the package manager. The local source archive is intentionally not downloaded by PKGBUILD. Review the generated package before installing it. AppImage updates are manual; Windows keeps its existing automatic updater.
+The package is installed with `pacman -U` and updated through the package manager. The local source archive is intentionally not downloaded by PKGBUILD. Review the generated package before installing it. AppImage installations support checking for and installing signed updates from the About settings page, followed by an automatic restart. Windows keeps its existing automatic updater.
