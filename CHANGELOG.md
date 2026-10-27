@@ -7,6 +7,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-alpha.11] - 2026-10-27
+
+### Changed
+
+- This prerelease provides a newer signed build for validating in-app AppImage updates from 0.3.0-alpha.10, including download progress and automatic restart.
+
 ## [0.3.0-alpha.10] - 2026-10-27
 
 ### Fixed
