@@ -1,23 +1,23 @@
 {
-  "version": "0.3.0-alpha.9",
-  "notes": "### Fixed\r\n\r\n- Windows release checks no longer fail on an unused tray-menu import.\r\n\r\n### Changed\r\n\r\n- GitHub Actions now runs checks only as part of a release. The separate Check workflow and its cache-warming build have been removed.",
-  "pub_date": "2026-10-27T17:23:52.248Z",
+  "version": "0.3.0-alpha.10",
+  "notes": "### Fixed\r\n\r\n- Linux AppImage now restores the Wayland backend before GTK initializes, preventing its bundled startup hook from forcing X11 and aborting startup when the recording overlay requires layer-shell.",
+  "pub_date": "2026-10-27T18:02:37.110Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6Mm9pQkZDS1NvTmlEbEJBZ0FrQ2JlNmNQU2hFZ2o4Vzc1OVdJaEpnTXBVbzB5UWpjNFVnS1hrTk9hbTJXVXV4OXJxSUVmZXlLRllFYm5yZjA2UDl3M3dFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTIxODI5CWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuOV94NjQtc2V0dXAuZXhlCjRFNWNMakR0cllkMnFzZ3pxYjcwQ2JnUFFjTGdhdVJqMFc2UVRKT3p6TkNxb3FXeklXd2hQSjk3eFVla0pMemJPOHhoYURLWjNreGptTVY2am8zMkF3PT0K",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.9/Transcriber_0.3.0-alpha.9_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MnFTbGg5Rk5ldmVHUkFua05CN2Y3M2U5WUpTNUhTb1oxcnBERlNoY2JPdE9lYm9pektrRUhLYS90d1FPQXoxSmdhVDBuWlpSRVhVYWh1N2NVV05raEEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTI0MTU0CWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuMTBfeDY0LXNldHVwLmV4ZQpDT3dyTmZWL05rdkF2SStSVTJmbGdoVDJaQVN2Y2hxWkN2MHVsNEhZQ0RlaFJzcFQ4NWFrN3hiYjMydGQ5aVJIVVplWkw3QVU3MDl6dzAzcGlaWUhCdz09Cg==",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.10/Transcriber_0.3.0-alpha.10_x64-setup.exe"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6Mm9pQkZDS1NvTmlEbEJBZ0FrQ2JlNmNQU2hFZ2o4Vzc1OVdJaEpnTXBVbzB5UWpjNFVnS1hrTk9hbTJXVXV4OXJxSUVmZXlLRllFYm5yZjA2UDl3M3dFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTIxODI5CWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuOV94NjQtc2V0dXAuZXhlCjRFNWNMakR0cllkMnFzZ3pxYjcwQ2JnUFFjTGdhdVJqMFc2UVRKT3p6TkNxb3FXeklXd2hQSjk3eFVla0pMemJPOHhoYURLWjNreGptTVY2am8zMkF3PT0K",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.9/Transcriber_0.3.0-alpha.9_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MnFTbGg5Rk5ldmVHUkFua05CN2Y3M2U5WUpTNUhTb1oxcnBERlNoY2JPdE9lYm9pektrRUhLYS90d1FPQXoxSmdhVDBuWlpSRVhVYWh1N2NVV05raEEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTI0MTU0CWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuMTBfeDY0LXNldHVwLmV4ZQpDT3dyTmZWL05rdkF2SStSVTJmbGdoVDJaQVN2Y2hxWkN2MHVsNEhZQ0RlaFJzcFQ4NWFrN3hiYjMydGQ5aVJIVVplWkw3QVU3MDl6dzAzcGlaWUhCdz09Cg==",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.10/Transcriber_0.3.0-alpha.10_x64-setup.exe"
     },
     "linux-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MnV1VDZSY2pHYXFOMzd4OEJ0cXNDWENlcTdZNGgzOU95MWptL043MjV2VFY4N2hWZCtYdWNQNk1XQTVsV2FSNUpVbWZqdnhmVk9maDc4RDN5NG56bGdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTIyMjMyCWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuOV9hbWQ2NC5BcHBJbWFnZQpocWMwTzBTb3czUlBra0VEYWkzWGFDYmpDR3FjOEFEWFlDTVlwbjZwNDAvTWZnNUl5ektBTStMRHYvazIzOC95bkpPNWhOaXgzcVhEaFMrOWFJM3lDQT09Cg==",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.9/Transcriber_0.3.0-alpha.9_amd64.AppImage"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmhDMlV3NXdXVE9sSXZFZFIzZFpTcENxbnFZcWloSmZhRGhTUkNVY2hxREd0b0pJVDlBNGRZQ0FsangwSHhCckVFZWNPQnpNandmU24rYTFPVDNZMEFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTI0NjQyCWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuMTBfYW1kNjQuQXBwSW1hZ2UKUTNLc1puVFdVK0JiTGdybVpyZ2ErcFkzK2FSa2JNdjZQcERLZGE5ZyttN3JuOXBON2tkdTdGbWovMU82RTl6WUh5RFdNUjZlVkt1UTFyeXFKbzdLQlE9PQo=",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.10/Transcriber_0.3.0-alpha.10_amd64.AppImage"
     },
     "linux-x86_64-appimage": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MnV1VDZSY2pHYXFOMzd4OEJ0cXNDWENlcTdZNGgzOU95MWptL043MjV2VFY4N2hWZCtYdWNQNk1XQTVsV2FSNUpVbWZqdnhmVk9maDc4RDN5NG56bGdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTIyMjMyCWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuOV9hbWQ2NC5BcHBJbWFnZQpocWMwTzBTb3czUlBra0VEYWkzWGFDYmpDR3FjOEFEWFlDTVlwbjZwNDAvTWZnNUl5ektBTStMRHYvazIzOC95bkpPNWhOaXgzcVhEaFMrOWFJM3lDQT09Cg==",
-      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.9/Transcriber_0.3.0-alpha.9_amd64.AppImage"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVFZWY0pSOFV6MmhDMlV3NXdXVE9sSXZFZFIzZFpTcENxbnFZcWloSmZhRGhTUkNVY2hxREd0b0pJVDlBNGRZQ0FsangwSHhCckVFZWNPQnpNandmU24rYTFPVDNZMEFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTI0NjQyCWZpbGU6VHJhbnNjcmliZXJfMC4zLjAtYWxwaGEuMTBfYW1kNjQuQXBwSW1hZ2UKUTNLc1puVFdVK0JiTGdybVpyZ2ErcFkzK2FSa2JNdjZQcERLZGE5ZyttN3JuOXBON2tkdTdGbWovMU82RTl6WUh5RFdNUjZlVkt1UTFyeXFKbzdLQlE9PQo=",
+      "url": "https://github.com/idefant/transcriber/releases/download/v0.3.0-alpha.10/Transcriber_0.3.0-alpha.10_amd64.AppImage"
     }
   }
 }
