@@ -143,6 +143,9 @@ jobs:
           gh release download "${{ needs.metadata.outputs.tag }}" \
             --pattern "latest.json" \
             --dir /tmp/updater-manifest
+          gh release download "${{ needs.metadata.outputs.tag }}" \
+            --pattern "*.AppImage.sig" \
+            --dir /tmp/updater-manifest
 
       - name: Verify update manifest and publish release
         env:
@@ -150,18 +153,33 @@ jobs:
           RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
         run: |
+          gh release view "$RELEASE_TAG" --json assets > "$RUNNER_TEMP/release-assets.json"
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const path = '/tmp/updater-manifest/latest.json';
+          const manifest = JSON.parse(readFileSync(path, 'utf8'));
+          const { assets } = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/release-assets.json`, 'utf8'));
+          const appImages = assets.filter(({ name, size }) => name.includes(process.env.RELEASE_VERSION) && name.endsWith('.AppImage') && size > 0);
+          if (appImages.length !== 1) throw new Error('Expected one x86_64 AppImage');
+          const appImage = appImages[0];
+          const signature = readFileSync(`/tmp/updater-manifest/${appImage.name}.sig`, 'utf8').trim();
+          if (!signature) throw new Error('Missing AppImage signature');
+          const artifact = { signature, url: appImage.url };
+          manifest.platforms['linux-x86_64'] = artifact;
+          manifest.platforms['linux-x86_64-appimage'] = artifact;
+          writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+          JS
           node --input-type=module <<'JS'
           import { readFileSync } from 'node:fs';
           const manifest = JSON.parse(readFileSync('/tmp/updater-manifest/latest.json', 'utf8'));
           if (manifest.version !== process.env.RELEASE_VERSION) throw new Error('Updater version mismatch');
-          for (const platform of ['windows-x86_64']) {
+          for (const platform of ['windows-x86_64', 'linux-x86_64']) {
             const artifact = manifest.platforms?.[platform];
             if (!artifact?.signature?.trim() || !artifact?.url?.includes(`/download/${process.env.RELEASE_TAG}/`)) {
               throw new Error(`Missing or invalid updater artifact for ${platform}`);
             }
           }
           JS
-          gh release view "$RELEASE_TAG" --json assets > "$RUNNER_TEMP/release-assets.json"
           node --input-type=module <<'JS'
           import { readFileSync } from 'node:fs';
           const { assets } = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/release-assets.json`, 'utf8'));
@@ -171,6 +189,7 @@ jobs:
             }
           }
           JS
+          gh release upload "$RELEASE_TAG" /tmp/updater-manifest/latest.json --clobber
           gh release edit "$RELEASE_TAG" --draft=false
 
       - name: Publish channel manifests to GitHub Pages

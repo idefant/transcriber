@@ -14,3 +14,6 @@ export const checkForUpdate = (offerUnstable: boolean) =>
   invoke<UpdateInfo | null>('check_for_update', { offerUnstable });
 
 export const downloadAndInstallUpdate = () => invoke<undefined>('download_and_install_update');
+
+/** В Linux возвращает true только для установки в формате AppImage. */
+export const isAppUpdateSupported = () => invoke<boolean>('is_app_update_supported');

@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import ResetAppDataButton from '#/app/ResetAppDataButton';
 import * as settingsApi from '#/shared/settingsApi';
-import { isLinux } from '#/shared/utils';
+import { isAppUpdateSupported } from '#/shared/updaterApi';
 
 import SettingRow from '../SettingRow';
 import SettingsSection from '../SettingsSection';
@@ -33,16 +33,22 @@ const AboutSettingsTab: FC = () => {
   const isInstalling = useUpdaterStore((s) => s.isInstalling);
   const lastCheckedAt = useUpdaterStore((s) => s.lastCheckedAt);
   const [version, setVersion] = useState('');
+  const [isUpdateSupported, setIsUpdateSupported] = useState<boolean | null>(null);
 
   useEffect(() => {
     void getVersion().then(setVersion);
   }, []);
 
   useEffect(() => {
-    if (isLinux) return;
-    void checkForUpdates(settings.isOfferUnstableVersionsEnabled).catch((error: unknown) => {
-      void messageApi.error(getErrorMessage(error));
-    });
+    void (async () => {
+      try {
+        const supported = await isAppUpdateSupported();
+        setIsUpdateSupported(supported);
+        if (supported) await checkForUpdates(settings.isOfferUnstableVersionsEnabled);
+      } catch (error) {
+        void messageApi.error(getErrorMessage(error));
+      }
+    })();
   }, [checkForUpdates, messageApi, settings.isOfferUnstableVersionsEnabled]);
 
   const handleCheckForUpdates = async () => {
@@ -109,9 +115,9 @@ const AboutSettingsTab: FC = () => {
             </div>
           </SettingRow>
 
-          {isLinux ? (
+          {isUpdateSupported === false ? (
             <p>{t('settings.about.linuxUpdates')}</p>
-          ) : (
+          ) : isUpdateSupported === true ? (
             <>
               <SettingRow
                 description={t('settings.about.updateNotifications.description')}
@@ -176,7 +182,7 @@ const AboutSettingsTab: FC = () => {
                 )}
               </div>
             </>
-          )}
+          ) : null}
         </SettingsSection>
 
         <SettingsSection title={t('settings.about.sections.diagnostics')}>

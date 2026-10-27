@@ -9,6 +9,22 @@ use crate::error::AppError;
 const STABLE_ENDPOINT: &str = "https://idefant.github.io/transcriber/stable.json";
 const UNSTABLE_ENDPOINT: &str = "https://idefant.github.io/transcriber/unstable.json";
 
+/// В Linux встроенная установка поддерживается только для запущенного AppImage.
+#[tauri::command]
+pub fn is_app_update_supported() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        matches!(
+            tauri::utils::platform::bundle_type(),
+            Some(tauri::utils::config::BundleType::AppImage)
+        ) && std::env::var_os("APPIMAGE").is_some()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        true
+    }
+}
+
 /// Отложенное обновление, которое было обнаружено, но ещё не установлено.
 /// Хранится в managed state, чтобы `download_and_install_update` могла
 /// получить и использовать его.
@@ -48,6 +64,9 @@ pub async fn check_for_update(
     app: tauri::AppHandle,
     offer_unstable: bool,
 ) -> Result<Option<UpdateInfo>, String> {
+    if !is_app_update_supported() {
+        return Ok(None);
+    }
     let endpoint = if offer_unstable {
         UNSTABLE_ENDPOINT
     } else {
@@ -90,6 +109,9 @@ pub async fn check_for_update(
 /// `Some(...)`. Во время загрузки отправляет события `updater://progress`.
 #[tauri::command]
 pub async fn download_and_install_update(app: tauri::AppHandle) -> Result<(), String> {
+    if !is_app_update_supported() {
+        return Err("In-app updates require an AppImage on Linux.".to_string());
+    }
     let update = app
         .state::<PendingUpdate>()
         .0

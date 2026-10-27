@@ -71,6 +71,7 @@ windows-sys = { version = "0.61", features = [
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+ksni = "0.3.7"
 gtk = "0.18"
 gtk-layer-shell = { version = "0.8", features = ["v0_6"] }
 libc = "0.2"

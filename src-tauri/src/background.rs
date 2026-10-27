@@ -3,34 +3,45 @@ use std::sync::{
     Mutex,
 };
 
+#[cfg(not(target_os = "linux"))]
 use tauri::{
     menu::{MenuBuilder, MenuItem, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, WebviewWindow, WindowEvent, Wry,
 };
+use tauri::{Emitter, Manager, WebviewWindow, WindowEvent};
 
+#[cfg(not(target_os = "linux"))]
+use crate::dictation;
 use crate::{
     autostart::HIDDEN_START_ARG,
-    dictation,
     error::{AppError, AppResult},
     history, i18n, shortcut_hook,
 };
 
 const MAIN_WINDOW_LABEL: &str = "main";
+#[cfg(not(target_os = "linux"))]
 const MENU_OPEN_ID: &str = "open";
+#[cfg(not(target_os = "linux"))]
 const MENU_COPY_LATEST_ID: &str = "copy_latest";
+#[cfg(not(target_os = "linux"))]
 const MENU_EXIT_ID: &str = "exit";
 
 #[derive(Default)]
 pub struct BackgroundRuntime {
-    copy_latest_item: Mutex<Option<MenuItem<Wry>>>,
-    is_exiting: AtomicBool,
+    #[cfg(not(target_os = "linux"))]
+    copy_latest_item: Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>,
+    #[cfg(target_os = "linux")]
+    pub(crate) tray: Mutex<Option<ksni::Handle<crate::linux_tray::LinuxTray>>>,
+    pub(crate) is_exiting: AtomicBool,
 }
 
 pub fn setup_background_mode(app: &tauri::AppHandle) -> AppResult<()> {
     setup_main_window_event_handlers(app)?;
     suppress_alt_menu_activation(app)?;
+    #[cfg(not(target_os = "linux"))]
     setup_tray(app)?;
+    #[cfg(target_os = "linux")]
+    crate::linux_tray::setup(app)?;
     apply_startup_window_visibility(app)?;
     sync_main_window_focus_state(app)?;
 
@@ -42,6 +53,10 @@ pub fn refresh_tray_history_state(app: &tauri::AppHandle) {
         .map(|text| !text.trim().is_empty())
         .unwrap_or(false);
 
+    #[cfg(target_os = "linux")]
+    crate::linux_tray::refresh_history(app, can_copy);
+
+    #[cfg(not(target_os = "linux"))]
     if let Some(item) = app
         .state::<BackgroundRuntime>()
         .copy_latest_item
@@ -147,6 +162,7 @@ fn suppress_alt_menu_activation(_app: &tauri::AppHandle) -> AppResult<()> {
     Ok(())
 }
 
+#[cfg(not(target_os = "linux"))]
 fn setup_tray(app: &tauri::AppHandle) -> AppResult<()> {
     let open_item =
         MenuItemBuilder::with_id(MENU_OPEN_ID, i18n::text(app, "tray-open")).build(app)?;
@@ -244,6 +260,7 @@ pub(crate) fn show_main_window(app: &tauri::AppHandle) -> AppResult<()> {
 /// Переключает главное окно при нажатии на tray-иконку. Скрывает только верхнее среди обычных окон
 /// на текущем виртуальном рабочем столе, иначе показывает его и передаёт фокус. Любая неудавшаяся
 /// проверка приводит к варианту «показать окно».
+#[cfg(not(target_os = "linux"))]
 fn toggle_main_window(app: &tauri::AppHandle) -> AppResult<()> {
     let window = main_window(app)?;
 
@@ -319,7 +336,7 @@ fn is_main_window_frontmost(window: &WebviewWindow) -> AppResult<bool> {
     Ok(true)
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn is_main_window_frontmost(_window: &WebviewWindow) -> AppResult<bool> {
     Ok(false)
 }
@@ -369,7 +386,7 @@ fn is_on_current_virtual_desktop(window: &WebviewWindow) -> AppResult<bool> {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn is_on_current_virtual_desktop(_window: &WebviewWindow) -> AppResult<bool> {
     Ok(true)
 }

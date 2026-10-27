@@ -17,7 +17,7 @@ import { router } from '#/app/router';
 import StartupGate from '#/app/StartupGate';
 import { routes } from '#/shared/routes';
 import { configureTelemetry } from '#/shared/telemetry';
-import { isLinux } from '#/shared/utils';
+import { isAppUpdateSupported } from '#/shared/updaterApi';
 
 import type { SettingsSectionKey } from '#/models/Settings';
 import {
@@ -151,7 +151,6 @@ const UpdateChecker: FC = () => {
   );
 
   useEffect(() => {
-    if (isLinux) return;
     if (!isSettingsLoaded || hasChecked.current) {
       return;
     }
@@ -164,6 +163,7 @@ const UpdateChecker: FC = () => {
 
     void (async () => {
       try {
+        if (!(await isAppUpdateSupported())) return;
         const info = await useUpdaterStore
           .getState()
           .checkForUpdates(isOfferUnstableVersionsEnabled);

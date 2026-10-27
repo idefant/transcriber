@@ -7,6 +7,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-alpha.8] - 2026-10-27
+
+### Added
+
+- Linux AppImage installations can now check for updates and install them from the About settings page, with download progress and an automatic restart. Update notifications and pre-release channel selection are also available for AppImage installations.
+- Linux releases now include signed AppImage updates in the update channel manifests.
+
+### Fixed
+
+- Left-clicking the Linux tray icon now opens the application. The right-click menu retains Open application, Copy latest transcription, and Exit.
+
 ## [0.3.0-alpha.7] - 2026-10-26
 
 ### Fixed

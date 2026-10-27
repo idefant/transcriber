@@ -18,6 +18,8 @@ mod keyboard_linux;
 mod linux_desktop;
 #[cfg(target_os = "linux")]
 mod linux_overlay;
+#[cfg(target_os = "linux")]
+mod linux_tray;
 mod maintenance;
 mod media_control;
 mod metrics;
@@ -157,6 +159,7 @@ pub fn run() {
             history::repeat_history_transcription,
             history::repeat_history_post_processing,
             updater::check_for_update,
+            updater::is_app_update_supported,
             updater::download_and_install_update,
             maintenance::get_startup_status,
             maintenance::reset_app_data,
