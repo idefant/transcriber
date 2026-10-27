@@ -164,7 +164,9 @@ jobs:
           const appImage = appImages[0];
           const signature = readFileSync(`/tmp/updater-manifest/${appImage.name}.sig`, 'utf8').trim();
           if (!signature) throw new Error('Missing AppImage signature');
-          const artifact = { signature, url: appImage.url };
+          // После публикации GitHub заменяет временный адрес черновика адресом с тегом.
+          const url = appImage.url.replace(/\/download\/untagged-[^/]+\//, `/download/${encodeURIComponent(process.env.RELEASE_TAG)}/`);
+          const artifact = { signature, url };
           manifest.platforms['linux-x86_64'] = artifact;
           manifest.platforms['linux-x86_64-appimage'] = artifact;
           writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
