@@ -7,6 +7,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-alpha.12] - 2026-10-28
+
+### Changed
+
+- Linux releases upload native debug information and source context to Sentry before removing debug information from the packaged executable, reducing AppImage, deb, and rpm sizes while preserving matching debug identifiers and stack unwinding information.
+
 ## [0.3.0-alpha.11] - 2026-10-27
 
 ### Changed

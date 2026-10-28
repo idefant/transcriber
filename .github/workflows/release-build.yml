@@ -129,6 +129,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
+          TRANSCRIBER_PREPARE_LINUX_RELEASE: ${{ runner.os == 'Linux' && '1' || '0' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -148,6 +149,16 @@ jobs:
           prerelease: ${{ inputs.prerelease }}
           includeUpdaterJson: ${{ runner.os == 'Windows' }}
           args: ${{ inputs.prerelease && '--config src-tauri/tauri.canary.conf.json' || '' }}
+
+      # Не сохраняем уменьшенный ELF в Rust-кеше: повторная сборка должна иметь символы.
+      - name: Restore Linux debug executable after packaging
+        if: always() && inputs.release-tag != '' && runner.os == 'Linux'
+        shell: bash
+        run: |
+          SYMBOLS="$RUNNER_TEMP/transcriber-symbols/transcriber"
+          if [ -f "$SYMBOLS" ]; then
+            cp "$SYMBOLS" src-tauri/target/release/transcriber
+          fi
 
       - name: Upload Rust debug files to Sentry
         if: inputs.release-tag != '' && runner.os == 'Windows'

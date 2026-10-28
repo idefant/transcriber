@@ -6,6 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
+    "beforeBundleCommand": "node scripts/prepare-linux-release.mjs",
     "devUrl": "http://localhost:5173",
     "frontendDist": "../dist"
   },
