@@ -1,4 +1,5 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { debounce } from 'lodash-es';
 import { create } from 'zustand';
 
 import type { UpdateInfo, UpdateProgress } from '#/shared/updaterApi';
@@ -59,13 +60,22 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     });
 
     let unlisten: UnlistenFn | undefined;
+    let isListening = true;
+    // Плотная очередь IPC не даёт React завершить отложенные эффекты между
+    // синхронными обновлениями Zustand. Публикуем последний прогресс в следующей задаче.
+    const publishProgress = debounce((progress: UpdateProgress) => {
+      set({ installProgress: progress });
+    }, 0);
 
     try {
       unlisten = await listen<UpdateProgress>('updater://progress', (event) => {
-        set({ installProgress: event.payload });
+        if (isListening) {
+          publishProgress(event.payload);
+        }
       });
 
       await updaterApi.downloadAndInstallUpdate();
+      publishProgress.flush();
     } catch (error) {
       set({
         installProgress: null,
@@ -74,6 +84,8 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
 
       throw error;
     } finally {
+      isListening = false;
+      publishProgress.cancel();
       unlisten?.();
     }
   },
